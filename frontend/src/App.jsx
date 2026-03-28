@@ -18,6 +18,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const botBufferRef = useRef('')
   const chatIdCounter = useRef(2)
+  const interruptedRef = useRef(false)  // discard stale TTS audio after barge-in
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
 
@@ -52,6 +53,8 @@ export default function App() {
   // WebSocket handler
   const onMessage = useCallback((msg, binary) => {
     if (binary) {
+      // Discard stale TTS audio from interrupted pipeline
+      if (interruptedRef.current) return
       playAudio(msg)
       return
     }
@@ -65,6 +68,7 @@ export default function App() {
         break
 
       case 'llm_start':
+        interruptedRef.current = false  // new response starting, accept audio
         setIsBotResponding(true)
         botBufferRef.current = ''
         addMsg('bot', '')
@@ -72,6 +76,7 @@ export default function App() {
         break
 
       case 'llm_delta': {
+        if (interruptedRef.current) break
         botBufferRef.current += msg.text
         let clean = botBufferRef.current.replace(/<think>[\s\S]*?<\/think>\s*/g, '')
         clean = clean.replace(/<think>[\s\S]*$/g, '')
@@ -82,17 +87,19 @@ export default function App() {
       case 'llm_done':
         setIsBotResponding(false)
         if (msg.interrupted) {
-          botBufferRef.current += ' …'
+          let final = botBufferRef.current.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/<think>[\s\S]*$/g, '')
+          if (final) updateLastBotMsg(final + ' …')
+        } else {
+          let final = botBufferRef.current.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/<think>[\s\S]*$/g, '')
+          updateLastBotMsg(final)
         }
-        let final = botBufferRef.current.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/<think>[\s\S]*$/g, '')
-        if (msg.interrupted) final += ' …'
-        updateLastBotMsg(final)
         botBufferRef.current = ''
-        setVoiceStatus(v => v.cls === 'thinking' ? { ...v, visible: false } : v)
         break
 
       case 'tts_start':
-        setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
+        if (!interruptedRef.current) {
+          setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
+        }
         break
 
       case 'tts_done':
@@ -121,16 +128,17 @@ export default function App() {
   const { ws, connected, reconnect } = useWebSocket(WS_URL, onMessage)
 
   // Voice mode — realistic conversation flow
-  // onSpeechDetected fires only when actual speech volume is detected (barge-in trigger)
   const onSpeechDetected = useCallback(() => {
-    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
     // Barge-in: interrupt bot if it's speaking or generating
     if (isPlaying || isBotResponding) {
+      interruptedRef.current = true  // discard any more audio from old pipeline
       stopPlayback()
+      setIsBotResponding(false)
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
     }
+    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
   }, [isPlaying, isBotResponding, stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
