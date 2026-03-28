@@ -138,9 +138,10 @@ async def voice_endpoint(ws: WebSocket):
         pipeline_task = None
 
     async def run_voice_pipeline(transcript: str):
-        """Stream LLM → TTS. Cancellation-safe."""
+        """Stream LLM → TTS. Cancellation-safe. Skips <think> blocks for TTS."""
         full_reply = ""
         tts_buffer = ""
+        in_think = False
         t0 = time.perf_counter()
 
         try:
@@ -150,22 +151,32 @@ async def voice_endpoint(ws: WebSocket):
                 model=config.VLLM_MODEL,
                 messages=conversation_history,
                 stream=True,
-                max_tokens=2048,
+                max_tokens=512,
             )
 
             async for chunk in stream:
                 delta = chunk.choices[0].delta.content
                 if delta:
                     full_reply += delta
-                    tts_buffer += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
-                    # Send TTS at sentence boundaries
-                    if any(tts_buffer.rstrip().endswith(p) for p in [".", "!", "?", "\n"]):
-                        await _send_tts(ws, tts_buffer.strip())
+                    # Track <think> blocks — don't TTS reasoning
+                    if "<think>" in delta:
+                        in_think = True
                         tts_buffer = ""
+                    if "</think>" in delta:
+                        in_think = False
+                        tts_buffer = ""
+                        continue
 
-            if tts_buffer.strip():
+                    if not in_think:
+                        tts_buffer += delta
+                        # Send TTS at sentence boundaries
+                        if any(tts_buffer.rstrip().endswith(p) for p in [".", "!", "?", "\n"]):
+                            await _send_tts(ws, tts_buffer.strip())
+                            tts_buffer = ""
+
+            if tts_buffer.strip() and not in_think:
                 await _send_tts(ws, tts_buffer.strip())
 
             await ws.send_json({"type": "llm_done"})
@@ -295,7 +306,7 @@ async def voice_endpoint(ws: WebSocket):
 
                 pipeline_task = asyncio.create_task(run_voice_pipeline(transcript))
 
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         await cancel_pipeline(notify=False)
         print("🔌 Client disconnected")
     except Exception as e:
@@ -309,8 +320,10 @@ async def _send_tts(ws: WebSocket, text: str):
     if not clean:
         return
     try:
+        t0 = time.perf_counter()
         loop = asyncio.get_event_loop()
         wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
+        print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars -> {len(wav_bytes)//1024}KB")
         await ws.send_json({"type": "tts_start"})
         await ws.send_bytes(wav_bytes)
     except Exception as e:
