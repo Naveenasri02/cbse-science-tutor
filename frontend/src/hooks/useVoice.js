@@ -1,31 +1,18 @@
 import { useRef, useCallback } from 'react'
+import { MicVAD } from '@ricky0123/vad-web'
+
+const CDN = 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/dist'
+const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/'
 
 export default function useVoice({ onSpeechStart, onSpeechEnd }) {
   const vadRef = useRef(null)
-  const audioCtxRef = useRef(null)
 
   const startVoice = useCallback(async () => {
     try {
-      // Request mic permission
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      })
-      stream.getTracks().forEach(t => t.stop())
-
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext({ sampleRate: 16000 })
-      }
-      if (audioCtxRef.current.state === 'suspended') {
-        await audioCtxRef.current.resume()
-      }
-
-      // Dynamic import VAD (loaded from CDN or public/)
-      if (!window.vad?.MicVAD) {
-        console.error('VAD library not loaded')
-        return false
-      }
-
-      vadRef.current = await window.vad.MicVAD.new({
+      vadRef.current = await MicVAD.new({
+        workletURL: `${CDN}/vad.worklet.bundle.min.js`,
+        modelURL: `${CDN}/silero_vad_legacy.onnx`,
+        onnxWASMBasePath: ORT_CDN,
         positiveSpeechThreshold: 0.7,
         negativeSpeechThreshold: 0.3,
         minSpeechFrames: 5,
