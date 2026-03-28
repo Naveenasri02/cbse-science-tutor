@@ -142,16 +142,24 @@ async def voice_endpoint(ws: WebSocket):
         full_reply = ""
         tts_buffer = ""
         in_think = False
+        first_tts_sent = False
         t0 = time.perf_counter()
+
+        # Voice-optimized messages: short answers, no thinking
+        voice_messages = [
+            {"role": "system", "content": config.VOICE_SYSTEM_PROMPT},
+            *conversation_history[1:],  # skip original system prompt
+        ]
 
         try:
             await ws.send_json({"type": "llm_start"})
 
             stream = await llm_client.chat.completions.create(
                 model=config.VLLM_MODEL,
-                messages=conversation_history,
+                messages=voice_messages,
                 stream=True,
-                max_tokens=512,
+                max_tokens=150,
+                temperature=0.3,
             )
 
             async for chunk in stream:
@@ -171,10 +179,17 @@ async def voice_endpoint(ws: WebSocket):
 
                     if not in_think:
                         tts_buffer += delta
-                        # Send TTS at sentence boundaries
-                        if any(tts_buffer.rstrip().endswith(p) for p in [".", "!", "?", "\n"]):
-                            await _send_tts(ws, tts_buffer.strip())
+                        stripped = tts_buffer.strip()
+                        # Send TTS early: first chunk at 30+ chars, then at sentence boundaries
+                        should_send = False
+                        if not first_tts_sent and len(stripped) >= 30 and any(stripped.endswith(p) for p in [".", "!", "?", ",", ":", ";"]):
+                            should_send = True
+                        elif first_tts_sent and any(stripped.endswith(p) for p in [".", "!", "?", "\n"]):
+                            should_send = True
+                        if should_send:
+                            await _send_tts(ws, stripped)
                             tts_buffer = ""
+                            first_tts_sent = True
 
             if tts_buffer.strip() and not in_think:
                 await _send_tts(ws, tts_buffer.strip())
@@ -264,17 +279,44 @@ async def voice_endpoint(ws: WebSocket):
 
                 continue
 
-            # ── Binary audio from browser VAD ──
+            # ── Binary audio from browser ──
             if "bytes" in message:
                 audio_bytes = message["bytes"]
                 await cancel_pipeline()
 
                 t0 = time.perf_counter()
-                audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
-                if len(audio_f32) < 1600:
-                    continue
 
-                wav_bytes = float32_to_wav(audio_f32, sr=16000)
+                # Detect format: webm starts with 0x1A45DFA3 (EBML header)
+                is_webm = len(audio_bytes) > 4 and audio_bytes[:4] == b'\x1a\x45\xdf\xa3'
+
+                if is_webm:
+                    # Decode webm → WAV using ffmpeg
+                    try:
+                        import subprocess
+                        proc = subprocess.run(
+                            ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1"],
+                            input=audio_bytes, capture_output=True, timeout=5
+                        )
+                        if proc.returncode != 0:
+                            print(f"❌ ffmpeg error: {proc.stderr.decode()[:100]}")
+                            continue
+                        wav_bytes = proc.stdout
+                    except FileNotFoundError:
+                        # ffmpeg not available, try decoding as raw float32 fallback
+                        print("⚠️ ffmpeg not found, trying raw float32 decode")
+                        audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
+                        if len(audio_f32) < 1600:
+                            continue
+                        wav_bytes = float32_to_wav(audio_f32, sr=16000)
+                    except Exception as e:
+                        print(f"❌ Audio decode error: {e}")
+                        continue
+                else:
+                    # Raw Float32 PCM (legacy)
+                    audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
+                    if len(audio_f32) < 1600:
+                        continue
+                    wav_bytes = float32_to_wav(audio_f32, sr=16000)
 
                 # STT in executor (blocking call)
                 try:

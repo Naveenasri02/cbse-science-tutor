@@ -42,31 +42,26 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
       chunksRef.current = []
 
       if (!hasSpeechRef.current || chunks.length === 0) {
-        // No speech detected, restart cycle
-        if (activeRef.current) setTimeout(() => startRecordingCycle(), 100)
+        if (activeRef.current) setTimeout(() => startRecordingCycle(), 50)
         return
       }
 
       const blob = new Blob(chunks, { type: 'audio/webm' })
       if (blob.size < 500) {
-        if (activeRef.current) setTimeout(() => startRecordingCycle(), 100)
+        if (activeRef.current) setTimeout(() => startRecordingCycle(), 50)
         return
       }
 
-      // Convert webm → Float32 PCM 16kHz
+      // Send webm blob directly — server decodes with ffmpeg (faster than client-side decode)
       try {
         const arrayBuf = await blob.arrayBuffer()
-        const actx = new AudioContext({ sampleRate: 16000 })
-        const decoded = await actx.decodeAudioData(arrayBuf)
-        const f32 = decoded.getChannelData(0)
-        actx.close()
-        onSpeechEnd(f32)
+        onSpeechEnd(new Uint8Array(arrayBuf))
       } catch (err) {
-        console.error('Audio decode error:', err)
+        console.error('Audio send error:', err)
       }
 
       // Auto-restart recording after sending (continuous mode)
-      if (activeRef.current) setTimeout(() => startRecordingCycle(), 300)
+      if (activeRef.current) setTimeout(() => startRecordingCycle(), 100)
     }
 
     recorder.start(200)
@@ -89,8 +84,8 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
         // Silence after speech
         if (!silenceStartRef.current) {
           silenceStartRef.current = Date.now()
-        } else if (Date.now() - silenceStartRef.current > 1200) {
-          // 1.2s silence after speech → send it
+        } else if (Date.now() - silenceStartRef.current > 800) {
+          // 0.8s silence after speech → send it
           stopCurrentRecording()
           return
         }

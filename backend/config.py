@@ -18,6 +18,13 @@ SYSTEM_PROMPT = (
     "Be accurate, use proper scientific terms, and keep answers student-friendly."
 )
 
+VOICE_SYSTEM_PROMPT = (
+    "You are a CBSE Class 10 Science tutor. Answer ONLY from NCERT Class 10 Science textbook content. "
+    "This is a VOICE conversation — keep answers short: 1-3 sentences maximum. "
+    "Be direct and concise. No bullet points, no lists, no markdown formatting. "
+    "Do NOT use <think> tags or reasoning blocks. Answer immediately."
+)
+
 # ── STT (faster-whisper on GPU) ──
 STT_MODEL_SIZE = os.getenv("STT_MODEL_SIZE", "small")
 STT_DEVICE = os.getenv("STT_DEVICE", "cuda")
