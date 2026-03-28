@@ -290,13 +290,16 @@ async def voice_endpoint(ws: WebSocket):
                 is_webm = len(audio_bytes) > 4 and audio_bytes[:4] == b'\x1a\x45\xdf\xa3'
 
                 if is_webm:
-                    # Decode webm → WAV using ffmpeg
+                    # Decode webm → WAV using ffmpeg (run in executor to avoid blocking)
                     try:
                         import subprocess
-                        proc = subprocess.run(
-                            ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1"],
-                            input=audio_bytes, capture_output=True, timeout=5
-                        )
+                        loop = asyncio.get_event_loop()
+                        def _decode_webm(data):
+                            return subprocess.run(
+                                ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1"],
+                                input=data, capture_output=True, timeout=5
+                            )
+                        proc = await loop.run_in_executor(None, _decode_webm, audio_bytes)
                         if proc.returncode != 0:
                             print(f"❌ ffmpeg error: {proc.stderr.decode()[:100]}")
                             continue

@@ -120,9 +120,11 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(WS_URL, onMessage)
 
-  // Voice mode
-  const onSpeechStart = useCallback(() => {
-    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+  // Voice mode — realistic conversation flow
+  // onSpeechDetected fires only when actual speech volume is detected (barge-in trigger)
+  const onSpeechDetected = useCallback(() => {
+    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
+    // Barge-in: interrupt bot if it's speaking or generating
     if (isPlaying || isBotResponding) {
       stopPlayback()
       if (ws.current?.readyState === WebSocket.OPEN) {
@@ -138,7 +140,7 @@ export default function App() {
     }
   }, [ws])
 
-  const { startVoice, stopVoice } = useVoice({ onSpeechStart, onSpeechEnd })
+  const { startVoice, stopVoice } = useVoice({ onSpeechDetected, onSpeechEnd })
 
   const toggleVoice = async () => {
     if (voiceActive) {

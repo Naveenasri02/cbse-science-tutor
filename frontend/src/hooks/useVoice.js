@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react'
 
-export default function useVoice({ onSpeechStart, onSpeechEnd }) {
+export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
   const streamRef = useRef(null)
   const activeRef = useRef(false)
   const recorderRef = useRef(null)
@@ -10,6 +10,7 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
   const rafRef = useRef(null)
   const silenceStartRef = useRef(null)
   const hasSpeechRef = useRef(false)
+  const notifiedSpeechRef = useRef(false)
 
   const stopCurrentRecording = useCallback(() => {
     if (rafRef.current) {
@@ -31,6 +32,7 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
     recorderRef.current = recorder
     chunksRef.current = []
     hasSpeechRef.current = false
+    notifiedSpeechRef.current = false
     silenceStartRef.current = null
 
     recorder.ondataavailable = (e) => {
@@ -52,7 +54,7 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
         return
       }
 
-      // Send webm blob directly — server decodes with ffmpeg (faster than client-side decode)
+      // Send webm blob directly — server decodes with ffmpeg
       try {
         const arrayBuf = await blob.arrayBuffer()
         onSpeechEnd(new Uint8Array(arrayBuf))
@@ -60,12 +62,12 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
         console.error('Audio send error:', err)
       }
 
-      // Auto-restart recording after sending (continuous mode)
+      // Auto-restart recording (continuous mode)
       if (activeRef.current) setTimeout(() => startRecordingCycle(), 100)
     }
 
+    // Start recording silently — no callback until actual speech detected
     recorder.start(200)
-    onSpeechStart()
 
     // Silence detection loop
     const analyser = analyserRef.current
@@ -77,15 +79,22 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
       const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
 
       if (avg > 10) {
-        // Speech detected
-        hasSpeechRef.current = true
+        // Real speech detected
+        if (!hasSpeechRef.current) {
+          hasSpeechRef.current = true
+          // Notify App only on FIRST speech detection — triggers barge-in if needed
+          if (!notifiedSpeechRef.current) {
+            notifiedSpeechRef.current = true
+            onSpeechDetected()
+          }
+        }
         silenceStartRef.current = null
       } else if (hasSpeechRef.current) {
         // Silence after speech
         if (!silenceStartRef.current) {
           silenceStartRef.current = Date.now()
         } else if (Date.now() - silenceStartRef.current > 800) {
-          // 0.8s silence after speech → send it
+          // 0.8s silence → send audio
           stopCurrentRecording()
           return
         }
@@ -94,7 +103,7 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
       rafRef.current = requestAnimationFrame(checkAudio)
     }
     rafRef.current = requestAnimationFrame(checkAudio)
-  }, [onSpeechStart, onSpeechEnd, stopCurrentRecording])
+  }, [onSpeechDetected, onSpeechEnd, stopCurrentRecording])
 
   const startVoice = useCallback(async () => {
     try {
@@ -112,7 +121,6 @@ export default function useVoice({ onSpeechStart, onSpeechEnd }) {
       source.connect(analyser)
       analyserRef.current = analyser
 
-      // Start first recording cycle
       startRecordingCycle()
       return true
     } catch (err) {
