@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── LLM (vLLM on same machine) ──
-VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://localhost:8002/v1")
 VLLM_MODEL = os.getenv("VLLM_MODEL", "cbse-science-v2")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY", "cbse-sk-local")
 
@@ -19,7 +19,7 @@ SYSTEM_PROMPT = (
 )
 
 # ── STT (faster-whisper on GPU) ──
-STT_MODEL_SIZE = os.getenv("STT_MODEL_SIZE", "large-v3")
+STT_MODEL_SIZE = os.getenv("STT_MODEL_SIZE", "small")
 STT_DEVICE = os.getenv("STT_DEVICE", "cuda")
 STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "float16")
 

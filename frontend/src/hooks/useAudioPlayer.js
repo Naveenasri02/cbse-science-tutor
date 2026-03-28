@@ -19,7 +19,7 @@ export default function useAudioPlayer() {
     const buffer = queueRef.current.shift()
 
     try {
-      if (!ctxRef.current) ctxRef.current = new AudioContext({ sampleRate: 16000 })
+      if (!ctxRef.current) ctxRef.current = new AudioContext()
       if (ctxRef.current.state === 'suspended') await ctxRef.current.resume()
 
       const audioBuffer = await ctxRef.current.decodeAudioData(buffer.slice(0))
