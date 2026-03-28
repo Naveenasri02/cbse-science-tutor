@@ -1,0 +1,18 @@
+# Core
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+websockets>=13.0
+python-dotenv>=1.0
+
+# LLM client
+openai>=1.50
+
+# STT
+faster-whisper>=1.0
+soundfile>=0.12
+
+# TTS
+kokoro-onnx>=0.4
+numpy>=1.26
+
+# CORS
