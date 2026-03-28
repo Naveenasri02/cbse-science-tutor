@@ -122,7 +122,7 @@ export default function App() {
 
   // Voice mode
   const onSpeechStart = useCallback(() => {
-    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
+    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
     if (isPlaying || isBotResponding) {
       stopPlayback()
       if (ws.current?.readyState === WebSocket.OPEN) {
@@ -133,7 +133,6 @@ export default function App() {
 
   const onSpeechEnd = useCallback((audio) => {
     setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
-    setVoiceActive(false)
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(audio.buffer)
     }
@@ -151,7 +150,7 @@ export default function App() {
       const ok = await startVoice()
       if (ok) {
         setVoiceActive(true)
-        setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
+        setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
       }
     }
   }
