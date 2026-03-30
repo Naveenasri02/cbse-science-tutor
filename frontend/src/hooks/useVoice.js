@@ -1,90 +1,126 @@
 import { useRef, useCallback } from 'react'
 
+// AudioWorklet processor — captures raw PCM samples on the audio thread
+const WORKLET_CODE = `
+class PCMCapture extends AudioWorkletProcessor {
+  constructor() { super(); this._buf = [] }
+  process(inputs) {
+    const ch = inputs[0]?.[0]
+    if (ch) {
+      for (let i = 0; i < ch.length; i++) this._buf.push(ch[i])
+      if (this._buf.length >= 2400) {
+        this.port.postMessage(new Float32Array(this._buf))
+        this._buf = []
+      }
+    }
+    return true
+  }
+}
+registerProcessor('pcm-capture', PCMCapture)
+`
+
+const SILENCE_MS = 350       // ms of silence before sending
+const SPEECH_THRESHOLD = 12  // VAD energy threshold
+const MIN_SPEECH_FRAMES = 2  // consecutive frames to confirm speech
+const PRE_BUFFER_MS = 150    // capture audio before speech onset
+
 export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
-  const streamRef = useRef(null)
   const activeRef = useRef(false)
-  const recorderRef = useRef(null)
-  const chunksRef = useRef([])
+  const streamRef = useRef(null)
+  const ctxRef = useRef(null)
+  const workletRef = useRef(null)
   const analyserRef = useRef(null)
-  const audioCtxRef = useRef(null)
   const rafRef = useRef(null)
+
+  // VAD state
   const silenceStartRef = useRef(null)
   const hasSpeechRef = useRef(false)
-  const notifiedSpeechRef = useRef(false)
+  const notifiedRef = useRef(false)
   const speechFramesRef = useRef(0)
 
-  const stopCurrentRecording = useCallback(() => {
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
-    }
-    if (recorderRef.current?.state === 'recording') {
-      recorderRef.current.stop()
-    }
-  }, [])
+  // PCM capture
+  const pcmRef = useRef([])           // speech audio chunks
+  const preBufferRef = useRef([])     // rolling pre-speech buffer
+  const nativeSRRef = useRef(48000)
+  const useWorkletRef = useRef(false) // true if AudioWorklet available
 
-  const startRecordingCycle = useCallback(() => {
-    if (!activeRef.current || !streamRef.current) return
+  // Fallback: MediaRecorder refs
+  const recorderRef = useRef(null)
+  const recChunksRef = useRef([])
 
-    const recorder = new MediaRecorder(streamRef.current, {
-      mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus' : 'audio/webm'
-    })
-    recorderRef.current = recorder
-    chunksRef.current = []
+  function downsample(samples, fromRate, toRate) {
+    if (fromRate === toRate) return samples
+    const ratio = fromRate / toRate
+    const len = Math.floor(samples.length / ratio)
+    const out = new Float32Array(len)
+    for (let i = 0; i < len; i++) out[i] = samples[Math.floor(i * ratio)]
+    return out
+  }
+
+  const resetVAD = useCallback(() => {
+    pcmRef.current = []
     hasSpeechRef.current = false
-    notifiedSpeechRef.current = false
+    notifiedRef.current = false
     silenceStartRef.current = null
     speechFramesRef.current = 0
+  }, [])
 
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data)
-    }
+  const sendPCM = useCallback(() => {
+    const chunks = pcmRef.current
+    pcmRef.current = []
+    if (chunks.length === 0) return
 
-    recorder.onstop = async () => {
-      const chunks = chunksRef.current
-      chunksRef.current = []
+    let total = 0
+    for (const c of chunks) total += c.length
+    const combined = new Float32Array(total)
+    let off = 0
+    for (const c of chunks) { combined.set(c, off); off += c.length }
 
-      if (!hasSpeechRef.current || chunks.length === 0) {
-        if (activeRef.current) requestAnimationFrame(() => startRecordingCycle())
-        return
-      }
+    const down = downsample(combined, nativeSRRef.current, 16000)
+    if (down.length < 1600) return // too short
 
-      const blob = new Blob(chunks, { type: 'audio/webm' })
-      if (blob.size < 300) {
-        if (activeRef.current) requestAnimationFrame(() => startRecordingCycle())
-        return
-      }
+    onSpeechEnd(new Uint8Array(down.buffer))
+  }, [onSpeechEnd])
 
-      try {
-        const arrayBuf = await blob.arrayBuffer()
-        onSpeechEnd(new Uint8Array(arrayBuf))
-      } catch (err) {
-        console.error('Audio send error:', err)
-      }
+  const sendWebm = useCallback(async () => {
+    const chunks = recChunksRef.current
+    recChunksRef.current = []
+    if (chunks.length === 0) return
 
-      // Restart immediately for continuous conversation
-      if (activeRef.current) requestAnimationFrame(() => startRecordingCycle())
-    }
+    const blob = new Blob(chunks, { type: 'audio/webm' })
+    if (blob.size < 300) return
 
-    recorder.start(150)
+    const buf = await blob.arrayBuffer()
+    onSpeechEnd(new Uint8Array(buf))
+  }, [onSpeechEnd])
 
+  const runVAD = useCallback(() => {
+    if (!activeRef.current || !analyserRef.current) return
     const analyser = analyserRef.current
-    const dataArray = new Uint8Array(analyser.frequencyBinCount)
+    const data = new Uint8Array(analyser.frequencyBinCount)
 
-    const checkAudio = () => {
+    const check = () => {
       if (!activeRef.current) return
-      analyser.getByteFrequencyData(dataArray)
-      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+      analyser.getByteFrequencyData(data)
+      const avg = data.reduce((a, b) => a + b, 0) / data.length
 
-      if (avg > 12) {
+      if (avg > SPEECH_THRESHOLD) {
         speechFramesRef.current++
-        // Require 2+ consecutive speech frames to avoid noise triggers
-        if (speechFramesRef.current >= 2 && !hasSpeechRef.current) {
+        if (speechFramesRef.current >= MIN_SPEECH_FRAMES && !hasSpeechRef.current) {
           hasSpeechRef.current = true
-          if (!notifiedSpeechRef.current) {
-            notifiedSpeechRef.current = true
+          // Include pre-buffer audio (captures speech onset)
+          if (useWorkletRef.current && preBufferRef.current.length > 0) {
+            pcmRef.current.unshift(...preBufferRef.current)
+            preBufferRef.current = []
+          }
+          if (!notifiedRef.current) {
+            notifiedRef.current = true
             onSpeechDetected()
+          }
+          // Start MediaRecorder for fallback mode
+          if (!useWorkletRef.current && recorderRef.current?.state !== 'recording') {
+            recChunksRef.current = []
+            try { recorderRef.current?.start(100) } catch {}
           }
         }
         silenceStartRef.current = null
@@ -93,51 +129,117 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
         if (hasSpeechRef.current) {
           if (!silenceStartRef.current) {
             silenceStartRef.current = Date.now()
-          } else if (Date.now() - silenceStartRef.current > 500) {
-            // 500ms silence → send audio (was 800ms)
-            stopCurrentRecording()
-            return
+          } else if (Date.now() - silenceStartRef.current > SILENCE_MS) {
+            // Silence detected — send audio
+            if (useWorkletRef.current) {
+              sendPCM()
+            } else {
+              try { recorderRef.current?.stop() } catch {}
+              // sendWebm is triggered by recorder.onstop
+            }
+            resetVAD()
           }
         }
       }
-
-      rafRef.current = requestAnimationFrame(checkAudio)
+      rafRef.current = requestAnimationFrame(check)
     }
-    rafRef.current = requestAnimationFrame(checkAudio)
-  }, [onSpeechDetected, onSpeechEnd, stopCurrentRecording])
+    rafRef.current = requestAnimationFrame(check)
+  }, [onSpeechDetected, sendPCM, resetVAD])
 
   const startVoice = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 16000 }
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       })
       streamRef.current = stream
-      activeRef.current = true
 
-      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
-      const source = audioCtxRef.current.createMediaStreamSource(stream)
-      const analyser = audioCtxRef.current.createAnalyser()
+      const ctx = new AudioContext()
+      ctxRef.current = ctx
+      nativeSRRef.current = ctx.sampleRate
+
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
       analyser.fftSize = 512
       analyser.smoothingTimeConstant = 0.3
       source.connect(analyser)
       analyserRef.current = analyser
 
-      startRecordingCycle()
+      // Try AudioWorklet for raw PCM (eliminates webm+ffmpeg overhead)
+      let workletOK = false
+      try {
+        const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' })
+        const url = URL.createObjectURL(blob)
+        await ctx.audioWorklet.addModule(url)
+        URL.revokeObjectURL(url)
+
+        const node = new AudioWorkletNode(ctx, 'pcm-capture')
+        const maxPreSamples = Math.floor(nativeSRRef.current * PRE_BUFFER_MS / 1000)
+        node.port.onmessage = (e) => {
+          if (!activeRef.current) return
+          const samples = e.data
+          if (hasSpeechRef.current) {
+            pcmRef.current.push(samples)
+          } else {
+            // Rolling pre-buffer
+            preBufferRef.current.push(samples)
+            let total = 0
+            for (const c of preBufferRef.current) total += c.length
+            while (total > maxPreSamples && preBufferRef.current.length > 1) {
+              total -= preBufferRef.current.shift().length
+            }
+          }
+        }
+        source.connect(node)
+        workletRef.current = node
+        useWorkletRef.current = true
+        workletOK = true
+        console.log('✅ Using AudioWorklet PCM capture (zero-latency)')
+      } catch (err) {
+        console.warn('AudioWorklet unavailable, falling back to MediaRecorder:', err)
+      }
+
+      // Fallback: MediaRecorder
+      if (!workletOK) {
+        useWorkletRef.current = false
+        const recorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus' : 'audio/webm'
+        })
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recChunksRef.current.push(e.data)
+        }
+        recorder.onstop = () => {
+          sendWebm()
+        }
+        recorderRef.current = recorder
+      }
+
+      activeRef.current = true
+      resetVAD()
+      runVAD()
       return true
     } catch (err) {
       console.error('Voice init error:', err)
       return false
     }
-  }, [startRecordingCycle])
+  }, [runVAD, resetVAD, sendWebm])
 
   const stopVoice = useCallback(() => {
     activeRef.current = false
-    stopCurrentRecording()
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    if (workletRef.current) { workletRef.current.disconnect(); workletRef.current = null }
+    if (recorderRef.current?.state === 'recording') {
+      try { recorderRef.current.stop() } catch {}
+    }
+    recorderRef.current = null
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
-  }, [stopCurrentRecording])
+    if (ctxRef.current) { ctxRef.current.close().catch(() => {}); ctxRef.current = null }
+    pcmRef.current = []
+    preBufferRef.current = []
+  }, [])
 
   return { startVoice, stopVoice }
 }
