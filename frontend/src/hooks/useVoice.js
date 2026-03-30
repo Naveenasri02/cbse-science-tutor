@@ -105,15 +105,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
     const check = () => {
       if (!activeRef.current) return
-
-      // Skip VAD while audio is playing — on mobile, speaker audio leaks into mic
-      // causing false barge-in (echo cancellation isn't reliable on phones)
-      if (isPlayingRef?.current) {
-        speechFramesRef.current = 0
-        rafRef.current = requestAnimationFrame(check)
-        return
-      }
-
       analyser.getByteFrequencyData(data)
 
       // Overall energy
@@ -137,8 +128,9 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
       if (isSpeech) {
         speechFramesRef.current++
 
-        // Barge-in: use STRICTER thresholds to avoid false interrupts from ambient noise
-        const botActive = isPlayingRef?.current || isBotRespondingRef?.current
+        // Barge-in: only when bot is generating but NOT playing audio
+        // (on mobile, speaker audio leaks into mic causing false barge-in)
+        const botActive = isBotRespondingRef?.current && !isPlayingRef?.current
         if (botActive && !notifiedRef.current) {
           const isStrongSpeech = avg > BARGEIN_THRESHOLD && speechRatio >= BARGEIN_RATIO
           if (isStrongSpeech && speechFramesRef.current >= BARGEIN_FRAMES) {
