@@ -45,10 +45,32 @@ _llm_http = httpx.AsyncClient(base_url=config.VLLM_BASE_URL.rstrip("/v1"), timeo
 print("  ✓ LLM ready")
 
 
-def _build_chatml_prompt(messages: list, prefill: str = "") -> str:
-    """Build a ChatML prompt string with optional assistant pre-fill."""
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate: ~3.5 chars per token for English."""
+    return max(1, len(text) // 4)
+
+
+def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 3200) -> str:
+    """Build a ChatML prompt string with optional assistant pre-fill.
+    Trims older messages (keeping system prompt) to stay within max_ctx tokens."""
+    # Always keep system prompt (first message) and prefill overhead
+    overhead = _estimate_tokens(prefill) + 50  # assistant header + prefill + stop tokens
+    system_cost = _estimate_tokens(messages[0]["content"]) + 10 if messages else 0
+    budget = max_ctx - overhead - system_cost
+
+    # Walk from newest to oldest (skip system at index 0), accumulate until budget exhausted
+    kept = []
+    for m in reversed(messages[1:]):
+        cost = _estimate_tokens(m["content"]) + 10  # header tokens
+        if budget - cost < 0:
+            break
+        budget -= cost
+        kept.append(m)
+    kept.reverse()
+
+    final = [messages[0]] + kept if messages else kept
     parts = []
-    for m in messages:
+    for m in final:
         parts.append(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>")
     parts.append(f"<|im_start|>assistant\n{prefill}")
     return "\n".join(parts)
