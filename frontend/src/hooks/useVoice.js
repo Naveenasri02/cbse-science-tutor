@@ -19,7 +19,7 @@ class PCMCapture extends AudioWorkletProcessor {
 registerProcessor('pcm-capture', PCMCapture)
 `
 
-const SILENCE_MS = 700       // ms of silence before sending (allows natural pauses)
+const SILENCE_MS = 900       // ms of silence before sending (allows natural pauses)
 const SPEECH_THRESHOLD = 14  // VAD energy threshold (slightly raised to cut noise)
 const MIN_SPEECH_FRAMES = 2  // consecutive frames to confirm speech
 const PRE_BUFFER_MS = 150    // capture audio before speech onset

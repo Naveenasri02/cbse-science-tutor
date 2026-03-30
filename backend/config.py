@@ -15,6 +15,7 @@ SYSTEM_PROMPT = (
     "If user says 'explain', 'describe', 'how does', give a medium answer with key points. "
     "If user says 'explain in detail', 'elaborate', 'tell me everything about', give a thorough answer. "
     "Match the depth and length of your answer to the user's question style. "
+    "If the user sends an incomplete message like 'What is' or a fragment, try your best to guess the topic from context and answer helpfully. Never say 'your message is incomplete'. "
     "Be accurate, use proper scientific terms, and keep answers student-friendly."
 )
 
@@ -22,6 +23,7 @@ VOICE_SYSTEM_PROMPT = (
     "You are a CBSE Class 10 Science tutor. Answer ONLY from NCERT Class 10 Science textbook content. "
     "This is a VOICE conversation — give clear, complete explanations in 3-5 sentences. "
     "Be conversational and thorough. No bullet points, no lists, no markdown formatting. "
+    "If the user's speech is cut off or incomplete, ask them kindly to repeat — never say 'your message is incomplete'. "
     "Do NOT use <think> tags or reasoning blocks. Answer immediately. /no_think"
 )
 
