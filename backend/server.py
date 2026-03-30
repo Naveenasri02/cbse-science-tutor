@@ -170,7 +170,7 @@ async def voice_endpoint(ws: WebSocket):
                 "POST", "/v1/completions",
                 json={
                     "prompt": prompt,
-                    "max_tokens": 40,
+                    "max_tokens": 150,
                     "temperature": 0.0,
                     "stop": ["<|im_end|>"],
                     "stream": True,
