@@ -105,6 +105,15 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
     const check = () => {
       if (!activeRef.current) return
+
+      // Skip VAD while audio is playing — on mobile, speaker audio leaks into mic
+      // causing false barge-in (echo cancellation isn't reliable on phones)
+      if (isPlayingRef?.current) {
+        speechFramesRef.current = 0
+        rafRef.current = requestAnimationFrame(check)
+        return
+      }
+
       analyser.getByteFrequencyData(data)
 
       // Overall energy
