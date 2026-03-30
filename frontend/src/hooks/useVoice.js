@@ -20,9 +20,10 @@ registerProcessor('pcm-capture', PCMCapture)
 `
 
 const SILENCE_MS = 350       // ms of silence before sending
-const SPEECH_THRESHOLD = 12  // VAD energy threshold
+const SPEECH_THRESHOLD = 14  // VAD energy threshold (slightly raised to cut noise)
 const MIN_SPEECH_FRAMES = 2  // consecutive frames to confirm speech
 const PRE_BUFFER_MS = 150    // capture audio before speech onset
+const SPEECH_BAND_RATIO = 0.4 // speech-band energy must be ≥40% of total (human voice filter)
 
 export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef }) {
   const activeRef = useRef(false)
@@ -102,9 +103,26 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     const check = () => {
       if (!activeRef.current) return
       analyser.getByteFrequencyData(data)
+
+      // Overall energy
       const avg = data.reduce((a, b) => a + b, 0) / data.length
 
-      if (avg > SPEECH_THRESHOLD) {
+      // Frequency-band analysis: human speech is 300-3400 Hz
+      // Each bin = sampleRate / fftSize Hz wide
+      const binHz = (ctxRef.current?.sampleRate || 48000) / (analyser.fftSize || 512)
+      const loIdx = Math.floor(300 / binHz)   // ~300 Hz
+      const hiIdx = Math.min(Math.ceil(3400 / binHz), data.length - 1) // ~3400 Hz
+      let speechEnergy = 0, totalEnergy = 0
+      for (let i = 0; i < data.length; i++) {
+        totalEnergy += data[i]
+        if (i >= loIdx && i <= hiIdx) speechEnergy += data[i]
+      }
+      const speechRatio = totalEnergy > 0 ? speechEnergy / totalEnergy : 0
+
+      // Must pass BOTH energy threshold AND speech-band ratio (filters out non-voice sounds)
+      const isSpeech = avg > SPEECH_THRESHOLD && speechRatio >= SPEECH_BAND_RATIO
+
+      if (isSpeech) {
         speechFramesRef.current++
 
         // INSTANT barge-in: kill audio on first speech frame if bot is active
