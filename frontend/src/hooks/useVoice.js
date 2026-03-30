@@ -20,8 +20,11 @@ registerProcessor('pcm-capture', PCMCapture)
 `
 
 const SILENCE_MS = 900       // ms of silence before sending (allows natural pauses)
-const SPEECH_THRESHOLD = 14  // VAD energy threshold (slightly raised to cut noise)
-const MIN_SPEECH_FRAMES = 2  // consecutive frames to confirm speech
+const SPEECH_THRESHOLD = 14  // VAD energy threshold for normal speech
+const BARGEIN_THRESHOLD = 22 // Higher energy required to interrupt bot (avoids false barge-in)
+const BARGEIN_RATIO = 0.55   // Stricter speech-band ratio for barge-in
+const BARGEIN_FRAMES = 3     // Consecutive speech frames before barge-in (~48ms)
+const MIN_SPEECH_FRAMES = 2  // consecutive frames to confirm normal speech
 const PRE_BUFFER_MS = 150    // capture audio before speech onset
 const SPEECH_BAND_RATIO = 0.4 // speech-band energy must be ≥40% of total (human voice filter)
 
@@ -125,11 +128,14 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
       if (isSpeech) {
         speechFramesRef.current++
 
-        // INSTANT barge-in: kill audio on first speech frame if bot is active
+        // Barge-in: use STRICTER thresholds to avoid false interrupts from ambient noise
         const botActive = isPlayingRef?.current || isBotRespondingRef?.current
-        if (speechFramesRef.current === 1 && botActive && !notifiedRef.current) {
-          notifiedRef.current = true
-          onSpeechDetected()  // stops audio immediately via refs
+        if (botActive && !notifiedRef.current) {
+          const isStrongSpeech = avg > BARGEIN_THRESHOLD && speechRatio >= BARGEIN_RATIO
+          if (isStrongSpeech && speechFramesRef.current >= BARGEIN_FRAMES) {
+            notifiedRef.current = true
+            onSpeechDetected()
+          }
         }
 
         if (speechFramesRef.current >= MIN_SPEECH_FRAMES && !hasSpeechRef.current) {
