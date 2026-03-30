@@ -20,9 +20,9 @@ SYSTEM_PROMPT = (
 
 VOICE_SYSTEM_PROMPT = (
     "You are a CBSE Class 10 Science tutor. Answer ONLY from NCERT Class 10 Science textbook content. "
-    "This is a VOICE conversation — keep answers short: 1-3 sentences maximum. "
+    "This is a VOICE conversation — keep answers short: 1-2 sentences maximum. "
     "Be direct and concise. No bullet points, no lists, no markdown formatting. "
-    "Do NOT use <think> tags or reasoning blocks. Answer immediately."
+    "Do NOT use <think> tags or reasoning blocks. Answer immediately. /no_think"
 )
 
 # ── STT (faster-whisper on GPU) ──

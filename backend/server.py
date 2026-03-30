@@ -24,15 +24,15 @@ import config
 
 print("🔧 Loading models...")
 
-print("  [1/3] STT...")
-from stt.whisper_stt import WhisperSTT
-stt = WhisperSTT()
-print("  ✓ STT ready")
-
-print("  [2/3] TTS...")
+print("  [1/3] TTS...")
 from tts.kokoro_tts import KokoroTTS
 tts = KokoroTTS()
 print("  ✓ TTS ready")
+
+print("  [2/3] STT...")
+from stt.whisper_stt import WhisperSTT
+stt = WhisperSTT()
+print("  ✓ STT ready")
 
 print("  [3/3] LLM client...")
 from openai import AsyncOpenAI
@@ -158,8 +158,8 @@ async def voice_endpoint(ws: WebSocket):
                 model=config.VLLM_MODEL,
                 messages=voice_messages,
                 stream=True,
-                max_tokens=150,
-                temperature=0.3,
+                max_tokens=60,
+                temperature=0.1,
             )
 
             async for chunk in stream:
@@ -180,9 +180,9 @@ async def voice_endpoint(ws: WebSocket):
                     if not in_think:
                         tts_buffer += delta
                         stripped = tts_buffer.strip()
-                        # Send TTS early: first chunk at 30+ chars, then at sentence boundaries
+                        # Send TTS early: first chunk at 15+ chars, then at sentence boundaries
                         should_send = False
-                        if not first_tts_sent and len(stripped) >= 30 and any(stripped.endswith(p) for p in [".", "!", "?", ",", ":", ";"]):
+                        if not first_tts_sent and len(stripped) >= 15 and any(stripped.endswith(p) for p in [".", "!", "?", ",", ":", ";"]):
                             should_send = True
                         elif first_tts_sent and any(stripped.endswith(p) for p in [".", "!", "?", "\n"]):
                             should_send = True
