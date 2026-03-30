@@ -214,12 +214,12 @@ export default function App() {
       />
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Mobile header */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-[#2f2f2f]">
-          <button onClick={() => setSidebarOpen(true)} className="text-xl">☰</button>
-          <span className="font-semibold text-sm truncate">{activeChat.title}</span>
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-[#2a2a2a] bg-[#212121]">
+          <button onClick={() => setSidebarOpen(true)} className="text-lg text-[#8e8ea0] hover:text-white transition">☰</button>
+          <span className="font-medium text-sm truncate text-[#ececf1]">{activeChat.title}</span>
         </div>
 
-        <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} />
+        <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} onSuggestion={sendText} />
         <VoiceStatus status={voiceStatus} />
         <InputBar
           onSend={sendText}
