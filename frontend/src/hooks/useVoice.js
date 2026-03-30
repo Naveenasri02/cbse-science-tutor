@@ -24,7 +24,7 @@ const SPEECH_THRESHOLD = 12  // VAD energy threshold
 const MIN_SPEECH_FRAMES = 2  // consecutive frames to confirm speech
 const PRE_BUFFER_MS = 150    // capture audio before speech onset
 
-export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
+export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef }) {
   const activeRef = useRef(false)
   const streamRef = useRef(null)
   const ctxRef = useRef(null)
@@ -106,6 +106,14 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
 
       if (avg > SPEECH_THRESHOLD) {
         speechFramesRef.current++
+
+        // INSTANT barge-in: kill audio on first speech frame if bot is active
+        const botActive = isPlayingRef?.current || isBotRespondingRef?.current
+        if (speechFramesRef.current === 1 && botActive && !notifiedRef.current) {
+          notifiedRef.current = true
+          onSpeechDetected()  // stops audio immediately via refs
+        }
+
         if (speechFramesRef.current >= MIN_SPEECH_FRAMES && !hasSpeechRef.current) {
           hasSpeechRef.current = true
           // Include pre-buffer audio (captures speech onset)

@@ -75,5 +75,5 @@ export default function useAudioPlayer() {
     setIsPlaying(false)
   }, [])
 
-  return { playAudio, stopPlayback, isPlaying }
+  return { playAudio, stopPlayback, isPlaying, isPlayingRef: playingRef }
 }

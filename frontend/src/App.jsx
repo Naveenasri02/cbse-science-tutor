@@ -48,7 +48,10 @@ export default function App() {
   }, [activeChatId])
 
   // Audio player for TTS
-  const { playAudio, stopPlayback, isPlaying } = useAudioPlayer()
+  const { playAudio, stopPlayback, isPlaying, isPlayingRef } = useAudioPlayer()
+
+  // Refs for instant barge-in (avoid stale React state in callbacks)
+  const isBotRespondingRef = useRef(false)
 
   // WebSocket handler
   const onMessage = useCallback((msg, binary) => {
@@ -68,8 +71,9 @@ export default function App() {
         break
 
       case 'llm_start':
-        interruptedRef.current = false  // new response starting, accept audio
+        interruptedRef.current = false
         setIsBotResponding(true)
+        isBotRespondingRef.current = true
         botBufferRef.current = ''
         addMsg('bot', '')
         setVoiceStatus({ visible: true, cls: 'thinking', text: '💭 Thinking...' })
@@ -84,6 +88,7 @@ export default function App() {
 
       case 'llm_done':
         setIsBotResponding(false)
+        isBotRespondingRef.current = false
         if (msg.interrupted) {
           if (botBufferRef.current) updateLastBotMsg(botBufferRef.current + ' …')
         }
@@ -98,6 +103,7 @@ export default function App() {
 
       case 'tts_done':
         setIsBotResponding(false)
+        isBotRespondingRef.current = false
         if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
@@ -123,17 +129,18 @@ export default function App() {
 
   // Voice mode — realistic conversation flow
   const onSpeechDetected = useCallback(() => {
-    // Barge-in: interrupt bot if it's speaking or generating
-    if (isPlaying || isBotResponding) {
-      interruptedRef.current = true  // discard any more audio from old pipeline
+    // Barge-in: instant audio stop using refs (not stale state)
+    if (isPlayingRef.current || isBotRespondingRef.current) {
+      interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
+      isBotRespondingRef.current = false
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
     }
     setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
-  }, [isPlaying, isBotResponding, stopPlayback, ws])
+  }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
     setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
@@ -142,7 +149,7 @@ export default function App() {
     }
   }, [ws])
 
-  const { startVoice, stopVoice } = useVoice({ onSpeechDetected, onSpeechEnd })
+  const { startVoice, stopVoice } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
 
   const toggleVoice = async () => {
     if (voiceActive) {
