@@ -11,6 +11,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
   const silenceStartRef = useRef(null)
   const hasSpeechRef = useRef(false)
   const notifiedSpeechRef = useRef(false)
+  const speechFramesRef = useRef(0)
 
   const stopCurrentRecording = useCallback(() => {
     if (rafRef.current) {
@@ -34,6 +35,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
     hasSpeechRef.current = false
     notifiedSpeechRef.current = false
     silenceStartRef.current = null
+    speechFramesRef.current = 0
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data)
@@ -44,17 +46,16 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
       chunksRef.current = []
 
       if (!hasSpeechRef.current || chunks.length === 0) {
-        if (activeRef.current) setTimeout(() => startRecordingCycle(), 50)
+        if (activeRef.current) requestAnimationFrame(() => startRecordingCycle())
         return
       }
 
       const blob = new Blob(chunks, { type: 'audio/webm' })
-      if (blob.size < 500) {
-        if (activeRef.current) setTimeout(() => startRecordingCycle(), 50)
+      if (blob.size < 300) {
+        if (activeRef.current) requestAnimationFrame(() => startRecordingCycle())
         return
       }
 
-      // Send webm blob directly — server decodes with ffmpeg
       try {
         const arrayBuf = await blob.arrayBuffer()
         onSpeechEnd(new Uint8Array(arrayBuf))
@@ -62,14 +63,12 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
         console.error('Audio send error:', err)
       }
 
-      // Auto-restart recording (continuous mode)
-      if (activeRef.current) setTimeout(() => startRecordingCycle(), 100)
+      // Restart immediately for continuous conversation
+      if (activeRef.current) requestAnimationFrame(() => startRecordingCycle())
     }
 
-    // Start recording silently — no callback until actual speech detected
-    recorder.start(200)
+    recorder.start(150)
 
-    // Silence detection loop
     const analyser = analyserRef.current
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
@@ -78,25 +77,27 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
       analyser.getByteFrequencyData(dataArray)
       const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
 
-      if (avg > 10) {
-        // Real speech detected
-        if (!hasSpeechRef.current) {
+      if (avg > 12) {
+        speechFramesRef.current++
+        // Require 2+ consecutive speech frames to avoid noise triggers
+        if (speechFramesRef.current >= 2 && !hasSpeechRef.current) {
           hasSpeechRef.current = true
-          // Notify App only on FIRST speech detection — triggers barge-in if needed
           if (!notifiedSpeechRef.current) {
             notifiedSpeechRef.current = true
             onSpeechDetected()
           }
         }
         silenceStartRef.current = null
-      } else if (hasSpeechRef.current) {
-        // Silence after speech
-        if (!silenceStartRef.current) {
-          silenceStartRef.current = Date.now()
-        } else if (Date.now() - silenceStartRef.current > 800) {
-          // 0.8s silence → send audio
-          stopCurrentRecording()
-          return
+      } else {
+        speechFramesRef.current = 0
+        if (hasSpeechRef.current) {
+          if (!silenceStartRef.current) {
+            silenceStartRef.current = Date.now()
+          } else if (Date.now() - silenceStartRef.current > 500) {
+            // 500ms silence → send audio (was 800ms)
+            stopCurrentRecording()
+            return
+          }
         }
       }
 
@@ -108,16 +109,16 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd }) {
   const startVoice = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 }
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 16000 }
       })
       streamRef.current = stream
       activeRef.current = true
 
-      // Analyser for silence detection
       if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
       const source = audioCtxRef.current.createMediaStreamSource(stream)
       const analyser = audioCtxRef.current.createAnalyser()
       analyser.fftSize = 512
+      analyser.smoothingTimeConstant = 0.3
       source.connect(analyser)
       analyserRef.current = analyser
 

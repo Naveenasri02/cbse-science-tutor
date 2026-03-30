@@ -6,6 +6,7 @@ export default function useAudioPlayer() {
   const sourceRef = useRef(null)
   const ctxRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const pipelineIdRef = useRef(0)
 
   const playNext = useCallback(async () => {
     if (queueRef.current.length === 0) {
@@ -16,10 +17,16 @@ export default function useAudioPlayer() {
 
     playingRef.current = true
     setIsPlaying(true)
-    const buffer = queueRef.current.shift()
+    const { buffer, pipelineId } = queueRef.current.shift()
+
+    // Discard audio from stale pipelines
+    if (pipelineId !== pipelineIdRef.current) {
+      playNext()
+      return
+    }
 
     try {
-      if (!ctxRef.current) ctxRef.current = new AudioContext()
+      if (!ctxRef.current) ctxRef.current = new AudioContext({ sampleRate: 24000 })
       if (ctxRef.current.state === 'suspended') await ctxRef.current.resume()
 
       const audioBuffer = await ctxRef.current.decodeAudioData(buffer.slice(0))
@@ -40,11 +47,12 @@ export default function useAudioPlayer() {
   }, [])
 
   const playAudio = useCallback((arrayBuffer) => {
-    queueRef.current.push(arrayBuffer)
+    queueRef.current.push({ buffer: arrayBuffer, pipelineId: pipelineIdRef.current })
     if (!playingRef.current) playNext()
   }, [playNext])
 
   const stopPlayback = useCallback(() => {
+    pipelineIdRef.current++  // invalidate all queued audio
     queueRef.current = []
     if (sourceRef.current) {
       try {
