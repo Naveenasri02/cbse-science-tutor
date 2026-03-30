@@ -44,8 +44,13 @@ export default function ChatArea({ messages, isBotResponding, onSuggestion }) {
           </div>
         )}
 
-        {messages.map((msg) => (
-          <Message key={msg.id} role={msg.role} text={msg.text} />
+        {messages.map((msg, idx) => (
+          <Message
+            key={msg.id}
+            role={msg.role}
+            text={msg.text}
+            streaming={isBotResponding && msg.role === 'bot' && idx === messages.length - 1}
+          />
         ))}
 
         {isBotResponding && messages.length > 0 && messages[messages.length - 1]?.text === '' && (

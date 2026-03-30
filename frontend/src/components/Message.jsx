@@ -1,20 +1,52 @@
-import { useMemo, useRef, useEffect } from 'react'
+import { useMemo, useRef, useEffect, useState } from 'react'
 import { marked } from 'marked'
 import renderMathInElement from 'katex/contrib/auto-render'
 import 'katex/dist/katex.min.css'
 
 marked.setOptions({ breaks: true, gfm: true })
 
-export default function Message({ role, text }) {
+export default function Message({ role, text, streaming }) {
   const contentRef = useRef(null)
+  const [renderedHtml, setRenderedHtml] = useState('')
+  const renderTimer = useRef(null)
+  const lastRenderedText = useRef('')
 
-  const html = useMemo(() => {
-    if (role === 'user' || !text) return ''
-    return marked.parse(text)
-  }, [role, text])
-
+  // Throttle markdown parsing during streaming — render at most every 80ms
   useEffect(() => {
-    if (role === 'bot' && contentRef.current && text) {
+    if (role === 'user' || !text) {
+      setRenderedHtml('')
+      return
+    }
+
+    if (!streaming) {
+      // Final render — immediate
+      setRenderedHtml(marked.parse(text))
+      lastRenderedText.current = text
+      return
+    }
+
+    // During streaming, throttle renders
+    if (!renderTimer.current) {
+      renderTimer.current = setTimeout(() => {
+        renderTimer.current = null
+        if (lastRenderedText.current !== text) {
+          setRenderedHtml(marked.parse(text))
+          lastRenderedText.current = text
+        }
+      }, 80)
+    }
+
+    return () => {
+      if (renderTimer.current) {
+        clearTimeout(renderTimer.current)
+        renderTimer.current = null
+      }
+    }
+  }, [role, text, streaming])
+
+  // Run KaTeX only when streaming stops (final render)
+  useEffect(() => {
+    if (role === 'bot' && contentRef.current && text && !streaming) {
       try {
         renderMathInElement(contentRef.current, {
           delimiters: [
@@ -27,7 +59,7 @@ export default function Message({ role, text }) {
         })
       } catch {}
     }
-  }, [role, html])
+  }, [role, streaming, renderedHtml])
 
   if (role === 'user') {
     return (
@@ -48,7 +80,7 @@ export default function Message({ role, text }) {
         <div
           ref={contentRef}
           className="msg-md text-[.95rem] leading-[1.75]"
-          dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
       </div>
     </div>

@@ -78,20 +78,14 @@ export default function App() {
       case 'llm_delta': {
         if (interruptedRef.current) break
         botBufferRef.current += msg.text
-        let clean = botBufferRef.current.replace(/<think>[\s\S]*?<\/think>\s*/g, '')
-        clean = clean.replace(/<think>[\s\S]*$/g, '')
-        updateLastBotMsg(clean)
+        updateLastBotMsg(botBufferRef.current)
         break
       }
 
       case 'llm_done':
         setIsBotResponding(false)
         if (msg.interrupted) {
-          let final = botBufferRef.current.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/<think>[\s\S]*$/g, '')
-          if (final) updateLastBotMsg(final + ' …')
-        } else {
-          let final = botBufferRef.current.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/<think>[\s\S]*$/g, '')
-          updateLastBotMsg(final)
+          if (botBufferRef.current) updateLastBotMsg(botBufferRef.current + ' …')
         }
         botBufferRef.current = ''
         break

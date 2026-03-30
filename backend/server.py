@@ -40,7 +40,18 @@ llm_client = AsyncOpenAI(
     api_key=config.VLLM_API_KEY,
     base_url=config.VLLM_BASE_URL,
 )
+import httpx
+_llm_http = httpx.AsyncClient(base_url=config.VLLM_BASE_URL.rstrip("/v1"), timeout=30.0)
 print("  ✓ LLM ready")
+
+
+def _build_chatml_prompt(messages: list, prefill: str = "") -> str:
+    """Build a ChatML prompt string with optional assistant pre-fill."""
+    parts = []
+    for m in messages:
+        parts.append(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>")
+    parts.append(f"<|im_start|>assistant\n{prefill}")
+    return "\n".join(parts)
 
 # ── FastAPI App ─────────────────────────────────────────────
 
@@ -138,71 +149,67 @@ async def voice_endpoint(ws: WebSocket):
         pipeline_task = None
 
     async def run_voice_pipeline(transcript: str):
-        """Stream LLM → TTS. Cancellation-safe. Skips <think> blocks for TTS."""
+        """Stream LLM → TTS. Uses raw completions with think pre-fill for zero-waste inference."""
         full_reply = ""
         tts_buffer = ""
-        in_think = False
         first_tts_sent = False
         t0 = time.perf_counter()
 
-        # Voice-optimized messages: short answers, no thinking
+        # Build ChatML prompt with think pre-fill to skip reasoning tokens
         voice_messages = [
             {"role": "system", "content": config.VOICE_SYSTEM_PROMPT},
             *conversation_history[1:],  # skip original system prompt
         ]
+        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n")
 
         try:
             await ws.send_json({"type": "llm_start"})
 
-            stream = await llm_client.chat.completions.create(
-                model=config.VLLM_MODEL,
-                messages=voice_messages,
-                stream=True,
-                max_tokens=60,
-                temperature=0.1,
-            )
+            # Use raw completions endpoint for pre-fill support
+            async with _llm_http.stream(
+                "POST", "/v1/completions",
+                json={
+                    "prompt": prompt,
+                    "max_tokens": 40,
+                    "temperature": 0.0,
+                    "stop": ["<|im_end|>"],
+                    "stream": True,
+                    "cache_prompt": True,
+                },
+            ) as resp:
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: ") or line == "data: [DONE]":
+                        continue
+                    chunk = json.loads(line[6:])
+                    delta = chunk["choices"][0].get("text", "")
+                    if not delta:
+                        continue
 
-            async for chunk in stream:
-                delta = chunk.choices[0].delta.content
-                if delta:
                     full_reply += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
-                    # Track <think> blocks — don't TTS reasoning
-                    if "<think>" in delta:
-                        in_think = True
+                    tts_buffer += delta
+                    stripped = tts_buffer.strip()
+                    should_send = False
+                    if not first_tts_sent and len(stripped) >= 10 and any(stripped.endswith(p) for p in [".", "!", "?", ",", ":", ";"]):
+                        should_send = True
+                    elif first_tts_sent and any(stripped.endswith(p) for p in [".", "!", "?", "\n"]):
+                        should_send = True
+                    if should_send:
+                        await _send_tts(ws, stripped)
                         tts_buffer = ""
-                    if "</think>" in delta:
-                        in_think = False
-                        tts_buffer = ""
-                        continue
+                        first_tts_sent = True
 
-                    if not in_think:
-                        tts_buffer += delta
-                        stripped = tts_buffer.strip()
-                        # Send TTS early: first chunk at 15+ chars, then at sentence boundaries
-                        should_send = False
-                        if not first_tts_sent and len(stripped) >= 15 and any(stripped.endswith(p) for p in [".", "!", "?", ",", ":", ";"]):
-                            should_send = True
-                        elif first_tts_sent and any(stripped.endswith(p) for p in [".", "!", "?", "\n"]):
-                            should_send = True
-                        if should_send:
-                            await _send_tts(ws, stripped)
-                            tts_buffer = ""
-                            first_tts_sent = True
-
-            if tts_buffer.strip() and not in_think:
+            if tts_buffer.strip():
                 await _send_tts(ws, tts_buffer.strip())
 
             await ws.send_json({"type": "llm_done"})
             await ws.send_json({"type": "tts_done"})
 
             if full_reply:
-                clean = re.sub(r'<think>.*?</think>\s*', '', full_reply, flags=re.DOTALL).strip()
-                if clean:
-                    conversation_history.append({"role": "assistant", "content": clean})
-                    if len(conversation_history) > 21:
-                        del conversation_history[1:-20]
+                conversation_history.append({"role": "assistant", "content": full_reply.strip()})
+                if len(conversation_history) > 21:
+                    del conversation_history[1:-20]
 
             print(f"✅ [{time.perf_counter()-t0:.2f}s] Voice reply: {full_reply[:60]}...")
 
@@ -252,19 +259,29 @@ async def voice_endpoint(ws: WebSocket):
                     conversation_history.append({"role": "user", "content": user_text})
                     await ws.send_json({"type": "llm_start"})
 
+                    # Use raw completions with think pre-fill for instant answers
+                    prompt = _build_chatml_prompt(conversation_history, prefill="<think>\n\n</think>\n\n")
                     full_reply = ""
                     try:
-                        stream = await llm_client.chat.completions.create(
-                            model=config.VLLM_MODEL,
-                            messages=conversation_history,
-                            stream=True,
-                            max_tokens=2048,
-                        )
-                        async for chunk in stream:
-                            delta = chunk.choices[0].delta.content
-                            if delta:
-                                full_reply += delta
-                                await ws.send_json({"type": "llm_delta", "text": delta})
+                        async with _llm_http.stream(
+                            "POST", "/v1/completions",
+                            json={
+                                "prompt": prompt,
+                                "max_tokens": 512,
+                                "temperature": 0.3,
+                                "stop": ["<|im_end|>"],
+                                "stream": True,
+                                "cache_prompt": True,
+                            },
+                        ) as resp:
+                            async for line in resp.aiter_lines():
+                                if not line.startswith("data: ") or line == "data: [DONE]":
+                                    continue
+                                chunk = json.loads(line[6:])
+                                delta = chunk["choices"][0].get("text", "")
+                                if delta:
+                                    full_reply += delta
+                                    await ws.send_json({"type": "llm_delta", "text": delta})
                     except Exception as e:
                         await ws.send_json({"type": "error", "text": str(e)})
                         continue
@@ -272,8 +289,7 @@ async def voice_endpoint(ws: WebSocket):
                     await ws.send_json({"type": "llm_done"})
 
                     if full_reply:
-                        clean = re.sub(r'<think>.*?</think>\s*', '', full_reply, flags=re.DOTALL).strip()
-                        conversation_history.append({"role": "assistant", "content": clean})
+                        conversation_history.append({"role": "assistant", "content": full_reply.strip()})
                         if len(conversation_history) > 21:
                             del conversation_history[1:-20]
 
