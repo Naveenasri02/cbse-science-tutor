@@ -198,8 +198,9 @@ async def voice_endpoint(ws: WebSocket):
         pipeline_task = None
 
     async def run_voice_pipeline(transcript: str, detected_lang: str = "en"):
-        """Stream LLM text to client, then TTS the full reply as one piece for consistent voice."""
+        """Stream LLM → TTS concurrently: TTS starts on first sentence while LLM continues."""
         full_reply = ""
+        sentence_buffer = ""
         t0 = time.perf_counter()
 
         # Determine TTS voice and language instruction for LLM
@@ -207,7 +208,7 @@ async def voice_endpoint(ws: WebSocket):
             tts_voice = config.LANG_VOICE_MAP[detected_lang]
             lang_instruction = ""
         else:
-            tts_voice = config.TTS_VOICE  # default English voice
+            tts_voice = config.TTS_VOICE
             lang_instruction = " Respond in English only — the student's language is not supported for voice output."
 
         voice_messages = [
@@ -216,10 +217,44 @@ async def voice_endpoint(ws: WebSocket):
         ]
         prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1900)
 
+        # Async queue: LLM feeds sentences → TTS worker consumes them
+        tts_q: asyncio.Queue = asyncio.Queue()
+
+        async def tts_worker():
+            """Generate and send TTS audio for each sentence as it arrives."""
+            first_audio = True
+            chunk_count = 0
+            loop = asyncio.get_event_loop()
+            while True:
+                sentence = await tts_q.get()
+                if sentence is None:
+                    break
+                clean = strip_md_for_tts(sentence)
+                if not clean:
+                    continue
+                try:
+                    pcm = await loop.run_in_executor(None, tts.to_pcm_bytes, clean, tts_voice)
+                    samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+                    peak = np.max(np.abs(samples))
+                    if peak > 0:
+                        samples = samples * (0.95 * 32767 / peak)
+                    norm_pcm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
+                    wav = _pcm_to_wav(norm_pcm, sr=tts.sr)
+                    if first_audio:
+                        await ws.send_json({"type": "tts_start"})
+                        print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
+                        first_audio = False
+                    await ws.send_bytes(wav)
+                    chunk_count += 1
+                except Exception as e:
+                    print(f"❌ TTS sentence error: {e}")
+            print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] ({chunk_count} chunks)")
+
         try:
             await ws.send_json({"type": "llm_start"})
+            tts_task = asyncio.create_task(tts_worker())
 
-            # Stream LLM tokens to client (text appears incrementally)
+            # Stream LLM tokens — feed complete sentences to TTS as they form
             async with _llm_http.stream(
                 "POST", "/v1/completions",
                 json={
@@ -239,14 +274,27 @@ async def voice_endpoint(ws: WebSocket):
                     if not delta:
                         continue
                     full_reply += delta
+                    sentence_buffer += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
+                    # Extract complete sentences and send to TTS immediately
+                    while True:
+                        match = re.search(r'[.!?](?:\s|$)', sentence_buffer)
+                        if not match:
+                            break
+                        end = match.end()
+                        sentence = sentence_buffer[:end].strip()
+                        sentence_buffer = sentence_buffer[end:]
+                        if sentence:
+                            await tts_q.put(sentence)
+
+            # Flush remaining text to TTS
+            if sentence_buffer.strip():
+                await tts_q.put(sentence_buffer.strip())
+
+            await tts_q.put(None)  # Signal TTS worker to finish
             await ws.send_json({"type": "llm_done"})
-
-            # TTS the full reply as ONE call — consistent pitch/tone/volume throughout
-            if full_reply.strip():
-                await _send_tts(ws, full_reply.strip(), voice=tts_voice)
-
+            await tts_task  # Wait for all TTS audio to send
             await ws.send_json({"type": "tts_done"})
 
             if full_reply:
@@ -258,6 +306,7 @@ async def voice_endpoint(ws: WebSocket):
 
         except asyncio.CancelledError:
             print(f"⚡ Voice pipeline cancelled: {full_reply[:40]}...")
+            tts_q.put_nowait(None)  # Stop TTS worker
             if full_reply:
                 clean = re.sub(r'<think>.*?</think>\s*', '', full_reply, flags=re.DOTALL).strip()
                 if clean:
@@ -267,6 +316,7 @@ async def voice_endpoint(ws: WebSocket):
             raise
         except Exception as e:
             print(f"❌ Pipeline error: {e}")
+            tts_q.put_nowait(None)
             try:
                 await ws.send_json({"type": "error", "text": str(e)})
                 await ws.send_json({"type": "llm_done"})
