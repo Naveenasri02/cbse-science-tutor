@@ -1,6 +1,6 @@
 """
 CBSE Voice Chat Server — All-in-One GPU Backend
-STT (faster-whisper) + LLM (vLLM/OpenAI) + TTS (Kokoro) on single GPU.
+STT (faster-whisper) + LLM (vLLM) + TTS (Voxtral via vllm-omni) on single GPU.
 Streaming WebSocket pipeline with barge-in support.
 """
 
@@ -24,9 +24,9 @@ import config
 
 print("🔧 Loading models...")
 
-print("  [1/3] TTS...")
-from tts.kokoro_tts import KokoroTTS
-tts = KokoroTTS()
+print("  [1/3] TTS client...")
+from tts.voxtral_tts import VoxtralTTSEngine
+tts = VoxtralTTSEngine()
 print("  ✓ TTS ready")
 
 print("  [2/3] STT...")

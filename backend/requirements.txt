@@ -1,18 +1,22 @@
 # Core
-fastapi==0.115.*
-uvicorn[standard]==0.34.*
+fastapi>=0.115
+uvicorn[standard]>=0.34
 websockets>=13.0
 python-dotenv>=1.0
+httpx>=0.27
 
-# LLM client
+# LLM client (OpenAI-compatible, talks to vLLM)
 openai>=1.50
 
-# STT
+# STT (runs in-process on GPU)
 faster-whisper>=1.0
 soundfile>=0.12
 
-# TTS
-kokoro-onnx>=0.4
-numpy>=1.26
+# TTS (HTTP client to vllm-omni Voxtral server)
+# No in-process deps needed — Voxtral runs as separate vllm-omni server
 
-# CORS
+# Infra (installed on GPU server, not in requirements)
+# vllm>=0.18        — serves Qwen3-8B LLM on port 8002
+# vllm-omni>=0.18   — serves Voxtral 4B TTS on port 8003
+
+numpy>=1.26
