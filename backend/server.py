@@ -242,7 +242,13 @@ async def voice_endpoint(ws: WebSocket):
                     if peak > 0:
                         samples = samples * (0.95 * 32767 / peak)
                     norm_pcm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
-                    wav = _pcm_to_wav(norm_pcm, sr=tts.sr)
+
+                    # Add natural silence between chunks for human-like pauses
+                    ends_sentence = clean.rstrip()[-1] in '.!?' if clean.rstrip() else False
+                    pause_ms = 280 if ends_sentence else 150
+                    silence = np.zeros(int(tts.sr * pause_ms / 1000), dtype=np.int16).tobytes()
+                    wav = _pcm_to_wav(norm_pcm + silence, sr=tts.sr)
+
                     if first_audio:
                         await ws.send_json({"type": "tts_start"})
                         print(f"🔊 First audio [{time.perf_counter()-t0:.3f}s] tts={tts_ms:.0f}ms \"{clean[:40]}\"")

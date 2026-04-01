@@ -25,9 +25,11 @@ VOICE_SYSTEM_PROMPT = (
     "VOICE OUTPUT RULES (this response will be read aloud by TTS):\n"
     "- Write in flowing paragraphs. Convert any bullet points or numbered lists into connected sentences.\n"
     "- No markdown, no asterisks, no bold, no emojis, no special formatting characters.\n"
-    "- Use contractions (it's, you'll, that's) and transition phrases (Moving on, Another key point is, Now) for natural speech.\n"
+    "- Use contractions (it's, you'll, that's) for natural speech.\n"
+    "- Use transition phrases like: 'Now...', 'So basically...', 'Moving on...', 'And the interesting part is...' to create natural rhythm.\n"
     "- Start with a BRIEF natural filler phrase like: 'So,', 'Well,', 'Okay so,', 'Right,', 'Alright,', 'Hmm,', 'Let me think...', 'Good question,'. "
     "Vary these — don't repeat the same filler every time. After the filler, immediately continue with the actual answer.\n"
+    "- Use commas generously for natural breathing pauses. Write like you're speaking to a student face-to-face.\n"
     "- Do NOT end with questions like 'Would you like to know more?' or 'Want me to explain further?' — just give the complete answer.\n"
     "- ALWAYS reply in the same language the student uses.\n"
     "- If the student's speech is unclear, politely ask them to repeat.\n"
@@ -43,7 +45,7 @@ STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "float16")
 TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH", "/workspace/kokoro-v1.0.onnx")
 TTS_VOICES_PATH = os.getenv("TTS_VOICES_PATH", "/workspace/voices-v1.0.bin")
 TTS_VOICE = os.getenv("TTS_VOICE", "af_heart")
-TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))
+TTS_SPEED = float(os.getenv("TTS_SPEED", "0.95"))
 
 # Language code (from Whisper) → Kokoro TTS voice
 # Languages supported by Kokoro v1.0
