@@ -463,39 +463,48 @@ def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
 
 
 async def _send_tts(ws: WebSocket, text: str):
-    """Generate TTS audio, peak-normalize to max volume, then send.
-    Collects all PCM from Voxtral, normalizes the complete audio to 95% peak,
-    guaranteeing consistent loud volume on every response."""
+    """Stream TTS chunks with fixed gain for consistent loud volume + low latency.
+    Uses a calibrated gain (5x) based on typical Voxtral output levels (~6000-8000 peak).
+    Clips at int16 max to prevent distortion — effectively a broadcast-style hard limiter."""
     clean = strip_md_for_tts(text)
     if not clean:
         return
     try:
         t0 = time.perf_counter()
         loop = asyncio.get_event_loop()
+        first_audio = True
+        chunk_count = 0
 
-        # Collect all PCM from Voxtral in one shot
-        all_pcm = await loop.run_in_executor(None, _collect_tts_pcm, clean)
+        q: asyncio.Queue = asyncio.Queue()
 
-        if not all_pcm:
-            return
+        def _stream_to_queue():
+            for chunk in tts.stream_pcm(clean):
+                q.put_nowait(chunk)
+            q.put_nowait(None)  # sentinel
 
-        # Peak-normalize entire audio to 95% — guarantees max volume every time
-        samples = np.frombuffer(all_pcm, dtype=np.int16).astype(np.float32)
-        peak = np.max(np.abs(samples))
-        if peak > 0:
-            target = 0.95 * 32767
-            samples = samples * (target / peak)
-        normalized_pcm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
+        loop.run_in_executor(None, _stream_to_queue)
 
-        wav = _pcm_to_wav(normalized_pcm, sr=24000)
-        await ws.send_json({"type": "tts_start"})
-        await ws.send_bytes(wav)
+        while True:
+            chunk = await q.get()
+            if chunk is None:
+                break
 
-        print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (peak={peak:.0f})")
+            # Apply fixed gain with clipping — consistent volume, no waiting
+            boosted = _boost_pcm(chunk, gain=5.0)
+            wav = _pcm_to_wav(boosted, sr=24000)
+
+            if first_audio:
+                await ws.send_json({"type": "tts_start"})
+                print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
+                first_audio = False
+
+            await ws.send_bytes(wav)
+            chunk_count += 1
+
+        print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] {len(clean)} chars ({chunk_count} chunks)")
 
     except Exception as e:
         print(f"❌ TTS error: {e}")
-        # Fallback: try non-streaming
         try:
             t0 = time.perf_counter()
             loop = asyncio.get_event_loop()
