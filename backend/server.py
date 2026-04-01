@@ -175,32 +175,31 @@ async def voice_endpoint(ws: WebSocket):
         pipeline_task = None
 
     async def run_voice_pipeline(transcript: str):
-        """Stream LLM → TTS. Uses raw completions with think pre-fill for zero-waste inference."""
+        """Stream LLM → TTS concurrently. TTS runs in background while LLM keeps streaming."""
         full_reply = ""
         tts_buffer = ""
         first_tts_sent = False
         t0 = time.perf_counter()
+        tts_tasks = []  # track background TTS tasks
+        llm_first_token_time = None  # track when first token arrived
 
-        # Build ChatML prompt with think pre-fill to skip reasoning tokens
         voice_messages = [
             {"role": "system", "content": config.VOICE_SYSTEM_PROMPT},
-            *conversation_history[1:],  # skip original system prompt
+            *conversation_history[1:],
         ]
         prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n")
 
         try:
             await ws.send_json({"type": "llm_start"})
 
-            # Use raw completions endpoint for pre-fill support
             async with _llm_http.stream(
                 "POST", "/v1/completions",
                 json={
                     "prompt": prompt,
-                    "max_tokens": 150,
+                    "max_tokens": 60,
                     "temperature": 0.0,
                     "stop": ["<|im_end|>"],
                     "stream": True,
-                    "cache_prompt": True,
                 },
             ) as resp:
                 async for line in resp.aiter_lines():
@@ -211,25 +210,52 @@ async def voice_endpoint(ws: WebSocket):
                     if not delta:
                         continue
 
+                    if llm_first_token_time is None:
+                        llm_first_token_time = time.perf_counter()
+
                     full_reply += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
                     tts_buffer += delta
-                    stripped = tts_buffer.strip()
-                    should_send = False
-                    if not first_tts_sent and len(stripped) >= 10 and any(stripped.endswith(p) for p in [".", "!", "?", ",", ":", ";"]):
-                        should_send = True
-                    elif first_tts_sent and any(stripped.endswith(p) for p in [".", "!", "?", "\n"]):
-                        should_send = True
-                    if should_send:
-                        await _send_tts(ws, stripped)
-                        tts_buffer = ""
+                    send_text = ""
+
+                    # Strategy: split at punctuation OR after enough words
+                    split_chars = ".,!?;:" if not first_tts_sent else ".!?,"
+                    split_idx = -1
+                    for sc in split_chars:
+                        idx = tts_buffer.rfind(sc)
+                        if idx > split_idx:
+                            split_idx = idx
+
+                    if split_idx >= 0:
+                        candidate = tts_buffer[:split_idx + 1].strip()
+                        min_len = 5 if not first_tts_sent else 3
+                        if len(candidate) >= min_len:
+                            send_text = candidate
+                            tts_buffer = tts_buffer[split_idx + 1:]
+                    elif not first_tts_sent:
+                        # Fallback: send first chunk after 4 complete words
+                        words = tts_buffer.strip().split()
+                        if len(words) >= 4 and len(tts_buffer) > len(tts_buffer.rstrip()):
+                            send_text = tts_buffer.strip()
+                            tts_buffer = ""
+
+                    if send_text:
+                        task = asyncio.create_task(_send_tts(ws, send_text))
+                        tts_tasks.append(task)
                         first_tts_sent = True
 
+            # Send remaining buffer
             if tts_buffer.strip():
-                await _send_tts(ws, tts_buffer.strip())
+                task = asyncio.create_task(_send_tts(ws, tts_buffer.strip()))
+                tts_tasks.append(task)
 
             await ws.send_json({"type": "llm_done"})
+
+            # Wait for all TTS tasks to finish
+            if tts_tasks:
+                await asyncio.gather(*tts_tasks, return_exceptions=True)
+
             await ws.send_json({"type": "tts_done"})
 
             if full_reply:
@@ -241,6 +267,8 @@ async def voice_endpoint(ws: WebSocket):
 
         except asyncio.CancelledError:
             print(f"⚡ Voice pipeline cancelled: {full_reply[:40]}...")
+            for t in tts_tasks:
+                t.cancel()
             if full_reply:
                 clean = re.sub(r'<think>.*?</think>\s*', '', full_reply, flags=re.DOTALL).strip()
                 if clean:

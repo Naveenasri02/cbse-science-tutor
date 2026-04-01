@@ -4,6 +4,28 @@ import soundfile as sf
 from faster_whisper import WhisperModel
 import config
 
+# Common Whisper hallucinations triggered by background noise
+_HALLUCINATIONS = {
+    "thank you", "thanks", "thanks for watching", "thanks for listening",
+    "subscribe", "please subscribe", "like and subscribe",
+    "subtitle", "subtitles", "captions",
+    "music", "applause", "laughter",
+    "you", "bye", "okay", "hmm", "uh", "um",
+    "the end", "so", "i'm sorry",
+}
+
+
+def _is_hallucination(text: str) -> bool:
+    """Detect common Whisper hallucinations from noise/silence."""
+    t = text.strip().lower().rstrip(".")
+    if t in _HALLUCINATIONS:
+        return True
+    # Repeated short phrases (Whisper artifact on noise)
+    words = t.split()
+    if len(words) >= 4 and len(set(words)) <= 2:
+        return True
+    return False
+
 
 class WhisperSTT:
     """GPU-accelerated Whisper STT."""
@@ -27,4 +49,9 @@ class WhisperSTT:
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=400),
         )
-        return " ".join(s.text for s in segments).strip()
+        text = " ".join(s.text for s in segments).strip()
+
+        if _is_hallucination(text):
+            return ""
+
+        return text
