@@ -216,7 +216,7 @@ async def voice_endpoint(ws: WebSocket):
             {"role": "system", "content": config.VOICE_SYSTEM_PROMPT + lang_instruction},
             *conversation_history[1:],
         ]
-        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1900)
+        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1400)
 
         # Async queue: LLM feeds sentences → TTS worker consumes them
         tts_q: asyncio.Queue = asyncio.Queue()
@@ -276,14 +276,17 @@ async def voice_endpoint(ws: WebSocket):
                     delta = chunk["choices"][0].get("text", "")
                     if not delta:
                         continue
+                    # Track LLM first token time
+                    if not full_reply:
+                        print(f"⚡ LLM first token [{time.perf_counter()-t0:.3f}s]")
                     full_reply += delta
                     chunk_buffer += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
-                    # Chunk extraction — first chunk uses clause boundaries for speed
+                    # Chunk extraction — ultra-aggressive first chunk for speed
                     while True:
                         if chunks_sent == 0:
-                            # FIRST CHUNK: split at comma, semicolon, colon, or sentence-end
+                            # FIRST CHUNK: send ASAP — any punctuation OR just 4 words
                             match = re.search(r'[,;:.!?](?:\s|$)', chunk_buffer)
                             if match:
                                 end = match.end()
@@ -294,8 +297,8 @@ async def voice_endpoint(ws: WebSocket):
                                     chunks_sent += 1
                                     print(f"📝 First chunk [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
                                 break
-                            # Fallback: 8+ words without punctuation → send as-is
-                            if len(chunk_buffer.split()) >= 8:
+                            # Ultra-fast fallback: 4+ words without punctuation
+                            if len(chunk_buffer.split()) >= 4:
                                 last_sp = chunk_buffer.rfind(' ')
                                 if last_sp > 0:
                                     frag = chunk_buffer[:last_sp].strip()
@@ -303,13 +306,19 @@ async def voice_endpoint(ws: WebSocket):
                                     if frag:
                                         await tts_q.put(frag)
                                         chunks_sent += 1
-                                        print(f"📝 First chunk (word-split) [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
+                                        print(f"📝 First chunk (4w) [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
                             break
                         else:
-                            # SUBSEQUENT CHUNKS: sentence boundaries for natural TTS
+                            # SUBSEQUENT CHUNKS: clause or sentence boundaries
                             match = re.search(r'[.!?](?:\s|$)', chunk_buffer)
                             if not match:
-                                break
+                                # Also split on commas if buffer is getting long (10+ words)
+                                if len(chunk_buffer.split()) >= 10:
+                                    cm = re.search(r'[,;:](?:\s|$)', chunk_buffer)
+                                    if cm:
+                                        match = cm
+                                if not match:
+                                    break
                             end = match.end()
                             sentence = chunk_buffer[:end].strip()
                             chunk_buffer = chunk_buffer[end:]
