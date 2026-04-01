@@ -189,6 +189,7 @@ async def voice_endpoint(ws: WebSocket):
         """Stream LLM → TTS sequentially. TTS chunks sent in order for gapless playback."""
         full_reply = ""
         tts_buffer = ""
+        first_tts_sent = False
         t0 = time.perf_counter()
         tts_queue = asyncio.Queue()
         tts_worker_task = None
@@ -236,15 +237,27 @@ async def voice_endpoint(ws: WebSocket):
                     tts_buffer += delta
                     send_text = ""
 
-                    # Split at sentence boundaries (.!?) for consistent speech pace
-                    for sc in ".!?":
-                        idx = tts_buffer.rfind(sc)
-                        if idx >= 0:
-                            candidate = tts_buffer[:idx + 1].strip()
-                            if len(candidate) >= 5:
-                                send_text = candidate
-                                tts_buffer = tts_buffer[idx + 1:]
-                                break
+                    if not first_tts_sent:
+                        # First chunk: fire at ANY punctuation (,;:.!?) for fast first audio
+                        for sc in ".!?,;:":
+                            idx = tts_buffer.rfind(sc)
+                            if idx >= 0:
+                                candidate = tts_buffer[:idx + 1].strip()
+                                if len(candidate) >= 15:
+                                    send_text = candidate
+                                    tts_buffer = tts_buffer[idx + 1:]
+                                    first_tts_sent = True
+                                    break
+                    else:
+                        # Subsequent chunks: sentence boundaries for consistent pace
+                        for sc in ".!?":
+                            idx = tts_buffer.rfind(sc)
+                            if idx >= 0:
+                                candidate = tts_buffer[:idx + 1].strip()
+                                if len(candidate) >= 5:
+                                    send_text = candidate
+                                    tts_buffer = tts_buffer[idx + 1:]
+                                    break
 
                     if send_text:
                         await tts_queue.put(send_text)
@@ -441,92 +454,110 @@ async def voice_endpoint(ws: WebSocket):
         import traceback; traceback.print_exc()
 
 
+def _pcm_to_wav(pcm_bytes: bytes, sr: int = 24000) -> bytes:
+    """Wrap raw PCM int16 mono data in a WAV header."""
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(pcm_bytes)
+    return buf.getvalue()
+
+
 def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
-    """Professional audio processing for broadcast-quality TTS output.
-    1. Dynamic range compression (smooths volume fluctuations)
-    2. Gentle high-frequency roll-off (reduces harshness)
-    3. Peak normalization to target level
-    All operations use vectorized numpy for speed.
-    """
+    """Fast peak normalization for consistent volume."""
     with io.BytesIO(wav_bytes) as inp:
         with wave.open(inp, 'rb') as w:
             params = w.getparams()
-            sr = w.getframerate()
             frames = w.readframes(w.getnframes())
-    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float64)
+    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
     if len(samples) == 0:
         return wav_bytes
-
-    # --- 1. Block-based RMS compression (vectorized) ---
-    block_size = max(1, sr // 100)  # 10ms blocks
-    n_blocks = len(samples) // block_size
-    if n_blocks > 0:
-        trimmed = samples[:n_blocks * block_size]
-        blocks = trimmed.reshape(n_blocks, block_size)
-        rms = np.sqrt(np.mean(blocks ** 2, axis=1))
-
-        threshold = 0.30 * 32767
-        ratio = 3.0
-        gains = np.ones(n_blocks)
-        loud = rms > threshold
-        if np.any(loud):
-            excess_db = 20.0 * np.log10(rms[loud] / threshold + 1e-10)
-            reduction_db = excess_db * (1.0 - 1.0 / ratio)
-            gains[loud] = 10.0 ** (-reduction_db / 20.0)
-
-        # Smooth gains across blocks to avoid clicks (simple moving average)
-        kernel_size = min(5, n_blocks)
-        if kernel_size > 1:
-            kernel = np.ones(kernel_size) / kernel_size
-            gains = np.convolve(gains, kernel, mode='same')
-
-        # Apply per-block gain
-        gain_per_sample = np.repeat(gains, block_size)
-        samples[:len(gain_per_sample)] *= gain_per_sample
-        # Handle remaining samples with last gain
-        if len(samples) > len(gain_per_sample):
-            samples[len(gain_per_sample):] *= gains[-1]
-
-    # --- 2. Simple low-pass smoothing (reduces sibilance) ---
-    # Exponential moving average — gentle roll-off above ~8kHz
-    if sr >= 22000:
-        cutoff = 8000.0
-        rc = 1.0 / (2.0 * np.pi * cutoff)
-        dt = 1.0 / sr
-        alpha = dt / (rc + dt)
-        # Apply as simple FIR approximation (3-tap weighted average)
-        kernel = np.array([alpha * 0.2, 1.0 - alpha * 0.4, alpha * 0.2])
-        samples = np.convolve(samples, kernel, mode='same')
-
-    # --- 3. Makeup gain + peak normalization ---
     peak = np.max(np.abs(samples))
     if peak < 1.0:
         return wav_bytes
     gain = (target_peak * 32767) / peak
-    final = np.clip(samples * gain, -32767, 32767).astype(np.int16)
-
+    samples = np.clip(samples * gain, -32767, 32767).astype(np.int16)
     out = io.BytesIO()
     with wave.open(out, 'wb') as w:
         w.setparams(params)
-        w.writeframes(final.tobytes())
+        w.writeframes(samples.tobytes())
     return out.getvalue()
 
 
 async def _send_tts(ws: WebSocket, text: str):
-    """Generate TTS and send as normalized binary audio."""
+    """Stream TTS audio for low time-to-first-audio.
+    Streams PCM from Voxtral, converts to mini-WAV chunks, sends progressively.
+    Falls back to full WAV if streaming fails."""
     clean = strip_md_for_tts(text)
     if not clean:
         return
     try:
         t0 = time.perf_counter()
         loop = asyncio.get_event_loop()
-        wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
-        wav_bytes = _normalize_wav(wav_bytes)
-        print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars -> {len(wav_bytes)//1024}KB")
-        await ws.send_json({"type": "tts_start"})
-        await ws.send_bytes(wav_bytes)
-    except Exception as e:
-        print(f"❌ TTS error: {e}")
+        pcm_queue = asyncio.Queue()
+        stream_error = [None]
+
+        def _produce():
+            try:
+                for chunk in tts.stream_pcm(clean):
+                    loop.call_soon_threadsafe(pcm_queue.put_nowait, chunk)
+            except Exception as e:
+                stream_error[0] = e
+            loop.call_soon_threadsafe(pcm_queue.put_nowait, None)
+
+        producer = loop.run_in_executor(None, _produce)
+
+        sr = 24000
+        min_bytes = int(sr * 0.35 * 2)  # ~0.35s per mini-WAV chunk
+        pcm_buf = bytearray()
+        sent_any = False
+
+        while True:
+            chunk = await pcm_queue.get()
+            if chunk is None:
+                break
+            pcm_buf.extend(chunk)
+
+            if len(pcm_buf) >= min_bytes:
+                wav = _pcm_to_wav(bytes(pcm_buf), sr)
+                wav = _normalize_wav(wav)
+                if not sent_any:
+                    await ws.send_json({"type": "tts_start"})
+                    sent_any = True
+                    print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
+                await ws.send_bytes(wav)
+                pcm_buf = bytearray()
+
+        # Flush remaining PCM
+        if pcm_buf:
+            wav = _pcm_to_wav(bytes(pcm_buf), sr)
+            wav = _normalize_wav(wav)
+            if not sent_any:
+                await ws.send_json({"type": "tts_start"})
+            await ws.send_bytes(wav)
+
+        await producer
+
+        if stream_error[0]:
+            raise stream_error[0]
+
+        print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (streamed)")
+
+    except Exception as stream_err:
+        # Fallback to non-streaming
+        print(f"⚠️ TTS stream failed ({stream_err}), using fallback")
+        try:
+            t0 = time.perf_counter()
+            loop = asyncio.get_event_loop()
+            wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
+            wav_bytes = _normalize_wav(wav_bytes)
+            await ws.send_json({"type": "tts_start"})
+            await ws.send_bytes(wav_bytes)
+            print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (fallback)")
+        except Exception as e:
+            print(f"❌ TTS error: {e}")
 
 
 # ── Health check ────────────────────────────────────────────

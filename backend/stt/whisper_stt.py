@@ -28,15 +28,19 @@ def _is_hallucination(text: str) -> bool:
 
 
 class WhisperSTT:
-    """GPU-accelerated Whisper STT."""
+    """GPU-accelerated Whisper STT optimized for low latency."""
 
     def __init__(self):
         print(f"  Loading Whisper {config.STT_MODEL_SIZE} on {config.STT_DEVICE}...")
         self.model = WhisperModel(
             config.STT_MODEL_SIZE,
             device=config.STT_DEVICE,
-            compute_type=config.STT_COMPUTE_TYPE,
+            compute_type="int8_float16",  # ~30% faster than float16, negligible accuracy loss
         )
+        # Warm up: run a dummy transcription so CUDA kernels are compiled
+        dummy = np.zeros(16000, dtype=np.float32)
+        list(self.model.transcribe(dummy, language="en", beam_size=1)[0])
+        print("  ✓ Whisper warmed up")
 
     def transcribe(self, audio_bytes: bytes) -> str:
         audio_data, sr = sf.read(io.BytesIO(audio_bytes))
@@ -48,8 +52,9 @@ class WhisperSTT:
             audio_data,
             language="en",
             beam_size=1,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=400),
+            without_timestamps=True,   # skip timestamp computation
+            condition_on_previous_text=False,  # skip cross-attention on prior text
+            vad_filter=False,          # client VAD already filters — skip double VAD
         )
         text = " ".join(s.text for s in segments).strip()
 
