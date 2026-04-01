@@ -17,10 +17,10 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
   const startVoice = useCallback(async () => {
     try {
-      // Set ONNX Runtime WASM paths before VAD init
+      // Set ONNX Runtime WASM paths to CDN for reliable loading
       try {
         const ort = await import('onnxruntime-web')
-        ort.env.wasm.wasmPaths = '/'
+        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/'
       } catch (e) {
         console.warn('ONNX WASM path config skipped:', e)
       }

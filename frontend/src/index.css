@@ -118,3 +118,14 @@
   50%      { transform: scale(.96);  filter: brightness(.9); }
   75%      { transform: scale(1.04); filter: brightness(1.15); }
 }
+
+/* ── Typing cursor ── */
+@keyframes cursorBlink { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
+.typing-cursor {
+  display: inline-block;
+  width: 2px; height: 1.15em;
+  background: #10a37f;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: cursorBlink 1s step-end infinite;
+}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { marked } from 'marked'
 import renderMathInElement from 'katex/contrib/auto-render'
 import 'katex/dist/katex.min.css'
@@ -7,44 +7,67 @@ marked.setOptions({ breaks: true, gfm: true })
 
 export default function Message({ role, text, streaming }) {
   const contentRef = useRef(null)
-  const [renderedHtml, setRenderedHtml] = useState('')
   const renderTimer = useRef(null)
-  const lastRenderedText = useRef('')
+  const textRef = useRef(text || '')
+  const displayTextRef = useRef('')
 
-  // Throttle markdown parsing during streaming — render at most every 80ms
+  // Typewriter: gradually reveal characters during streaming
+  const [displayLen, setDisplayLen] = useState(text?.length || 0)
+
   useEffect(() => {
-    if (role === 'user' || !text) {
+    textRef.current = text || ''
+    if (role !== 'bot' || !streaming) {
+      setDisplayLen(text?.length || 0)
+    }
+  }, [text, streaming, role])
+
+  useEffect(() => {
+    if (role !== 'bot' || !streaming) return
+    const timer = setInterval(() => {
+      setDisplayLen(prev => {
+        const target = textRef.current.length
+        if (prev >= target) return prev
+        const gap = target - prev
+        const step = gap > 80 ? Math.ceil(gap * 0.08) : 2
+        return Math.min(prev + step, target)
+      })
+    }, 18)
+    return () => clearInterval(timer)
+  }, [streaming, role])
+
+  const displayText = (role === 'bot') ? (text || '').slice(0, displayLen) : (text || '')
+  displayTextRef.current = displayText
+
+  // Throttled markdown rendering
+  const [renderedHtml, setRenderedHtml] = useState('')
+
+  useEffect(() => {
+    if (role === 'user' || !displayText) {
       setRenderedHtml('')
       return
     }
-
     if (!streaming) {
-      // Final render — immediate
-      setRenderedHtml(marked.parse(text))
-      lastRenderedText.current = text
+      setRenderedHtml(marked.parse(displayText))
       return
     }
-
-    // During streaming, throttle renders
     if (!renderTimer.current) {
       renderTimer.current = setTimeout(() => {
         renderTimer.current = null
-        if (lastRenderedText.current !== text) {
-          setRenderedHtml(marked.parse(text))
-          lastRenderedText.current = text
-        }
-      }, 80)
+        setRenderedHtml(marked.parse(displayTextRef.current))
+      }, 50)
     }
+  }, [displayText, streaming, role])
 
+  useEffect(() => {
     return () => {
       if (renderTimer.current) {
         clearTimeout(renderTimer.current)
         renderTimer.current = null
       }
     }
-  }, [role, text, streaming])
+  }, [])
 
-  // Run KaTeX only when streaming stops (final render)
+  // KaTeX — only after streaming ends
   useEffect(() => {
     if (role === 'bot' && contentRef.current && text && !streaming) {
       try {
@@ -82,6 +105,7 @@ export default function Message({ role, text, streaming }) {
           className="msg-md text-[.95rem] leading-[1.75]"
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
+        {streaming && <span className="typing-cursor" />}
       </div>
     </div>
   )
