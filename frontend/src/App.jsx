@@ -158,10 +158,19 @@ export default function App() {
       setVoiceActive(false)
       setVoiceStatus({ visible: false, cls: '', text: '' })
     } else {
+      // Show overlay immediately while VAD loads
+      setVoiceActive(true)
+      setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Starting...' })
       const ok = await startVoice()
       if (ok) {
-        setVoiceActive(true)
         setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+      } else {
+        // Show error briefly then close
+        setVoiceStatus({ visible: true, cls: 'error', text: '❌ Mic failed' })
+        setTimeout(() => {
+          setVoiceActive(false)
+          setVoiceStatus({ visible: false, cls: '', text: '' })
+        }, 3000)
       }
     }
   }

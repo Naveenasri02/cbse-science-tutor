@@ -1,14 +1,6 @@
 import { useRef, useCallback } from 'react'
 import { MicVAD } from '@ricky0123/vad-web'
 
-const POSITIVE_THRESHOLD = 0.6
-const NEGATIVE_THRESHOLD = 0.3
-const MIN_SPEECH_FRAMES = 3
-const PRESPEECH_PAD_FRAMES = 3
-const REDEMPTION_FRAMES = 10
-const BARGEIN_PROBABILITY = 0.85
-const BARGEIN_FRAMES = 2
-
 export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef }) {
   const vadRef = useRef(null)
   const activeRef = useRef(false)
@@ -17,31 +9,24 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
   const startVoice = useCallback(async () => {
     try {
-      // Set ONNX Runtime WASM paths to CDN for reliable loading
-      try {
-        const ort = await import('onnxruntime-web')
-        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/'
-      } catch (e) {
-        console.warn('ONNX WASM path config skipped:', e)
-      }
-
       const vad = await MicVAD.new({
-        modelURL: '/silero_vad_v5.onnx',
-        workletURL: '/vad.worklet.bundle.min.js',
+        model: 'v5',
+        baseAssetPath: '/',
+        onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: POSITIVE_THRESHOLD,
-        negativeSpeechThreshold: NEGATIVE_THRESHOLD,
-        minSpeechFrames: MIN_SPEECH_FRAMES,
-        preSpeechPadFrames: PRESPEECH_PAD_FRAMES,
-        redemptionFrames: REDEMPTION_FRAMES,
+        positiveSpeechThreshold: 0.6,
+        negativeSpeechThreshold: 0.3,
+        minSpeechMs: 250,
+        preSpeechPadMs: 250,
+        redemptionMs: 900,
 
         onFrameProcessed: (probabilities) => {
           if (!activeRef.current) return
           const { isSpeech } = probabilities
-          if (isSpeech > BARGEIN_PROBABILITY) {
+          if (isSpeech > 0.85) {
             bargeinCountRef.current++
             const botActive = isBotRespondingRef?.current || isPlayingRef?.current
-            if (botActive && !notifiedRef.current && bargeinCountRef.current >= BARGEIN_FRAMES) {
+            if (botActive && !notifiedRef.current && bargeinCountRef.current >= 2) {
               notifiedRef.current = true
               onSpeechDetected()
             }
@@ -78,10 +63,9 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
       vad.start()
       vadRef.current = vad
       activeRef.current = true
-      console.log('✅ Silero VAD initialized')
       return true
     } catch (err) {
-      console.error('Silero VAD init error:', err)
+      console.error('VAD init error:', err)
       return false
     }
   }, [onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef])
