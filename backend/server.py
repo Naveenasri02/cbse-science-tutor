@@ -29,8 +29,8 @@ _stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 print("🔧 Loading models...")
 
 print("  [1/3] TTS engine...")
-from tts.kokoro_tts import KokoroTTS
-tts = KokoroTTS()
+from tts.edge_tts_engine import EdgeTTSEngine
+tts = EdgeTTSEngine()
 print("  ✓ TTS ready")
 
 print("  [2/3] STT...")
@@ -225,7 +225,6 @@ async def voice_endpoint(ws: WebSocket):
             """Generate and send TTS audio for each chunk as it arrives."""
             first_audio = True
             chunk_count = 0
-            loop = asyncio.get_event_loop()
             while True:
                 text = await tts_q.get()
                 if text is None:
@@ -235,19 +234,15 @@ async def voice_endpoint(ws: WebSocket):
                     continue
                 try:
                     t1 = time.perf_counter()
-                    pcm = await loop.run_in_executor(None, tts.to_pcm_bytes, clean, tts_voice)
+                    audio = await tts.generate(clean, tts_voice)
                     tts_ms = (time.perf_counter() - t1) * 1000
-                    samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
-                    peak = np.max(np.abs(samples))
-                    if peak > 0:
-                        samples = samples * (0.95 * 32767 / peak)
-                    norm_pcm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
-                    wav = _pcm_to_wav(norm_pcm, sr=tts.sr)
+                    if not audio:
+                        continue
                     if first_audio:
                         await ws.send_json({"type": "tts_start"})
                         print(f"🔊 First audio [{time.perf_counter()-t0:.3f}s] tts={tts_ms:.0f}ms \"{clean[:40]}\"")
                         first_audio = False
-                    await ws.send_bytes(wav)
+                    await ws.send_bytes(audio)
                     chunk_count += 1
                 except Exception as e:
                     print(f"❌ TTS chunk error: {e}")
@@ -572,60 +567,20 @@ def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
 
 
 async def _send_tts(ws: WebSocket, text: str, voice: str = None):
-    """Stream TTS sentence-by-sentence for low latency.
-    First sentence audio arrives in ~0.3s while rest generates in background."""
+    """Generate and send TTS audio."""
     clean = strip_md_for_tts(text)
     if not clean:
         return
     try:
         t0 = time.perf_counter()
-        loop = asyncio.get_event_loop()
-        first_audio = True
-
-        q: asyncio.Queue = asyncio.Queue()
-
-        def _generate():
-            for pcm in tts.stream_sentences(clean, voice=voice):
-                # Peak-normalize each sentence to 95%
-                samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
-                peak = np.max(np.abs(samples))
-                if peak > 0:
-                    samples = samples * (0.95 * 32767 / peak)
-                norm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
-                q.put_nowait(norm)
-            q.put_nowait(None)
-
-        loop.run_in_executor(None, _generate)
-
-        chunk_count = 0
-        while True:
-            pcm = await q.get()
-            if pcm is None:
-                break
-
-            wav = _pcm_to_wav(pcm, sr=tts.sr)
-            if first_audio:
-                await ws.send_json({"type": "tts_start"})
-                print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
-                first_audio = False
-
-            await ws.send_bytes(wav)
-            chunk_count += 1
-
-        print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] {len(clean)} chars ({chunk_count} chunks)")
-
+        v = voice or config.TTS_VOICE
+        audio = await tts.generate(clean, v)
+        if audio:
+            await ws.send_json({"type": "tts_start"})
+            await ws.send_bytes(audio)
+            print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars")
     except Exception as e:
         print(f"❌ TTS error: {e}")
-        import traceback; traceback.print_exc()
-        try:
-            t0 = time.perf_counter()
-            wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
-            wav_bytes = _normalize_wav(wav_bytes, target_peak=0.95)
-            await ws.send_json({"type": "tts_start"})
-            await ws.send_bytes(wav_bytes)
-            print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (fallback)")
-        except Exception as e2:
-            print(f"❌ TTS fallback error: {e2}")
 
 
 # ── Health check ────────────────────────────────────────────
