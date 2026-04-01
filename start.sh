@@ -21,17 +21,17 @@ if [ ! -f /workspace/kokoro-v1.0.onnx ]; then
   echo "Kokoro model downloaded"
 fi
 
-# ── Start LLM server (vLLM with Qwen3-8B-AWQ) ──
-nohup vllm serve Qwen/Qwen3-8B-AWQ \
+# ── Start LLM server (vLLM with Qwen3-30B-A3B MoE AWQ) ──
+nohup vllm serve invergent/Qwen3-30B-A3B-AWQ \
   --host 0.0.0.0 \
   --port 8002 \
-  --gpu-memory-utilization 0.25 \
+  --gpu-memory-utilization 0.55 \
   --max-model-len 2048 \
   --api-key cbse-sk-local \
   --dtype auto \
-  --quantization awq \
+  --quantization awq_marlin \
   > /workspace/llm_server.log 2>&1 &
-echo "LLM (vLLM AWQ) PID=$!"
+echo "LLM (vLLM Qwen3-30B-A3B MoE AWQ) PID=$!"
 
 echo "Waiting for LLM server..."
 for i in $(seq 1 60); do
