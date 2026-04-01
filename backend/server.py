@@ -198,9 +198,10 @@ async def voice_endpoint(ws: WebSocket):
         pipeline_task = None
 
     async def run_voice_pipeline(transcript: str, detected_lang: str = "en"):
-        """Stream LLM → TTS concurrently: TTS starts on first sentence while LLM continues."""
+        """Stream LLM → TTS concurrently with aggressive first-chunk splitting."""
         full_reply = ""
-        sentence_buffer = ""
+        chunk_buffer = ""
+        chunks_sent = 0
         t0 = time.perf_counter()
 
         # Determine TTS voice and language instruction for LLM
@@ -221,19 +222,21 @@ async def voice_endpoint(ws: WebSocket):
         tts_q: asyncio.Queue = asyncio.Queue()
 
         async def tts_worker():
-            """Generate and send TTS audio for each sentence as it arrives."""
+            """Generate and send TTS audio for each chunk as it arrives."""
             first_audio = True
             chunk_count = 0
             loop = asyncio.get_event_loop()
             while True:
-                sentence = await tts_q.get()
-                if sentence is None:
+                text = await tts_q.get()
+                if text is None:
                     break
-                clean = strip_md_for_tts(sentence)
-                if not clean:
+                clean = strip_md_for_tts(text)
+                if not clean or len(clean.strip()) < 2:
                     continue
                 try:
+                    t1 = time.perf_counter()
                     pcm = await loop.run_in_executor(None, tts.to_pcm_bytes, clean, tts_voice)
+                    tts_ms = (time.perf_counter() - t1) * 1000
                     samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
                     peak = np.max(np.abs(samples))
                     if peak > 0:
@@ -242,19 +245,19 @@ async def voice_endpoint(ws: WebSocket):
                     wav = _pcm_to_wav(norm_pcm, sr=tts.sr)
                     if first_audio:
                         await ws.send_json({"type": "tts_start"})
-                        print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
+                        print(f"🔊 First audio [{time.perf_counter()-t0:.3f}s] tts={tts_ms:.0f}ms \"{clean[:40]}\"")
                         first_audio = False
                     await ws.send_bytes(wav)
                     chunk_count += 1
                 except Exception as e:
-                    print(f"❌ TTS sentence error: {e}")
+                    print(f"❌ TTS chunk error: {e}")
             print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] ({chunk_count} chunks)")
 
         try:
             await ws.send_json({"type": "llm_start"})
             tts_task = asyncio.create_task(tts_worker())
 
-            # Stream LLM tokens — feed complete sentences to TTS as they form
+            # Stream LLM tokens — aggressive first-chunk for fast TTS start
             async with _llm_http.stream(
                 "POST", "/v1/completions",
                 json={
@@ -274,23 +277,49 @@ async def voice_endpoint(ws: WebSocket):
                     if not delta:
                         continue
                     full_reply += delta
-                    sentence_buffer += delta
+                    chunk_buffer += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
-                    # Extract complete sentences and send to TTS immediately
+                    # Chunk extraction — first chunk uses clause boundaries for speed
                     while True:
-                        match = re.search(r'[.!?](?:\s|$)', sentence_buffer)
-                        if not match:
+                        if chunks_sent == 0:
+                            # FIRST CHUNK: split at comma, semicolon, colon, or sentence-end
+                            match = re.search(r'[,;:.!?](?:\s|$)', chunk_buffer)
+                            if match:
+                                end = match.end()
+                                frag = chunk_buffer[:end].strip()
+                                chunk_buffer = chunk_buffer[end:]
+                                if frag:
+                                    await tts_q.put(frag)
+                                    chunks_sent += 1
+                                    print(f"📝 First chunk [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
+                                break
+                            # Fallback: 8+ words without punctuation → send as-is
+                            if len(chunk_buffer.split()) >= 8:
+                                last_sp = chunk_buffer.rfind(' ')
+                                if last_sp > 0:
+                                    frag = chunk_buffer[:last_sp].strip()
+                                    chunk_buffer = chunk_buffer[last_sp:]
+                                    if frag:
+                                        await tts_q.put(frag)
+                                        chunks_sent += 1
+                                        print(f"📝 First chunk (word-split) [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
                             break
-                        end = match.end()
-                        sentence = sentence_buffer[:end].strip()
-                        sentence_buffer = sentence_buffer[end:]
-                        if sentence:
-                            await tts_q.put(sentence)
+                        else:
+                            # SUBSEQUENT CHUNKS: sentence boundaries for natural TTS
+                            match = re.search(r'[.!?](?:\s|$)', chunk_buffer)
+                            if not match:
+                                break
+                            end = match.end()
+                            sentence = chunk_buffer[:end].strip()
+                            chunk_buffer = chunk_buffer[end:]
+                            if sentence:
+                                await tts_q.put(sentence)
+                                chunks_sent += 1
 
             # Flush remaining text to TTS
-            if sentence_buffer.strip():
-                await tts_q.put(sentence_buffer.strip())
+            if chunk_buffer.strip():
+                await tts_q.put(chunk_buffer.strip())
 
             await tts_q.put(None)  # Signal TTS worker to finish
             await ws.send_json({"type": "llm_done"})
