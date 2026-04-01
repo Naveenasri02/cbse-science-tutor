@@ -24,10 +24,10 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: 0.6,
+        positiveSpeechThreshold: 0.5,
         negativeSpeechThreshold: 0.35,
-        minSpeechMs: 200,
-        preSpeechPadMs: 200,
+        minSpeechMs: 150,
+        preSpeechPadMs: 500,
         redemptionMs: 600,
 
         onFrameProcessed: (probabilities) => {

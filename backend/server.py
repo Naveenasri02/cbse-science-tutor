@@ -190,21 +190,9 @@ async def voice_endpoint(ws: WebSocket):
         pipeline_task = None
 
     async def run_voice_pipeline(transcript: str):
-        """Stream LLM → TTS sequentially. TTS chunks sent in order for gapless playback."""
+        """Stream LLM text to client, then TTS the full reply as one piece for consistent voice."""
         full_reply = ""
-        tts_buffer = ""
-        first_tts_sent = False
         t0 = time.perf_counter()
-        tts_queue = asyncio.Queue()
-        tts_worker_task = None
-
-        async def tts_worker():
-            """Process TTS chunks sequentially to guarantee ordering."""
-            while True:
-                text = await tts_queue.get()
-                if text is None:
-                    break
-                await _send_tts(ws, text)
 
         voice_messages = [
             {"role": "system", "content": config.VOICE_SYSTEM_PROMPT},
@@ -214,8 +202,8 @@ async def voice_endpoint(ws: WebSocket):
 
         try:
             await ws.send_json({"type": "llm_start"})
-            tts_worker_task = asyncio.create_task(tts_worker())
 
+            # Stream LLM tokens to client (text appears incrementally)
             async with _llm_http.stream(
                 "POST", "/v1/completions",
                 json={
@@ -234,48 +222,14 @@ async def voice_endpoint(ws: WebSocket):
                     delta = chunk["choices"][0].get("text", "")
                     if not delta:
                         continue
-
                     full_reply += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
-                    tts_buffer += delta
-                    send_text = ""
-
-                    if not first_tts_sent:
-                        # First chunk: fire at ANY punctuation (,;:.!?) for fast first audio
-                        for sc in ".!?,;:":
-                            idx = tts_buffer.rfind(sc)
-                            if idx >= 0:
-                                candidate = tts_buffer[:idx + 1].strip()
-                                if len(candidate) >= 15:
-                                    send_text = candidate
-                                    tts_buffer = tts_buffer[idx + 1:]
-                                    first_tts_sent = True
-                                    break
-                    else:
-                        # Subsequent chunks: sentence boundaries for consistent pace
-                        for sc in ".!?":
-                            idx = tts_buffer.rfind(sc)
-                            if idx >= 0:
-                                candidate = tts_buffer[:idx + 1].strip()
-                                if len(candidate) >= 5:
-                                    send_text = candidate
-                                    tts_buffer = tts_buffer[idx + 1:]
-                                    break
-
-                    if send_text:
-                        await tts_queue.put(send_text)
-
-            # Send remaining buffer
-            if tts_buffer.strip():
-                await tts_queue.put(tts_buffer.strip())
-
             await ws.send_json({"type": "llm_done"})
 
-            # Signal worker to stop and wait
-            await tts_queue.put(None)
-            if tts_worker_task:
-                await tts_worker_task
+            # TTS the full reply as ONE call — consistent pitch/tone/volume throughout
+            if full_reply.strip():
+                await _send_tts(ws, full_reply.strip())
 
             await ws.send_json({"type": "tts_done"})
 
@@ -288,8 +242,6 @@ async def voice_endpoint(ws: WebSocket):
 
         except asyncio.CancelledError:
             print(f"⚡ Voice pipeline cancelled: {full_reply[:40]}...")
-            if tts_worker_task:
-                tts_worker_task.cancel()
             if full_reply:
                 clean = re.sub(r'<think>.*?</think>\s*', '', full_reply, flags=re.DOTALL).strip()
                 if clean:
@@ -299,8 +251,6 @@ async def voice_endpoint(ws: WebSocket):
             raise
         except Exception as e:
             print(f"❌ Pipeline error: {e}")
-            if tts_worker_task:
-                tts_worker_task.cancel()
             try:
                 await ws.send_json({"type": "error", "text": str(e)})
                 await ws.send_json({"type": "llm_done"})
