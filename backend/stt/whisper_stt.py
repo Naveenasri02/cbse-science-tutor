@@ -42,37 +42,41 @@ class WhisperSTT:
             list(self.model.transcribe(dummy, language="en", beam_size=1)[0])
         print("  ✓ Whisper warmed up")
 
-    def transcribe_raw(self, audio_f32: np.ndarray) -> str:
-        """Transcribe from raw float32 numpy array directly (skip WAV encode/decode)."""
+    def transcribe_raw(self, audio_f32: np.ndarray) -> tuple[str, str]:
+        """Transcribe from raw float32 numpy array. Returns (text, language_code)."""
         if audio_f32.ndim > 1:
             audio_f32 = audio_f32.mean(axis=1)
         audio_f32 = audio_f32.astype(np.float32, copy=False)
 
-        segments, _ = self.model.transcribe(
+        segments, info = self.model.transcribe(
             audio_f32,
-            language="en",
             beam_size=1,
             without_timestamps=True,
             condition_on_previous_text=False,
             vad_filter=False,
         )
         text = " ".join(s.text for s in segments).strip()
-        return "" if _is_hallucination(text) else text
+        lang = info.language if info else "en"
+        if _is_hallucination(text):
+            return "", lang
+        return text, lang
 
-    def transcribe(self, audio_bytes: bytes) -> str:
-        """Transcribe from WAV bytes (used for webm→wav decoded audio)."""
+    def transcribe(self, audio_bytes: bytes) -> tuple[str, str]:
+        """Transcribe from WAV bytes. Returns (text, language_code)."""
         audio_data, sr = sf.read(io.BytesIO(audio_bytes))
         if audio_data.ndim > 1:
             audio_data = audio_data.mean(axis=1)
         audio_data = audio_data.astype(np.float32)
 
-        segments, _ = self.model.transcribe(
+        segments, info = self.model.transcribe(
             audio_data,
-            language="en",
             beam_size=1,
             without_timestamps=True,
             condition_on_previous_text=False,
             vad_filter=False,
         )
         text = " ".join(s.text for s in segments).strip()
-        return "" if _is_hallucination(text) else text
+        lang = info.language if info else "en"
+        if _is_hallucination(text):
+            return "", lang
+        return text, lang

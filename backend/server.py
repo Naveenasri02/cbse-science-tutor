@@ -197,13 +197,21 @@ async def voice_endpoint(ws: WebSocket):
                     pass
         pipeline_task = None
 
-    async def run_voice_pipeline(transcript: str):
+    async def run_voice_pipeline(transcript: str, detected_lang: str = "en"):
         """Stream LLM text to client, then TTS the full reply as one piece for consistent voice."""
         full_reply = ""
         t0 = time.perf_counter()
 
+        # Determine TTS voice and language instruction for LLM
+        if detected_lang in config.TTS_SUPPORTED_LANGS:
+            tts_voice = config.LANG_VOICE_MAP[detected_lang]
+            lang_instruction = ""
+        else:
+            tts_voice = config.TTS_VOICE  # default English voice
+            lang_instruction = " Respond in English only — the student's language is not supported for voice output."
+
         voice_messages = [
-            {"role": "system", "content": config.VOICE_SYSTEM_PROMPT},
+            {"role": "system", "content": config.VOICE_SYSTEM_PROMPT + lang_instruction},
             *conversation_history[1:],
         ]
         prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1700)
@@ -237,7 +245,7 @@ async def voice_endpoint(ws: WebSocket):
 
             # TTS the full reply as ONE call — consistent pitch/tone/volume throughout
             if full_reply.strip():
-                await _send_tts(ws, full_reply.strip())
+                await _send_tts(ws, full_reply.strip(), voice=tts_voice)
 
             await ws.send_json({"type": "tts_done"})
 
@@ -371,7 +379,7 @@ async def voice_endpoint(ws: WebSocket):
                     stt_future = loop.run_in_executor(_stt_executor, stt.transcribe, wav_bytes)
                     await cancel_pipeline()
                     try:
-                        transcript = await stt_future
+                        transcript, detected_lang = await stt_future
                     except Exception as e:
                         print(f"❌ STT error: {e}")
                         await ws.send_json({"type": "error", "text": f"STT error: {e}"})
@@ -386,7 +394,7 @@ async def voice_endpoint(ws: WebSocket):
                     stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
                     await cancel_pipeline()
                     try:
-                        transcript = await stt_future
+                        transcript, detected_lang = await stt_future
                     except Exception as e:
                         print(f"❌ STT error: {e}")
                         await ws.send_json({"type": "error", "text": f"STT error: {e}"})
@@ -396,7 +404,7 @@ async def voice_endpoint(ws: WebSocket):
                     await ws.send_json({"type": "vad_no_speech"})
                     continue
 
-                print(f"🎤 [{time.perf_counter()-t0:.2f}s] User: {transcript}")
+                print(f"🎤 [{time.perf_counter()-t0:.2f}s] User ({detected_lang}): {transcript}")
 
                 # Topic filter
                 if not config.is_cbse_related(transcript):
@@ -411,7 +419,7 @@ async def voice_endpoint(ws: WebSocket):
                 await ws.send_json({"type": "user_transcript", "text": transcript})
                 conversation_history.append({"role": "user", "content": transcript})
 
-                pipeline_task = asyncio.create_task(run_voice_pipeline(transcript))
+                pipeline_task = asyncio.create_task(run_voice_pipeline(transcript, detected_lang))
 
     except (WebSocketDisconnect, RuntimeError):
         ping_task.cancel()
@@ -455,7 +463,7 @@ def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
     return out.getvalue()
 
 
-async def _send_tts(ws: WebSocket, text: str):
+async def _send_tts(ws: WebSocket, text: str, voice: str = None):
     """Stream TTS sentence-by-sentence for low latency.
     First sentence audio arrives in ~0.3s while rest generates in background."""
     clean = strip_md_for_tts(text)
@@ -469,7 +477,7 @@ async def _send_tts(ws: WebSocket, text: str):
         q: asyncio.Queue = asyncio.Queue()
 
         def _generate():
-            for pcm in tts.stream_sentences(clean):
+            for pcm in tts.stream_sentences(clean, voice=voice):
                 # Peak-normalize each sentence to 95%
                 samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
                 peak = np.max(np.abs(samples))

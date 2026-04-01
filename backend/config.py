@@ -55,6 +55,21 @@ TTS_VOICES_PATH = os.getenv("TTS_VOICES_PATH", "/workspace/voices-v1.0.bin")
 TTS_VOICE = os.getenv("TTS_VOICE", "af_heart")
 TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))
 
+# Language code (from Whisper) → Kokoro TTS voice
+# Languages supported by Kokoro v1.0
+LANG_VOICE_MAP = {
+    "en": "af_heart",       # English → American female
+    "fr": "ff_siwis",       # French
+    "hi": "hf_alpha",       # Hindi
+    "it": "if_sara",        # Italian
+    "ja": "jf_alpha",       # Japanese
+    "zh": "zf_xiaobei",     # Chinese (Mandarin)
+    "pt": "pf_dora",        # Portuguese (Brazilian)
+    "es": "ef_dora",        # Spanish
+    "ko": "kf_alpha",       # Korean
+}
+TTS_SUPPORTED_LANGS = set(LANG_VOICE_MAP.keys())
+
 # ── Server ──
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")

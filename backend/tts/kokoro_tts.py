@@ -41,9 +41,10 @@ class KokoroTTS:
         self.kokoro.create("warmup", voice=self.voice, speed=self.speed)
         print(f"  ✓ Kokoro TTS ready (voice={self.voice})")
 
-    def to_wav_bytes(self, text: str) -> bytes:
+    def to_wav_bytes(self, text: str, voice: str = None) -> bytes:
         """Generate complete WAV audio from text."""
-        samples, sr = self.kokoro.create(text, voice=self.voice, speed=self.speed)
+        v = voice or self.voice
+        samples, sr = self.kokoro.create(text, voice=v, speed=self.speed)
         self.sr = sr
         audio_int16 = np.clip(samples * 32767, -32768, 32767).astype(np.int16)
         buf = io.BytesIO()
@@ -54,22 +55,24 @@ class KokoroTTS:
             wf.writeframes(audio_int16.tobytes())
         return buf.getvalue()
 
-    def to_pcm_bytes(self, text: str) -> bytes:
+    def to_pcm_bytes(self, text: str, voice: str = None) -> bytes:
         """Generate raw PCM int16 bytes from text."""
-        samples, sr = self.kokoro.create(text, voice=self.voice, speed=self.speed)
+        v = voice or self.voice
+        samples, sr = self.kokoro.create(text, voice=v, speed=self.speed)
         self.sr = sr
         return np.clip(samples * 32767, -32768, 32767).astype(np.int16).tobytes()
 
-    def stream_sentences(self, text: str):
+    def stream_sentences(self, text: str, voice: str = None):
         """Split text into sentences and yield PCM for each.
         First sentence audio arrives fast while rest generates."""
         import re
+        v = voice or self.voice
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
         sentences = [s.strip() for s in sentences if s.strip()]
         if not sentences:
             return
         for s in sentences:
-            samples, sr = self.kokoro.create(s, voice=self.voice, speed=self.speed)
+            samples, sr = self.kokoro.create(s, voice=v, speed=self.speed)
             self.sr = sr
             pcm = np.clip(samples * 32767, -32768, 32767).astype(np.int16).tobytes()
             yield pcm
