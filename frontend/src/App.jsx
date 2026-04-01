@@ -228,7 +228,7 @@ export default function App() {
           </div>
         </header>
 
-        <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} onSuggestion={sendText} />
+        <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} />
         <InputBar
           onSend={sendText}
           onToggleVoice={toggleVoice}

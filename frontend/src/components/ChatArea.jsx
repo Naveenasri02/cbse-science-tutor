@@ -1,19 +1,12 @@
 import { useEffect, useRef } from 'react'
 import Message from './Message'
 
-export default function ChatArea({ messages, isBotResponding, onSuggestion }) {
+export default function ChatArea({ messages, isBotResponding }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isBotResponding])
-
-  const suggestions = [
-    { icon: '⚡', text: 'What is Ohm\'s law?' },
-    { icon: '🌿', text: 'Explain photosynthesis' },
-    { icon: '🧪', text: 'Define acids and bases' },
-    { icon: '❤️', text: 'How does the heart work?' },
-  ]
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -23,24 +16,10 @@ export default function ChatArea({ messages, isBotResponding, onSuggestion }) {
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#10a37f] to-[#0d8c6c] flex items-center justify-center text-3xl mb-5 shadow-lg">
               ⚛
             </div>
-            <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">CBSE Science Tutor</h1>
-            <p className="text-[#8e8ea0] text-sm mb-8">
-              Class 10 Physics, Chemistry & Biology — NCERT aligned
+            <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">How can I help you today?</h1>
+            <p className="text-[#8e8ea0] text-sm">
+              Ask me anything — type or tap the mic to talk
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
-              {suggestions.map(s => (
-                <button
-                  key={s.text}
-                  onClick={() => onSuggestion?.(s.text)}
-                  className="flex items-start gap-3 px-4 py-3.5 rounded-2xl border border-[#383838]
-                    bg-[#2a2a2a] hover:bg-[#333] hover:border-[#10a37f]/50
-                    transition-all text-left group"
-                >
-                  <span className="text-lg mt-0.5 opacity-70 group-hover:opacity-100 transition">{s.icon}</span>
-                  <span className="text-[.9rem] text-[#b4b4b4] group-hover:text-[#ececf1] transition">{s.text}</span>
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
