@@ -214,7 +214,7 @@ async def voice_endpoint(ws: WebSocket):
             {"role": "system", "content": config.VOICE_SYSTEM_PROMPT + lang_instruction},
             *conversation_history[1:],
         ]
-        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1700)
+        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1900)
 
         try:
             await ws.send_json({"type": "llm_start"})
@@ -224,8 +224,8 @@ async def voice_endpoint(ws: WebSocket):
                 "POST", "/v1/completions",
                 json={
                     "prompt": prompt,
-                    "max_tokens": 150,
-                    "temperature": 0.0,
+                    "max_tokens": 400,
+                    "temperature": 0.3,
                     "stop": ["<|im_end|>"],
                     "stream": True,
                     "cache_prompt": True,
