@@ -6,6 +6,11 @@ export HF_HOME=/workspace/.cache/huggingface
 export PATH=/usr/local/cuda/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH:-}
 
+# Symlink cuDNN/cuBLAS so ONNX Runtime finds them (Kokoro TTS GPU)
+ln -sf /usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib/libcudnn*.so* /usr/local/lib/ 2>/dev/null
+ln -sf /usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib/libcublas*.so* /usr/local/lib/ 2>/dev/null
+ldconfig 2>/dev/null
+
 # Ensure HuggingFace cache is on workspace
 mkdir -p /workspace/.cache/huggingface
 ln -sf /workspace/.cache/huggingface /root/.cache/huggingface 2>/dev/null || true
