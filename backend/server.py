@@ -1,6 +1,6 @@
 """
 CBSE Voice Chat Server — All-in-One GPU Backend
-STT (faster-whisper) + LLM (vLLM) + TTS (Voxtral via vllm-omni) on single GPU.
+STT (faster-whisper) + LLM (vLLM) + TTS (Kokoro ONNX GPU) on single GPU.
 Streaming WebSocket pipeline with barge-in support.
 """
 
@@ -28,9 +28,9 @@ _stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 
 print("🔧 Loading models...")
 
-print("  [1/3] TTS client...")
-from tts.voxtral_tts import VoxtralTTSEngine
-tts = VoxtralTTSEngine()
+print("  [1/3] TTS engine...")
+from tts.kokoro_tts import KokoroTTS
+tts = KokoroTTS()
 print("  ✓ TTS ready")
 
 print("  [2/3] STT...")
@@ -426,21 +426,6 @@ def _pcm_to_wav(pcm_bytes: bytes, sr: int = 24000) -> bytes:
     return buf.getvalue()
 
 
-def _boost_pcm(pcm_bytes: bytes, gain: float = 2.5) -> bytes:
-    """Apply uniform gain boost to PCM int16 samples with clipping."""
-    samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32)
-    samples *= gain
-    return np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
-
-
-def _collect_tts_pcm(text: str) -> bytes:
-    """Collect all PCM chunks from Voxtral TTS into a single buffer."""
-    pcm_buf = bytearray()
-    for chunk in tts.stream_pcm(text):
-        pcm_buf.extend(chunk)
-    return bytes(pcm_buf)
-
-
 def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
     """Fast peak normalization for consistent volume."""
     with io.BytesIO(wav_bytes) as inp:
@@ -463,48 +448,36 @@ def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
 
 
 async def _send_tts(ws: WebSocket, text: str):
-    """Stream TTS chunks with fixed gain for consistent loud volume + low latency.
-    Uses a calibrated gain (5x) based on typical Voxtral output levels (~6000-8000 peak).
-    Clips at int16 max to prevent distortion — effectively a broadcast-style hard limiter."""
+    """Generate TTS audio with Kokoro, peak-normalize, and send as WAV."""
     clean = strip_md_for_tts(text)
     if not clean:
         return
     try:
         t0 = time.perf_counter()
         loop = asyncio.get_event_loop()
-        first_audio = True
-        chunk_count = 0
 
-        q: asyncio.Queue = asyncio.Queue()
+        # Kokoro generates full audio in one shot (~1s on GPU)
+        pcm = await loop.run_in_executor(None, tts.to_pcm_bytes, clean)
 
-        def _stream_to_queue():
-            for chunk in tts.stream_pcm(clean):
-                q.put_nowait(chunk)
-            q.put_nowait(None)  # sentinel
+        if not pcm:
+            return
 
-        loop.run_in_executor(None, _stream_to_queue)
+        # Peak-normalize to 95% for consistent loud volume
+        samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+        peak = np.max(np.abs(samples))
+        if peak > 0:
+            samples = samples * (0.95 * 32767 / peak)
+        normalized = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
 
-        while True:
-            chunk = await q.get()
-            if chunk is None:
-                break
+        wav = _pcm_to_wav(normalized, sr=tts.sr)
+        await ws.send_json({"type": "tts_start"})
+        await ws.send_bytes(wav)
 
-            # Apply fixed gain with clipping — consistent volume, no waiting
-            boosted = _boost_pcm(chunk, gain=5.0)
-            wav = _pcm_to_wav(boosted, sr=24000)
-
-            if first_audio:
-                await ws.send_json({"type": "tts_start"})
-                print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
-                first_audio = False
-
-            await ws.send_bytes(wav)
-            chunk_count += 1
-
-        print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] {len(clean)} chars ({chunk_count} chunks)")
+        print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars")
 
     except Exception as e:
         print(f"❌ TTS error: {e}")
+        import traceback; traceback.print_exc()
         try:
             t0 = time.perf_counter()
             loop = asyncio.get_event_loop()

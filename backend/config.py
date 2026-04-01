@@ -34,15 +34,11 @@ STT_MODEL_SIZE = os.getenv("STT_MODEL_SIZE", "large-v3")
 STT_DEVICE = os.getenv("STT_DEVICE", "cuda")
 STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "float16")
 
-# ── TTS (Voxtral 4B) ──
-TTS_VOICE = os.getenv("TTS_VOICE", "casual_female")
+# ── TTS (Kokoro ONNX on GPU) ──
+TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH", "/workspace/kokoro-v1.0.onnx")
+TTS_VOICES_PATH = os.getenv("TTS_VOICES_PATH", "/workspace/voices-v1.0.bin")
+TTS_VOICE = os.getenv("TTS_VOICE", "af_bella")
 TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))
-TTS_INSTRUCTIONS = os.getenv(
-    "TTS_INSTRUCTIONS",
-    "Speak in a warm, natural conversational tone with smooth flowing speech. "
-    "Use gentle intonation and emphasis like a friendly teacher having a casual chat. "
-    "Sound engaging, clear, and human — never robotic or monotone."
-)
 
 # ── Server ──
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))

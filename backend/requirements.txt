@@ -12,11 +12,12 @@ openai>=1.50
 faster-whisper>=1.0
 soundfile>=0.12
 
-# TTS (HTTP client to vllm-omni Voxtral server)
-# No in-process deps needed — Voxtral runs as separate vllm-omni server
+# TTS (Kokoro ONNX — runs in-process on GPU)
+kokoro-onnx>=0.5.0
+onnxruntime-gpu>=1.18
+nvidia-cudnn-cu12
 
 # Infra (installed on GPU server, not in requirements)
 # vllm>=0.18        — serves Qwen3-8B LLM on port 8002
-# vllm-omni>=0.18   — serves Voxtral 4B TTS on port 8003
 
 numpy>=1.26
