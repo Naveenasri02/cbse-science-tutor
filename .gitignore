@@ -25,6 +25,7 @@ Thumbs.db
 # Models (too large for git)
 *.gguf
 *.onnx
+!frontend/public/silero_vad_v5.onnx
 *.bin
 voices/
 
