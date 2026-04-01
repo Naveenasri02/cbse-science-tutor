@@ -442,23 +442,73 @@ async def voice_endpoint(ws: WebSocket):
 
 
 def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
-    """Normalize WAV audio to consistent peak volume."""
+    """Professional audio processing for broadcast-quality TTS output.
+    1. Dynamic range compression (smooths volume fluctuations)
+    2. Gentle high-frequency roll-off (reduces harshness)
+    3. Peak normalization to target level
+    All operations use vectorized numpy for speed.
+    """
     with io.BytesIO(wav_bytes) as inp:
         with wave.open(inp, 'rb') as w:
             params = w.getparams()
+            sr = w.getframerate()
             frames = w.readframes(w.getnframes())
-    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
+    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float64)
     if len(samples) == 0:
         return wav_bytes
+
+    # --- 1. Block-based RMS compression (vectorized) ---
+    block_size = max(1, sr // 100)  # 10ms blocks
+    n_blocks = len(samples) // block_size
+    if n_blocks > 0:
+        trimmed = samples[:n_blocks * block_size]
+        blocks = trimmed.reshape(n_blocks, block_size)
+        rms = np.sqrt(np.mean(blocks ** 2, axis=1))
+
+        threshold = 0.30 * 32767
+        ratio = 3.0
+        gains = np.ones(n_blocks)
+        loud = rms > threshold
+        if np.any(loud):
+            excess_db = 20.0 * np.log10(rms[loud] / threshold + 1e-10)
+            reduction_db = excess_db * (1.0 - 1.0 / ratio)
+            gains[loud] = 10.0 ** (-reduction_db / 20.0)
+
+        # Smooth gains across blocks to avoid clicks (simple moving average)
+        kernel_size = min(5, n_blocks)
+        if kernel_size > 1:
+            kernel = np.ones(kernel_size) / kernel_size
+            gains = np.convolve(gains, kernel, mode='same')
+
+        # Apply per-block gain
+        gain_per_sample = np.repeat(gains, block_size)
+        samples[:len(gain_per_sample)] *= gain_per_sample
+        # Handle remaining samples with last gain
+        if len(samples) > len(gain_per_sample):
+            samples[len(gain_per_sample):] *= gains[-1]
+
+    # --- 2. Simple low-pass smoothing (reduces sibilance) ---
+    # Exponential moving average — gentle roll-off above ~8kHz
+    if sr >= 22000:
+        cutoff = 8000.0
+        rc = 1.0 / (2.0 * np.pi * cutoff)
+        dt = 1.0 / sr
+        alpha = dt / (rc + dt)
+        # Apply as simple FIR approximation (3-tap weighted average)
+        kernel = np.array([alpha * 0.2, 1.0 - alpha * 0.4, alpha * 0.2])
+        samples = np.convolve(samples, kernel, mode='same')
+
+    # --- 3. Makeup gain + peak normalization ---
     peak = np.max(np.abs(samples))
     if peak < 1.0:
         return wav_bytes
     gain = (target_peak * 32767) / peak
-    samples = np.clip(samples * gain, -32767, 32767).astype(np.int16)
+    final = np.clip(samples * gain, -32767, 32767).astype(np.int16)
+
     out = io.BytesIO()
     with wave.open(out, 'wb') as w:
         w.setparams(params)
-        w.writeframes(samples.tobytes())
+        w.writeframes(final.tobytes())
     return out.getvalue()
 
 
