@@ -10,7 +10,6 @@ import io
 import re
 import wave
 import time
-import random
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -33,16 +32,6 @@ print("  [1/3] TTS engine...")
 from tts.kokoro_tts import KokoroTTS
 tts = KokoroTTS()
 print("  ✓ TTS ready")
-
-# Pre-generate filler audio for instant voice feedback (<200ms perceived response)
-_FILLER_PHRASES = ["Hmm", "Okay", "Alright"]
-_filler_clips = []
-for _phrase in _FILLER_PHRASES:
-    try:
-        _filler_clips.append(tts.to_wav_bytes(_phrase))
-    except Exception:
-        pass
-print(f"  ✓ {len(_filler_clips)} filler clips cached")
 
 print("  [2/3] STT...")
 from stt.whisper_stt import WhisperSTT
@@ -464,12 +453,6 @@ async def voice_endpoint(ws: WebSocket):
             # ── Binary audio from browser ──
             if "bytes" in message:
                 audio_bytes = message["bytes"]
-
-                # Instant filler — user hears response in <200ms while pipeline processes
-                if _filler_clips:
-                    await ws.send_json({"type": "filler_start"})
-                    await ws.send_bytes(random.choice(_filler_clips))
-
                 t0 = time.perf_counter()
                 loop = asyncio.get_event_loop()
 
