@@ -35,7 +35,7 @@ VOICE_SYSTEM_PROMPT = (
 )
 
 # ── STT (faster-whisper on GPU) ──
-STT_MODEL_SIZE = os.getenv("STT_MODEL_SIZE", "large-v3")
+STT_MODEL_SIZE = os.getenv("STT_MODEL_SIZE", "large-v3-turbo")
 STT_DEVICE = os.getenv("STT_DEVICE", "cuda")
 STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "float16")
 
