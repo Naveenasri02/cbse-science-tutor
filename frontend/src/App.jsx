@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
-import VoiceStatus from './components/VoiceStatus'
+import VoiceOverlay from './components/VoiceOverlay'
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
@@ -214,14 +214,21 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
       />
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* Mobile header */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-[#2a2a2a] bg-[#212121]">
-          <button onClick={() => setSidebarOpen(true)} className="text-lg text-[#8e8ea0] hover:text-white transition">☰</button>
-          <span className="font-medium text-sm truncate text-[#ececf1]">{activeChat.title}</span>
-        </div>
+        {/* Header */}
+        <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#2a2a2a] bg-[#212121] shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="md:hidden text-lg text-[#8e8ea0] hover:text-white transition-colors">☰</button>
+            <h1 className="text-sm font-semibold text-[#ececf1] hidden md:block">CBSE Science Tutor</h1>
+            <span className="md:hidden text-sm font-medium truncate text-[#ececf1]">{activeChat.title}</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#2a2a2a] text-[#8e8ea0] font-medium">Qwen3-8B</span>
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-[#10a37f]' : 'bg-[#ef4444] animate-pulse'}`}
+              title={connected ? 'Connected' : 'Reconnecting...'} />
+          </div>
+        </header>
 
         <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} onSuggestion={sendText} />
-        <VoiceStatus status={voiceStatus} />
         <InputBar
           onSend={sendText}
           onToggleVoice={toggleVoice}
@@ -229,6 +236,8 @@ export default function App() {
           disabled={!connected}
         />
       </div>
+
+      {voiceActive && <VoiceOverlay status={voiceStatus} onClose={toggleVoice} />}
     </div>
   )
 }

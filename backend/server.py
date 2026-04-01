@@ -200,6 +200,7 @@ async def voice_endpoint(ws: WebSocket):
                     "temperature": 0.0,
                     "stop": ["<|im_end|>"],
                     "stream": True,
+                    "cache_prompt": True,
                 },
             ) as resp:
                 async for line in resp.aiter_lines():

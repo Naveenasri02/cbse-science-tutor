@@ -1,9 +1,10 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 
 export default function useWebSocket(url, onMessage) {
   const wsRef = useRef(null)
   const reconnectTimer = useRef(null)
   const onMessageRef = useRef(onMessage)
+  const [connected, setConnected] = useState(false)
   onMessageRef.current = onMessage
 
   const connect = useCallback(() => {
@@ -17,11 +18,13 @@ export default function useWebSocket(url, onMessage) {
 
     ws.onopen = () => {
       console.log('WS connected')
+      setConnected(true)
       clearTimeout(reconnectTimer.current)
     }
 
     ws.onclose = () => {
       console.log('WS closed, reconnecting in 2s...')
+      setConnected(false)
       reconnectTimer.current = setTimeout(connect, 2000)
     }
 
@@ -41,6 +44,7 @@ export default function useWebSocket(url, onMessage) {
 
   const reconnect = useCallback(() => {
     clearTimeout(reconnectTimer.current)
+    setConnected(false)
     if (wsRef.current) wsRef.current.close()
     setTimeout(connect, 300)
   }, [connect])
@@ -53,7 +57,5 @@ export default function useWebSocket(url, onMessage) {
     }
   }, [connect])
 
-  const connected = wsRef.current?.readyState === WebSocket.OPEN
-
-  return { ws: wsRef, connected: true, reconnect }
+  return { ws: wsRef, connected, reconnect }
 }

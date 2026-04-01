@@ -1,16 +1,13 @@
 import { useRef, useCallback } from 'react'
 import { MicVAD } from '@ricky0123/vad-web'
 
-// ── Silero VAD thresholds (tuned for noisy environments) ──
-const POSITIVE_THRESHOLD = 0.6   // Probability to START speech (default 0.5 — raised to reject noise)
-const NEGATIVE_THRESHOLD = 0.3   // Probability to END speech (default 0.35)
-const MIN_SPEECH_FRAMES = 3      // ~288ms of speech to confirm (rejects short bursts)
-const PRESPEECH_PAD_FRAMES = 3   // ~288ms audio kept before speech onset
-const REDEMPTION_FRAMES = 10     // ~960ms silence tolerance before ending
-
-// ── Barge-in thresholds (strict to avoid false interrupts) ──
-const BARGEIN_PROBABILITY = 0.85 // Very high confidence required to interrupt bot
-const BARGEIN_FRAMES = 2         // Consecutive high-confidence frames (~192ms)
+const POSITIVE_THRESHOLD = 0.6
+const NEGATIVE_THRESHOLD = 0.3
+const MIN_SPEECH_FRAMES = 3
+const PRESPEECH_PAD_FRAMES = 3
+const REDEMPTION_FRAMES = 10
+const BARGEIN_PROBABILITY = 0.85
+const BARGEIN_FRAMES = 2
 
 export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef }) {
   const vadRef = useRef(null)
@@ -20,21 +17,30 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
   const startVoice = useCallback(async () => {
     try {
+      // Set ONNX Runtime WASM paths before VAD init
+      try {
+        const ort = await import('onnxruntime-web')
+        ort.env.wasm.wasmPaths = '/'
+      } catch (e) {
+        console.warn('ONNX WASM path config skipped:', e)
+      }
+
       const vad = await MicVAD.new({
+        modelURL: '/silero_vad_v5.onnx',
+        workletURL: '/vad.worklet.bundle.min.js',
+
         positiveSpeechThreshold: POSITIVE_THRESHOLD,
         negativeSpeechThreshold: NEGATIVE_THRESHOLD,
         minSpeechFrames: MIN_SPEECH_FRAMES,
         preSpeechPadFrames: PRESPEECH_PAD_FRAMES,
         redemptionFrames: REDEMPTION_FRAMES,
 
-        // Per-frame callback for responsive barge-in
         onFrameProcessed: (probabilities) => {
           if (!activeRef.current) return
           const { isSpeech } = probabilities
-
           if (isSpeech > BARGEIN_PROBABILITY) {
             bargeinCountRef.current++
-            const botActive = isBotRespondingRef?.current && !isPlayingRef?.current
+            const botActive = isBotRespondingRef?.current || isPlayingRef?.current
             if (botActive && !notifiedRef.current && bargeinCountRef.current >= BARGEIN_FRAMES) {
               notifiedRef.current = true
               onSpeechDetected()
@@ -56,11 +62,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
           if (!activeRef.current) return
           notifiedRef.current = false
           bargeinCountRef.current = 0
-
-          // audio: Float32Array at 16kHz from Silero VAD
-          if (audio.length < 1600) return // <100ms — too short
-
-          // Send as raw bytes (same format backend expects for Float32 PCM)
+          if (audio.length < 1600) return
           const bytes = new Uint8Array(
             audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength)
           )
@@ -68,7 +70,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         },
 
         onVADMisfire: () => {
-          // Speech was too short — Silero rejected it
           notifiedRef.current = false
           bargeinCountRef.current = 0
         },
@@ -77,7 +78,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
       vad.start()
       vadRef.current = vad
       activeRef.current = true
-      console.log('✅ Silero VAD initialized (ML-based speech detection)')
+      console.log('✅ Silero VAD initialized')
       return true
     } catch (err) {
       console.error('Silero VAD init error:', err)
