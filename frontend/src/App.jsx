@@ -2,7 +2,6 @@ import { useState, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
-import VoiceOverlay from './components/VoiceOverlay'
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
@@ -242,11 +241,10 @@ export default function App() {
           onSend={sendText}
           onToggleVoice={toggleVoice}
           voiceActive={voiceActive}
+          voiceStatus={voiceStatus}
           disabled={!connected}
         />
       </div>
-
-      {voiceActive && <VoiceOverlay status={voiceStatus} onClose={toggleVoice} />}
     </div>
   )
 }
