@@ -233,7 +233,7 @@ export default function App() {
             <span className="md:hidden text-sm font-medium truncate text-[#ececf1]">{activeChat.title}</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#2a2a2a] text-[#8e8ea0] font-medium">Qwen3-8B</span>
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#2a2a2a] text-[#8e8ea0] font-medium">Qwen3-30B</span>
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-[#10a37f]' : 'bg-[#ef4444] animate-pulse'}`}
               title={connected ? 'Connected' : 'Reconnecting...'} />
           </div>
