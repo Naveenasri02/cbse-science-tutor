@@ -448,39 +448,53 @@ def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
 
 
 async def _send_tts(ws: WebSocket, text: str):
-    """Generate TTS audio with Kokoro, peak-normalize, and send as WAV."""
+    """Stream TTS sentence-by-sentence for low latency.
+    First sentence audio arrives in ~0.3s while rest generates in background."""
     clean = strip_md_for_tts(text)
     if not clean:
         return
     try:
         t0 = time.perf_counter()
         loop = asyncio.get_event_loop()
+        first_audio = True
 
-        # Kokoro generates full audio in one shot (~1s on GPU)
-        pcm = await loop.run_in_executor(None, tts.to_pcm_bytes, clean)
+        q: asyncio.Queue = asyncio.Queue()
 
-        if not pcm:
-            return
+        def _generate():
+            for pcm in tts.stream_sentences(clean):
+                # Peak-normalize each sentence to 95%
+                samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+                peak = np.max(np.abs(samples))
+                if peak > 0:
+                    samples = samples * (0.95 * 32767 / peak)
+                norm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
+                q.put_nowait(norm)
+            q.put_nowait(None)
 
-        # Peak-normalize to 95% for consistent loud volume
-        samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
-        peak = np.max(np.abs(samples))
-        if peak > 0:
-            samples = samples * (0.95 * 32767 / peak)
-        normalized = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
+        loop.run_in_executor(None, _generate)
 
-        wav = _pcm_to_wav(normalized, sr=tts.sr)
-        await ws.send_json({"type": "tts_start"})
-        await ws.send_bytes(wav)
+        chunk_count = 0
+        while True:
+            pcm = await q.get()
+            if pcm is None:
+                break
 
-        print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars")
+            wav = _pcm_to_wav(pcm, sr=tts.sr)
+            if first_audio:
+                await ws.send_json({"type": "tts_start"})
+                print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
+                first_audio = False
+
+            await ws.send_bytes(wav)
+            chunk_count += 1
+
+        print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] {len(clean)} chars ({chunk_count} chunks)")
 
     except Exception as e:
         print(f"❌ TTS error: {e}")
         import traceback; traceback.print_exc()
         try:
             t0 = time.perf_counter()
-            loop = asyncio.get_event_loop()
             wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
             wav_bytes = _normalize_wav(wav_bytes, target_peak=0.95)
             await ws.send_json({"type": "tts_start"})

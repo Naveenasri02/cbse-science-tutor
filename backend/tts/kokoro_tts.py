@@ -59,3 +59,17 @@ class KokoroTTS:
         samples, sr = self.kokoro.create(text, voice=self.voice, speed=self.speed)
         self.sr = sr
         return np.clip(samples * 32767, -32768, 32767).astype(np.int16).tobytes()
+
+    def stream_sentences(self, text: str):
+        """Split text into sentences and yield PCM for each.
+        First sentence audio arrives fast while rest generates."""
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+        sentences = [s.strip() for s in sentences if s.strip()]
+        if not sentences:
+            return
+        for s in sentences:
+            samples, sr = self.kokoro.create(s, voice=self.voice, speed=self.speed)
+            self.sr = sr
+            pcm = np.clip(samples * 32767, -32768, 32767).astype(np.int16).tobytes()
+            yield pcm
