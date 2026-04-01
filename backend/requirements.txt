@@ -12,8 +12,10 @@ openai>=1.50
 faster-whisper>=1.0
 soundfile>=0.12
 
-# TTS (Edge TTS — Microsoft Neural Voices, streaming)
-edge-tts>=6.1
+# TTS (Kokoro ONNX — runs in-process on GPU)
+kokoro-onnx>=0.5.0
+onnxruntime-gpu>=1.18
+nvidia-cudnn-cu12
 
 # Infra (installed on GPU server, not in requirements)
 # vllm>=0.18        — serves Qwen3-8B LLM on port 8002
