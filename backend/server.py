@@ -158,6 +158,17 @@ async def voice_endpoint(ws: WebSocket):
     ]
     pipeline_task = None
 
+    # Keep-alive: ping every 20s to prevent proxy timeouts
+    async def keep_alive():
+        try:
+            while True:
+                await asyncio.sleep(20)
+                await ws.send_json({"type": "ping"})
+        except Exception:
+            pass
+
+    ping_task = asyncio.create_task(keep_alive())
+
     async def cancel_pipeline(notify=True):
         nonlocal pipeline_task
         if pipeline_task and not pipeline_task.done():
@@ -315,6 +326,7 @@ async def voice_endpoint(ws: WebSocket):
                     user_text = data.get("text", "").strip()
                     if not user_text:
                         continue
+                    print(f"💬 Text chat: {user_text[:60]}")
 
                     # Topic filter
                     if not config.is_cbse_related(user_text):
@@ -329,6 +341,7 @@ async def voice_endpoint(ws: WebSocket):
                     # Use raw completions with think pre-fill for instant answers
                     prompt = _build_chatml_prompt(conversation_history, prefill="<think>\n\n</think>\n\n")
                     full_reply = ""
+                    t0 = time.perf_counter()
                     try:
                         async with _llm_http.stream(
                             "POST", "/v1/completions",
@@ -350,10 +363,12 @@ async def voice_endpoint(ws: WebSocket):
                                     full_reply += delta
                                     await ws.send_json({"type": "llm_delta", "text": delta})
                     except Exception as e:
+                        print(f"❌ Text LLM error: {e}")
                         await ws.send_json({"type": "error", "text": str(e)})
                         continue
 
                     await ws.send_json({"type": "llm_done"})
+                    print(f"✅ [{time.perf_counter()-t0:.2f}s] Text reply: {full_reply[:60]}...")
 
                     if full_reply:
                         conversation_history.append({"role": "assistant", "content": full_reply.strip()})
@@ -435,9 +450,11 @@ async def voice_endpoint(ws: WebSocket):
                 pipeline_task = asyncio.create_task(run_voice_pipeline(transcript))
 
     except (WebSocketDisconnect, RuntimeError):
+        ping_task.cancel()
         await cancel_pipeline(notify=False)
         print("🔌 Client disconnected")
     except Exception as e:
+        ping_task.cancel()
         print(f"❌ WS error: {e}")
         import traceback; traceback.print_exc()
 

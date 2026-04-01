@@ -114,6 +114,9 @@ export default function App() {
         if (voiceActive) setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         break
 
+      case 'ping':
+        break
+
       case 'error':
         setVoiceStatus({ visible: true, cls: 'error', text: '❌ ' + msg.text })
         setTimeout(() => {
