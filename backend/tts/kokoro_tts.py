@@ -38,9 +38,17 @@ class KokoroTTS:
         self.sr = 24000
 
         # Warmup with varying lengths to pre-compile all CUDA kernels
-        for phrase in ["warmup", "This is a test sentence", "Photosynthesis is the process by which green plants convert sunlight"]:
+        warmup_phrases = [
+            "warmup",
+            "This is a test sentence",
+            "Photosynthesis is the process by which green plants convert sunlight",
+        ]
+        for phrase in warmup_phrases:
             self.kokoro.create(phrase, voice=self.voice, speed=self.speed)
-        print(f"  ✓ Kokoro TTS ready (voice={self.voice})")
+        # Second pass ensures kernels are fully cached
+        for phrase in warmup_phrases:
+            self.kokoro.create(phrase, voice=self.voice, speed=self.speed)
+        print(f"  ✓ Kokoro TTS ready (voice={self.voice}, speed={self.speed})")
 
     def to_wav_bytes(self, text: str, voice: str = None) -> bytes:
         """Generate complete WAV audio from text."""

@@ -53,7 +53,7 @@ class WhisperSTT:
             beam_size=1,
             without_timestamps=True,
             condition_on_previous_text=False,
-            vad_filter=True,
+            vad_filter=False,
         )
         text = " ".join(s.text for s in segments).strip()
         lang = info.language if info else "en"
@@ -73,7 +73,7 @@ class WhisperSTT:
             beam_size=1,
             without_timestamps=True,
             condition_on_previous_text=False,
-            vad_filter=True,
+            vad_filter=False,
         )
         text = " ".join(s.text for s in segments).strip()
         lang = info.language if info else "en"
