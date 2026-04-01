@@ -41,7 +41,11 @@ llm_client = AsyncOpenAI(
     base_url=config.VLLM_BASE_URL,
 )
 import httpx
-_llm_http = httpx.AsyncClient(base_url=config.VLLM_BASE_URL.rstrip("/v1"), timeout=30.0)
+_llm_http = httpx.AsyncClient(
+    base_url=config.VLLM_BASE_URL.rstrip("/v1"),
+    timeout=30.0,
+    headers={"Authorization": f"Bearer {config.VLLM_API_KEY}"},
+)
 print("  ✓ LLM ready")
 
 
