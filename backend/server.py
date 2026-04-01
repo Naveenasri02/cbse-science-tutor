@@ -459,8 +459,29 @@ async def voice_endpoint(ws: WebSocket):
         import traceback; traceback.print_exc()
 
 
+def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
+    """Normalize WAV audio to consistent peak volume."""
+    with io.BytesIO(wav_bytes) as inp:
+        with wave.open(inp, 'rb') as w:
+            params = w.getparams()
+            frames = w.readframes(w.getnframes())
+    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
+    if len(samples) == 0:
+        return wav_bytes
+    peak = np.max(np.abs(samples))
+    if peak < 1.0:
+        return wav_bytes
+    gain = (target_peak * 32767) / peak
+    samples = np.clip(samples * gain, -32767, 32767).astype(np.int16)
+    out = io.BytesIO()
+    with wave.open(out, 'wb') as w:
+        w.setparams(params)
+        w.writeframes(samples.tobytes())
+    return out.getvalue()
+
+
 async def _send_tts(ws: WebSocket, text: str):
-    """Generate TTS and send as binary audio."""
+    """Generate TTS and send as normalized binary audio."""
     clean = strip_md_for_tts(text)
     if not clean:
         return
@@ -468,6 +489,7 @@ async def _send_tts(ws: WebSocket, text: str):
         t0 = time.perf_counter()
         loop = asyncio.get_event_loop()
         wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
+        wav_bytes = _normalize_wav(wav_bytes)
         print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars -> {len(wav_bytes)//1024}KB")
         await ws.send_json({"type": "tts_start"})
         await ws.send_bytes(wav_bytes)
