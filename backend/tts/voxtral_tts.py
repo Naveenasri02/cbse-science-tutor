@@ -19,7 +19,6 @@ class VoxtralTTSEngine:
                 "model": "mistralai/Voxtral-4B-TTS-2603",
                 "response_format": "wav",
                 "voice": self.voice,
-                "speed": 1.25,
             },
         )
         response.raise_for_status()

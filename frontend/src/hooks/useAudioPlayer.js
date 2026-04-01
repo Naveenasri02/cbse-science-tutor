@@ -13,7 +13,7 @@ export default function useAudioPlayer() {
     if (!ctxRef.current) {
       ctxRef.current = new AudioContext({ sampleRate: 24000 })
       gainRef.current = ctxRef.current.createGain()
-      gainRef.current.gain.value = 1.3
+      gainRef.current.gain.value = 1.0
       gainRef.current.connect(ctxRef.current.destination)
     }
     return ctxRef.current
