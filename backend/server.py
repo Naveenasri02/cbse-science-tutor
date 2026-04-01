@@ -216,7 +216,7 @@ async def voice_endpoint(ws: WebSocket):
                 "POST", "/v1/completions",
                 json={
                     "prompt": prompt,
-                    "max_tokens": 200,
+                    "max_tokens": 150,
                     "temperature": 0.0,
                     "stop": ["<|im_end|>"],
                     "stream": True,
@@ -238,30 +238,28 @@ async def voice_endpoint(ws: WebSocket):
                     send_text = ""
 
                     if not first_tts_sent:
-                        # First chunk: send at first sentence end for natural prosody
-                        for sc in ".!?":
+                        # First chunk: send ASAP at any punctuation for fast audio start
+                        for sc in ".!?,;:":
                             idx = tts_buffer.rfind(sc)
                             if idx >= 0:
                                 candidate = tts_buffer[:idx + 1].strip()
-                                if len(candidate) >= 5:
+                                if len(candidate) >= 3:
                                     send_text = candidate
                                     tts_buffer = tts_buffer[idx + 1:]
                                     break
                         if not send_text:
                             words = tts_buffer.strip().split()
-                            if len(words) >= 6 and len(tts_buffer) > len(tts_buffer.rstrip()):
+                            if len(words) >= 4 and len(tts_buffer) > len(tts_buffer.rstrip()):
                                 send_text = tts_buffer.strip()
                                 tts_buffer = ""
                     else:
-                        # Later chunks: split at sentence boundaries only (. ! ?)
+                        # Later chunks: split at sentence boundaries
                         for sc in ".!?":
                             idx = tts_buffer.rfind(sc)
                             if idx >= 0:
                                 candidate = tts_buffer[:idx + 1].strip()
                                 if len(candidate) >= 5:
                                     send_text = candidate
-                                    tts_buffer = tts_buffer[idx + 1:]
-                                    break
                                     tts_buffer = tts_buffer[idx + 1:]
                                     break
 
