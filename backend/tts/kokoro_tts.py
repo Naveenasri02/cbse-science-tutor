@@ -37,8 +37,9 @@ class KokoroTTS:
         self.speed = config.TTS_SPEED
         self.sr = 24000
 
-        # Warmup
-        self.kokoro.create("warmup", voice=self.voice, speed=self.speed)
+        # Warmup with varying lengths to pre-compile all CUDA kernels
+        for phrase in ["warmup", "This is a test sentence", "Photosynthesis is the process by which green plants convert sunlight"]:
+            self.kokoro.create(phrase, voice=self.voice, speed=self.speed)
         print(f"  ✓ Kokoro TTS ready (voice={self.voice})")
 
     def to_wav_bytes(self, text: str, voice: str = None) -> bytes:
