@@ -46,13 +46,13 @@ STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "float16")
 # ── TTS (Kokoro ONNX on GPU) ──
 TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH", "/workspace/kokoro-v1.0.onnx")
 TTS_VOICES_PATH = os.getenv("TTS_VOICES_PATH", "/workspace/voices-v1.0.bin")
-TTS_VOICE = os.getenv("TTS_VOICE", "af_heart")
+TTS_VOICE = os.getenv("TTS_VOICE", "af_bella")
 TTS_SPEED = float(os.getenv("TTS_SPEED", "0.95"))
 
 # Language code (from Whisper) → Kokoro TTS voice
 # Languages supported by Kokoro v1.0
 LANG_VOICE_MAP = {
-    "en": "af_heart",       # English → American female
+    "en": "af_bella",       # English → American female (most expressive)
     "fr": "ff_siwis",       # French
     "hi": "hf_alpha",       # Hindi
     "it": "if_sara",        # Italian
