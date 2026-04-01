@@ -426,6 +426,13 @@ def _pcm_to_wav(pcm_bytes: bytes, sr: int = 24000) -> bytes:
     return buf.getvalue()
 
 
+def _boost_pcm(pcm_bytes: bytes, gain: float = 2.5) -> bytes:
+    """Apply uniform gain boost to PCM int16 samples with clipping."""
+    samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32)
+    samples *= gain
+    return np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
+
+
 def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
     """Fast peak normalization for consistent volume."""
     with io.BytesIO(wav_bytes) as inp:
@@ -472,8 +479,8 @@ async def _send_tts(ws: WebSocket, text: str):
         producer = loop.run_in_executor(None, _produce)
 
         sr = 24000
-        # First chunk: 0.5s for fast time-to-first-audio
-        # Subsequent chunks: 1.5s for smooth playback (fewer boundaries = fewer glitches)
+        # Fixed gain boost — Voxtral output is quiet, amplify uniformly
+        gain = 2.5
         first_chunk_bytes = int(sr * 0.5 * 2)
         normal_chunk_bytes = int(sr * 1.5 * 2)
         pcm_buf = bytearray()
@@ -487,7 +494,7 @@ async def _send_tts(ws: WebSocket, text: str):
 
             min_bytes = first_chunk_bytes if not sent_any else normal_chunk_bytes
             if len(pcm_buf) >= min_bytes:
-                wav = _pcm_to_wav(bytes(pcm_buf), sr)
+                wav = _pcm_to_wav(_boost_pcm(bytes(pcm_buf), gain), sr)
                 if not sent_any:
                     await ws.send_json({"type": "tts_start"})
                     sent_any = True
@@ -497,7 +504,7 @@ async def _send_tts(ws: WebSocket, text: str):
 
         # Flush remaining PCM
         if pcm_buf:
-            wav = _pcm_to_wav(bytes(pcm_buf), sr)
+            wav = _pcm_to_wav(_boost_pcm(bytes(pcm_buf), gain), sr)
             if not sent_any:
                 await ws.send_json({"type": "tts_start"})
             await ws.send_bytes(wav)
@@ -516,6 +523,7 @@ async def _send_tts(ws: WebSocket, text: str):
             t0 = time.perf_counter()
             loop = asyncio.get_event_loop()
             wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
+            wav_bytes = _normalize_wav(wav_bytes, target_peak=0.95)
             await ws.send_json({"type": "tts_start"})
             await ws.send_bytes(wav_bytes)
             print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (fallback)")
