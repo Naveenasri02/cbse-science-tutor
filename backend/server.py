@@ -123,6 +123,14 @@ def float32_to_wav(audio_f32: np.ndarray, sr: int = 16000) -> bytes:
     return buf.read()
 
 
+# Strip non-English characters (Qwen3 sometimes leaks Chinese/other scripts)
+_NON_ENGLISH = re.compile(r'[^\x00-\x7F\u2018\u2019\u201C\u201D\u2013\u2014\u2026°±²³]+')
+
+def _clean_delta(text: str) -> str:
+    """Remove non-ASCII characters except common punctuation."""
+    return _NON_ENGLISH.sub('', text)
+
+
 _MD_STRIP = [
     (re.compile(r'<think>.*?</think>', re.DOTALL), ''),
     (re.compile(r'#{1,6}\s*'), ''),
@@ -220,6 +228,9 @@ async def voice_endpoint(ws: WebSocket):
                         continue
                     chunk = json.loads(line[6:])
                     delta = chunk["choices"][0].get("text", "")
+                    if not delta:
+                        continue
+                    delta = _clean_delta(delta)
                     if not delta:
                         continue
                     full_reply += delta
