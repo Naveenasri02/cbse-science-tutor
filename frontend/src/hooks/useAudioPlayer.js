@@ -38,13 +38,14 @@ export default function useAudioPlayer() {
       const audioBuffer = await ctx.decodeAudioData(buffer.slice(0))
       const src = ctx.createBufferSource()
       src.buffer = audioBuffer
+      src.playbackRate.value = 1.15
       src.connect(ctx.destination)
       sourceRef.current = src
 
       // Gapless scheduling: start exactly when previous chunk ends
       const now = ctx.currentTime
       const startAt = nextStartRef.current > now ? nextStartRef.current : now
-      nextStartRef.current = startAt + audioBuffer.duration
+      nextStartRef.current = startAt + audioBuffer.duration / 1.15
 
       src.onended = () => {
         sourceRef.current = null

@@ -35,7 +35,7 @@ STT_DEVICE = os.getenv("STT_DEVICE", "cuda")
 STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "float16")
 
 # ── TTS (Voxtral 4B) ──
-TTS_VOICE = os.getenv("TTS_VOICE", "neutral_female")
+TTS_VOICE = os.getenv("TTS_VOICE", "neutral_male")
 TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))
 
 # ── Server ──
