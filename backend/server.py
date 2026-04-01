@@ -283,10 +283,10 @@ async def voice_endpoint(ws: WebSocket):
                     chunk_buffer += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
-                    # Chunk extraction — ultra-aggressive first chunk for speed
+                    # Chunk extraction — fire TTS on first 2 words
                     while True:
                         if chunks_sent == 0:
-                            # FIRST CHUNK: send ASAP — any punctuation OR just 4 words
+                            # FIRST CHUNK: send after just 2 words or any punctuation
                             match = re.search(r'[,;:.!?](?:\s|$)', chunk_buffer)
                             if match:
                                 end = match.end()
@@ -295,10 +295,10 @@ async def voice_endpoint(ws: WebSocket):
                                 if frag:
                                     await tts_q.put(frag)
                                     chunks_sent += 1
-                                    print(f"📝 First chunk [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
+                                    print(f"📝 Chunk1 [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
                                 break
-                            # Ultra-fast fallback: 4+ words without punctuation
-                            if len(chunk_buffer.split()) >= 4:
+                            # 2+ words → send immediately
+                            if len(chunk_buffer.split()) >= 2:
                                 last_sp = chunk_buffer.rfind(' ')
                                 if last_sp > 0:
                                     frag = chunk_buffer[:last_sp].strip()
@@ -306,7 +306,27 @@ async def voice_endpoint(ws: WebSocket):
                                     if frag:
                                         await tts_q.put(frag)
                                         chunks_sent += 1
-                                        print(f"📝 First chunk (4w) [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
+                                        print(f"📝 Chunk1 (2w) [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
+                            break
+                        elif chunks_sent == 1:
+                            # SECOND CHUNK: 6 words or any punctuation (still fast)
+                            match = re.search(r'[,;:.!?](?:\s|$)', chunk_buffer)
+                            if match:
+                                end = match.end()
+                                frag = chunk_buffer[:end].strip()
+                                chunk_buffer = chunk_buffer[end:]
+                                if frag:
+                                    await tts_q.put(frag)
+                                    chunks_sent += 1
+                                break
+                            if len(chunk_buffer.split()) >= 6:
+                                last_sp = chunk_buffer.rfind(' ')
+                                if last_sp > 0:
+                                    frag = chunk_buffer[:last_sp].strip()
+                                    chunk_buffer = chunk_buffer[last_sp:]
+                                    if frag:
+                                        await tts_q.put(frag)
+                                        chunks_sent += 1
                             break
                         else:
                             # SUBSEQUENT CHUNKS: clause or sentence boundaries
