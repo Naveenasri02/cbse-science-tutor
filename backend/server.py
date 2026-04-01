@@ -230,9 +230,6 @@ async def voice_endpoint(ws: WebSocket):
                     delta = chunk["choices"][0].get("text", "")
                     if not delta:
                         continue
-                    delta = _clean_delta(delta)
-                    if not delta:
-                        continue
                     full_reply += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
