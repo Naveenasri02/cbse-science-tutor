@@ -54,7 +54,7 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 3200) -> str:
+def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 1400) -> str:
     """Build a ChatML prompt string with optional assistant pre-fill.
     Trims older messages (keeping system prompt) to stay within max_ctx tokens."""
     # Always keep system prompt (first message) and prefill overhead
@@ -206,7 +206,7 @@ async def voice_endpoint(ws: WebSocket):
             {"role": "system", "content": config.VOICE_SYSTEM_PROMPT},
             *conversation_history[1:],
         ]
-        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n")
+        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1700)
 
         try:
             await ws.send_json({"type": "llm_start"})
@@ -238,28 +238,30 @@ async def voice_endpoint(ws: WebSocket):
                     send_text = ""
 
                     if not first_tts_sent:
-                        # First chunk: send ASAP — any punctuation or 3+ words
-                        for sc in ".,!?;:":
+                        # First chunk: send at first sentence end for natural prosody
+                        for sc in ".!?":
                             idx = tts_buffer.rfind(sc)
                             if idx >= 0:
                                 candidate = tts_buffer[:idx + 1].strip()
-                                if len(candidate) >= 3:
+                                if len(candidate) >= 5:
                                     send_text = candidate
                                     tts_buffer = tts_buffer[idx + 1:]
                                     break
                         if not send_text:
                             words = tts_buffer.strip().split()
-                            if len(words) >= 3 and len(tts_buffer) > len(tts_buffer.rstrip()):
+                            if len(words) >= 6 and len(tts_buffer) > len(tts_buffer.rstrip()):
                                 send_text = tts_buffer.strip()
                                 tts_buffer = ""
                     else:
-                        # Later chunks: split at sentence boundaries
-                        for sc in ".!?,;":
+                        # Later chunks: split at sentence boundaries only (. ! ?)
+                        for sc in ".!?":
                             idx = tts_buffer.rfind(sc)
                             if idx >= 0:
                                 candidate = tts_buffer[:idx + 1].strip()
-                                if len(candidate) >= 3:
+                                if len(candidate) >= 5:
                                     send_text = candidate
+                                    tts_buffer = tts_buffer[idx + 1:]
+                                    break
                                     tts_buffer = tts_buffer[idx + 1:]
                                     break
 

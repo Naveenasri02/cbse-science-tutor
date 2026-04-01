@@ -5,12 +5,19 @@ export default function useAudioPlayer() {
   const playingRef = useRef(false)
   const sourceRef = useRef(null)
   const ctxRef = useRef(null)
+  const gainRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const pipelineIdRef = useRef(0)
-  const nextStartRef = useRef(0)  // scheduled start time for gapless playback
+  const nextStartRef = useRef(0)
 
   const getCtx = useCallback(() => {
-    if (!ctxRef.current) ctxRef.current = new AudioContext({ sampleRate: 24000 })
+    if (!ctxRef.current) {
+      ctxRef.current = new AudioContext({ sampleRate: 24000 })
+      // Volume control — reduce to 70% to prevent loudness
+      gainRef.current = ctxRef.current.createGain()
+      gainRef.current.gain.value = 1.3
+      gainRef.current.connect(ctxRef.current.destination)
+    }
     return ctxRef.current
   }, [])
 
@@ -38,14 +45,12 @@ export default function useAudioPlayer() {
       const audioBuffer = await ctx.decodeAudioData(buffer.slice(0))
       const src = ctx.createBufferSource()
       src.buffer = audioBuffer
-      src.playbackRate.value = 1.15
-      src.connect(ctx.destination)
+      src.connect(gainRef.current)
       sourceRef.current = src
 
-      // Gapless scheduling: start exactly when previous chunk ends
       const now = ctx.currentTime
       const startAt = nextStartRef.current > now ? nextStartRef.current : now
-      nextStartRef.current = startAt + audioBuffer.duration / 1.15
+      nextStartRef.current = startAt + audioBuffer.duration
 
       src.onended = () => {
         sourceRef.current = null
