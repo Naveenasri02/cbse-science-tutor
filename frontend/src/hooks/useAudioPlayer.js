@@ -45,12 +45,13 @@ export default function useAudioPlayer() {
       const audioBuffer = await ctx.decodeAudioData(buffer.slice(0))
       const src = ctx.createBufferSource()
       src.buffer = audioBuffer
+      src.playbackRate.value = 1.1
       src.connect(gainRef.current)
       sourceRef.current = src
 
       const now = ctx.currentTime
       const startAt = nextStartRef.current > now ? nextStartRef.current : now
-      nextStartRef.current = startAt + audioBuffer.duration
+      nextStartRef.current = startAt + audioBuffer.duration / 1.1
 
       src.onended = () => {
         sourceRef.current = null
