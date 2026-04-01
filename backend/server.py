@@ -189,7 +189,6 @@ async def voice_endpoint(ws: WebSocket):
         """Stream LLM → TTS sequentially. TTS chunks sent in order for gapless playback."""
         full_reply = ""
         tts_buffer = ""
-        first_tts_sent = False
         t0 = time.perf_counter()
         tts_queue = asyncio.Queue()
         tts_worker_task = None
@@ -237,35 +236,18 @@ async def voice_endpoint(ws: WebSocket):
                     tts_buffer += delta
                     send_text = ""
 
-                    if not first_tts_sent:
-                        # First chunk: send ASAP at any punctuation for fast audio start
-                        for sc in ".!?,;:":
-                            idx = tts_buffer.rfind(sc)
-                            if idx >= 0:
-                                candidate = tts_buffer[:idx + 1].strip()
-                                if len(candidate) >= 3:
-                                    send_text = candidate
-                                    tts_buffer = tts_buffer[idx + 1:]
-                                    break
-                        if not send_text:
-                            words = tts_buffer.strip().split()
-                            if len(words) >= 4 and len(tts_buffer) > len(tts_buffer.rstrip()):
-                                send_text = tts_buffer.strip()
-                                tts_buffer = ""
-                    else:
-                        # Later chunks: split at sentence boundaries
-                        for sc in ".!?":
-                            idx = tts_buffer.rfind(sc)
-                            if idx >= 0:
-                                candidate = tts_buffer[:idx + 1].strip()
-                                if len(candidate) >= 5:
-                                    send_text = candidate
-                                    tts_buffer = tts_buffer[idx + 1:]
-                                    break
+                    # Split at sentence boundaries (.!?) for consistent speech pace
+                    for sc in ".!?":
+                        idx = tts_buffer.rfind(sc)
+                        if idx >= 0:
+                            candidate = tts_buffer[:idx + 1].strip()
+                            if len(candidate) >= 5:
+                                send_text = candidate
+                                tts_buffer = tts_buffer[idx + 1:]
+                                break
 
                     if send_text:
                         await tts_queue.put(send_text)
-                        first_tts_sent = True
 
             # Send remaining buffer
             if tts_buffer.strip():
