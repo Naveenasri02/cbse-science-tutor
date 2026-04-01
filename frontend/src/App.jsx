@@ -114,6 +114,10 @@ export default function App() {
         if (voiceActive) setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         break
 
+      case 'filler_start':
+        interruptedRef.current = false
+        break
+
       case 'ping':
         break
 
