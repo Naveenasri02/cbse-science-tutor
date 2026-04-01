@@ -8,6 +8,7 @@ export default function useAudioPlayer() {
   const gainRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const pipelineIdRef = useRef(0)
+  const nextStartTimeRef = useRef(0)
 
   const getCtx = useCallback(() => {
     if (!ctxRef.current) {
@@ -23,6 +24,7 @@ export default function useAudioPlayer() {
     if (queueRef.current.length === 0) {
       playingRef.current = false
       setIsPlaying(false)
+      nextStartTimeRef.current = 0
       return
     }
 
@@ -39,24 +41,23 @@ export default function useAudioPlayer() {
       const ctx = getCtx()
       if (ctx.state === 'suspended') await ctx.resume()
 
-      // Stop any still-playing source to prevent overlap
-      if (sourceRef.current) {
-        try { sourceRef.current.stop(); sourceRef.current.disconnect() } catch {}
-        sourceRef.current = null
-      }
-
       const audioBuffer = await ctx.decodeAudioData(buffer.slice(0))
       const src = ctx.createBufferSource()
       src.buffer = audioBuffer
       src.connect(gainRef.current)
+
+      // Schedule gapless: use precise timing to avoid gaps/overlaps between chunks
+      const now = ctx.currentTime
+      const startAt = nextStartTimeRef.current > now ? nextStartTimeRef.current : now
+      nextStartTimeRef.current = startAt + audioBuffer.duration
+
       sourceRef.current = src
 
       src.onended = () => {
         sourceRef.current = null
         playNext()
       }
-      // Play immediately — no pre-scheduling, strictly sequential
-      src.start(0)
+      src.start(startAt)
     } catch (err) {
       console.error('Audio decode error:', err)
       sourceRef.current = null
@@ -72,6 +73,7 @@ export default function useAudioPlayer() {
   const stopPlayback = useCallback(() => {
     pipelineIdRef.current++
     queueRef.current = []
+    nextStartTimeRef.current = 0
     if (sourceRef.current) {
       try { sourceRef.current.stop(); sourceRef.current.disconnect() } catch {}
       sourceRef.current = null

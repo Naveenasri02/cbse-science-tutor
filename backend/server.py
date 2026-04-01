@@ -11,6 +11,7 @@ import re
 import wave
 import time
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -19,6 +20,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 import config
+
+# Dedicated single-thread executor for STT — keeps CUDA context warm
+_stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 
 # ── Load Models ─────────────────────────────────────────────
 
@@ -375,18 +379,16 @@ async def voice_endpoint(ws: WebSocket):
             # ── Binary audio from browser ──
             if "bytes" in message:
                 audio_bytes = message["bytes"]
-                await cancel_pipeline()
-
                 t0 = time.perf_counter()
+                loop = asyncio.get_event_loop()
 
                 # Detect format: webm starts with 0x1A45DFA3 (EBML header)
                 is_webm = len(audio_bytes) > 4 and audio_bytes[:4] == b'\x1a\x45\xdf\xa3'
 
                 if is_webm:
-                    # Decode webm → WAV using ffmpeg (run in executor to avoid blocking)
+                    # Decode webm → WAV, then start STT + cancel pipeline in parallel
                     try:
                         import subprocess
-                        loop = asyncio.get_event_loop()
                         def _decode_webm(data):
                             return subprocess.run(
                                 ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1"],
@@ -398,7 +400,6 @@ async def voice_endpoint(ws: WebSocket):
                             continue
                         wav_bytes = proc.stdout
                     except FileNotFoundError:
-                        # ffmpeg not available, try decoding as raw float32 fallback
                         print("⚠️ ffmpeg not found, trying raw float32 decode")
                         audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
                         if len(audio_f32) < 1600:
@@ -407,21 +408,31 @@ async def voice_endpoint(ws: WebSocket):
                     except Exception as e:
                         print(f"❌ Audio decode error: {e}")
                         continue
+
+                    # Start STT + cancel pipeline in parallel (don't wait for cancel before STT)
+                    stt_future = loop.run_in_executor(_stt_executor, stt.transcribe, wav_bytes)
+                    await cancel_pipeline()
+                    try:
+                        transcript = await stt_future
+                    except Exception as e:
+                        print(f"❌ STT error: {e}")
+                        await ws.send_json({"type": "error", "text": f"STT error: {e}"})
+                        continue
                 else:
-                    # Raw Float32 PCM (legacy)
+                    # Raw Float32 PCM — skip WAV conversion, pass numpy directly
                     audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
                     if len(audio_f32) < 1600:
                         continue
-                    wav_bytes = float32_to_wav(audio_f32, sr=16000)
 
-                # STT in executor (blocking call)
-                try:
-                    loop = asyncio.get_event_loop()
-                    transcript = await loop.run_in_executor(None, stt.transcribe, wav_bytes)
-                except Exception as e:
-                    print(f"❌ STT error: {e}")
-                    await ws.send_json({"type": "error", "text": f"STT error: {e}"})
-                    continue
+                    # Start STT + cancel pipeline in parallel
+                    stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
+                    await cancel_pipeline()
+                    try:
+                        transcript = await stt_future
+                    except Exception as e:
+                        print(f"❌ STT error: {e}")
+                        await ws.send_json({"type": "error", "text": f"STT error: {e}"})
+                        continue
 
                 if not transcript or len(transcript.strip()) < 2:
                     await ws.send_json({"type": "vad_no_speech"})
@@ -487,9 +498,10 @@ def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
 
 
 async def _send_tts(ws: WebSocket, text: str):
-    """Stream TTS audio for low time-to-first-audio.
-    Streams PCM from Voxtral, converts to mini-WAV chunks, sends progressively.
-    Falls back to full WAV if streaming fails."""
+    """Stream TTS audio with smooth playback.
+    Streams PCM from Voxtral, accumulates into larger chunks to avoid
+    boundary artifacts, sends as WAV. No per-chunk normalization to
+    prevent volume fluctuation."""
     clean = strip_md_for_tts(text)
     if not clean:
         return
@@ -510,7 +522,10 @@ async def _send_tts(ws: WebSocket, text: str):
         producer = loop.run_in_executor(None, _produce)
 
         sr = 24000
-        min_bytes = int(sr * 0.35 * 2)  # ~0.35s per mini-WAV chunk
+        # First chunk: 0.5s for fast time-to-first-audio
+        # Subsequent chunks: 1.5s for smooth playback (fewer boundaries = fewer glitches)
+        first_chunk_bytes = int(sr * 0.5 * 2)
+        normal_chunk_bytes = int(sr * 1.5 * 2)
         pcm_buf = bytearray()
         sent_any = False
 
@@ -520,9 +535,9 @@ async def _send_tts(ws: WebSocket, text: str):
                 break
             pcm_buf.extend(chunk)
 
+            min_bytes = first_chunk_bytes if not sent_any else normal_chunk_bytes
             if len(pcm_buf) >= min_bytes:
                 wav = _pcm_to_wav(bytes(pcm_buf), sr)
-                wav = _normalize_wav(wav)
                 if not sent_any:
                     await ws.send_json({"type": "tts_start"})
                     sent_any = True
@@ -533,7 +548,6 @@ async def _send_tts(ws: WebSocket, text: str):
         # Flush remaining PCM
         if pcm_buf:
             wav = _pcm_to_wav(bytes(pcm_buf), sr)
-            wav = _normalize_wav(wav)
             if not sent_any:
                 await ws.send_json({"type": "tts_start"})
             await ws.send_bytes(wav)
@@ -552,7 +566,6 @@ async def _send_tts(ws: WebSocket, text: str):
             t0 = time.perf_counter()
             loop = asyncio.get_event_loop()
             wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
-            wav_bytes = _normalize_wav(wav_bytes)
             await ws.send_json({"type": "tts_start"})
             await ws.send_bytes(wav_bytes)
             print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (fallback)")
