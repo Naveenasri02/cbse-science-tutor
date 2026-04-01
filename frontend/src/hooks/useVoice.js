@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import { MicVAD } from '@ricky0123/vad-web'
 
 export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef }) {
@@ -6,9 +6,19 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
   const activeRef = useRef(false)
   const bargeinCountRef = useRef(0)
   const notifiedRef = useRef(false)
+  const initPromiseRef = useRef(null)
 
-  const startVoice = useCallback(async () => {
-    try {
+  // Stable callback refs to avoid re-creating VAD
+  const onSpeechDetectedRef = useRef(onSpeechDetected)
+  const onSpeechEndRef = useRef(onSpeechEnd)
+  onSpeechDetectedRef.current = onSpeechDetected
+  onSpeechEndRef.current = onSpeechEnd
+
+  const initVAD = useCallback(async () => {
+    if (vadRef.current) return vadRef.current
+    if (initPromiseRef.current) return initPromiseRef.current
+
+    initPromiseRef.current = (async () => {
       const vad = await MicVAD.new({
         model: 'v5',
         baseAssetPath: '/',
@@ -28,7 +38,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
             const botActive = isBotRespondingRef?.current || isPlayingRef?.current
             if (botActive && !notifiedRef.current && bargeinCountRef.current >= 2) {
               notifiedRef.current = true
-              onSpeechDetected()
+              onSpeechDetectedRef.current()
             }
           } else {
             bargeinCountRef.current = 0
@@ -39,7 +49,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
           if (!activeRef.current) return
           if (!notifiedRef.current) {
             notifiedRef.current = true
-            onSpeechDetected()
+            onSpeechDetectedRef.current()
           }
         },
 
@@ -51,7 +61,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
           const bytes = new Uint8Array(
             audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength)
           )
-          onSpeechEnd(bytes)
+          onSpeechEndRef.current(bytes)
         },
 
         onVADMisfire: () => {
@@ -60,24 +70,41 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         },
       })
 
-      vad.start()
       vadRef.current = vad
+      return vad
+    })()
+
+    return initPromiseRef.current
+  }, [isPlayingRef, isBotRespondingRef])
+
+  const startVoice = useCallback(async () => {
+    try {
+      const vad = await initVAD()
+      vad.start()
       activeRef.current = true
       return true
     } catch (err) {
       console.error('VAD init error:', err)
       return false
     }
-  }, [onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef])
+  }, [initVAD])
 
   const stopVoice = useCallback(() => {
     activeRef.current = false
-    if (vadRef.current) {
-      vadRef.current.destroy()
-      vadRef.current = null
-    }
     bargeinCountRef.current = 0
     notifiedRef.current = false
+    if (vadRef.current) {
+      vadRef.current.pause()
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (vadRef.current) {
+        vadRef.current.destroy()
+        vadRef.current = null
+      }
+    }
   }, [])
 
   return { startVoice, stopVoice }
