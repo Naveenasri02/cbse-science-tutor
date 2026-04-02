@@ -10,7 +10,8 @@ const VOICE_COLORS = {
   error: '#ef4444',
 }
 
-export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress }) {
+export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress, mode }) {
+  const showUpload = mode === 'doc'
   const [text, setText] = useState('')
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -66,13 +67,15 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           </div>
         )}
 
-        {/* Document chips */}
-        <DocumentChips
-          documents={documents || []}
-          onDelete={onDeleteDoc}
-          uploading={uploading}
-          uploadProgress={uploadProgress}
-        />
+        {/* Document chips (doc mode only) */}
+        {showUpload && (
+          <DocumentChips
+            documents={documents || []}
+            onDelete={onDeleteDoc}
+            uploading={uploading}
+            uploadProgress={uploadProgress}
+          />
+        )}
 
         <div className={`relative flex items-end gap-1 rounded-3xl border bg-[#303030] px-3 py-2 transition-colors
           ${voiceActive ? 'border-[#10a37f] shadow-[0_0_0_1px_rgba(16,163,127,0.3)]' : 'border-[#424242] focus-within:border-[#565656]'}`}>
@@ -100,15 +103,15 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           />
 
           <div className="flex items-center gap-1.5 pb-1">
-            {/* Upload button */}
-            {!voiceActive && (
+            {/* Upload button (doc mode only) */}
+            {showUpload && !voiceActive && (
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || uploading}
                 className="w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0
                   text-[#8e8ea0] hover:text-[#ececf1] hover:bg-[#424242]
                   disabled:opacity-40"
-                title="Upload PDF or DOCX"
+                title="Upload file"
               >
                 <HiPaperClip className="text-[1.1rem]" />
               </button>

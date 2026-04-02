@@ -53,6 +53,7 @@ export default function Sidebar({ chats, activeChatId, onNewChat, onSwitchChat, 
                   : 'text-[#b4b4b4] hover:bg-[#2a2a2a] hover:text-[#ececf1]'}
               `}
             >
+              <span className="text-base shrink-0">{chat.mode === 'doc' ? '📁' : '🧠'}</span>
               <span className="flex-1 truncate">{chat.title}</span>
               {chats.length > 1 && (
                 <button

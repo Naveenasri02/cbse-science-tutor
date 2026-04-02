@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
+import NewChatModal from './components/NewChatModal'
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
@@ -14,8 +15,9 @@ function generateSessionId() {
 }
 
 export default function App() {
-  const [chats, setChats] = useState([{ id: 1, title: 'New Chat', messages: [] }])
+  const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'smart', messages: [] }])
   const [activeChatId, setActiveChatId] = useState(1)
+  const [showNewChatModal, setShowNewChatModal] = useState(false)
   const [voiceActive, setVoiceActive] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState({ visible: false, cls: '', text: '' })
   const [isBotResponding, setIsBotResponding] = useState(false)
@@ -197,10 +199,15 @@ export default function App() {
   }
 
   const newChat = () => {
-    const id = chatIdCounter.current++
-    setChats(prev => [...prev, { id, title: 'New Chat', messages: [] }])
-    setActiveChatId(id)
+    setShowNewChatModal(true)
     setSidebarOpen(false)
+  }
+
+  const handleNewChatMode = (mode) => {
+    setShowNewChatModal(false)
+    const id = chatIdCounter.current++
+    setChats(prev => [...prev, { id, title: 'New Chat', mode, messages: [] }])
+    setActiveChatId(id)
     clearDocuments()
     sessionIdRef.current = generateSessionId()
     reconnect()
@@ -211,7 +218,7 @@ export default function App() {
       const next = prev.filter(c => c.id !== id)
       if (next.length === 0) {
         const newId = chatIdCounter.current++
-        next.push({ id: newId, title: 'New Chat', messages: [] })
+        next.push({ id: newId, title: 'New Chat', mode: 'smart', messages: [] })
         setActiveChatId(newId)
       } else if (activeChatId === id) {
         setActiveChatId(next[next.length - 1].id)
@@ -254,7 +261,7 @@ export default function App() {
           </div>
         </header>
 
-        <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} />
+        <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} mode={activeChat.mode} />
         <InputBar
           onSend={sendText}
           onToggleVoice={toggleVoice}
@@ -266,8 +273,16 @@ export default function App() {
           onDeleteDoc={deleteDocument}
           uploading={uploading}
           uploadProgress={uploadProgress}
+          mode={activeChat.mode}
         />
       </div>
+
+      {showNewChatModal && (
+        <NewChatModal
+          onSelect={handleNewChatMode}
+          onClose={() => setShowNewChatModal(false)}
+        />
+      )}
     </div>
   )
 }

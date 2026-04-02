@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import Message from './Message'
 
-export default function ChatArea({ messages, isBotResponding }) {
+export default function ChatArea({ messages, isBotResponding, mode }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -13,13 +13,27 @@ export default function ChatArea({ messages, isBotResponding }) {
       <div className="max-w-[760px] mx-auto px-4 pb-40 pt-6">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-[65vh] text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#10a37f] to-[#0d8c6c] flex items-center justify-center text-3xl mb-5 shadow-lg">
-              ⚛
-            </div>
-            <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">How can I help you today?</h1>
-            <p className="text-[#8e8ea0] text-sm">
-              Ask me anything — type or tap the mic to talk
-            </p>
+            {mode === 'doc' ? (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-[#10a37f]/10 border border-[#10a37f]/20 flex items-center justify-center text-3xl mb-5 shadow-lg">
+                  📁
+                </div>
+                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Doc Chat</h1>
+                <p className="text-[#8e8ea0] text-sm">
+                  Upload a file and ask questions — type or use voice
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center text-3xl mb-5 shadow-lg">
+                  🧠
+                </div>
+                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Smart Chat</h1>
+                <p className="text-[#8e8ea0] text-sm">
+                  Ask me anything — type or tap the mic to talk
+                </p>
+              </>
+            )}
           </div>
         )}
 
