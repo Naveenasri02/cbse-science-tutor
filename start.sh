@@ -4,7 +4,7 @@ set -e
 # Environment for GPU inference
 export HF_HOME=/workspace/.cache/huggingface
 export PATH=/usr/local/cuda/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH:-}
+export LD_LIBRARY_PATH=/usr/local/lib/python3.11/dist-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cusparse/lib:/usr/local/lib/python3.11/dist-packages/nvidia/nccl/lib:${LD_LIBRARY_PATH:-}
 
 # Symlink cuDNN/cuBLAS so ONNX Runtime finds them (Kokoro TTS GPU)
 ln -sf /usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib/libcudnn*.so* /usr/local/lib/ 2>/dev/null
