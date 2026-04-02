@@ -26,9 +26,9 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         positiveSpeechThreshold: 0.5,
         negativeSpeechThreshold: 0.35,
-        minSpeechMs: 150,
-        preSpeechPadMs: 500,
-        redemptionMs: 400,
+        minSpeechMs: 250,
+        preSpeechPadMs: 400,
+        redemptionMs: 800,
 
         onFrameProcessed: (probabilities) => {
           if (!activeRef.current) return

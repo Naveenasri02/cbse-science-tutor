@@ -169,6 +169,9 @@ async def voice_endpoint(ws: WebSocket):
         {"role": "system", "content": config.SYSTEM_PROMPT}
     ]
     pipeline_task = None
+    # Debounce: wait briefly after receiving audio to catch rapid-fire VAD splits
+    _audio_debounce_task = None
+    _audio_generation = 0  # monotonic counter to identify latest audio
 
     # Keep-alive: ping every 20s to prevent proxy timeouts
     async def keep_alive():
@@ -424,89 +427,116 @@ async def voice_endpoint(ws: WebSocket):
 
             # ── Binary audio from browser ──
             if "bytes" in message:
-                audio_bytes = message["bytes"]
-                t0 = time.perf_counter()
-                loop = asyncio.get_event_loop()
+                _audio_generation += 1
+                my_gen = _audio_generation
 
-                # Detect format: webm starts with 0x1A45DFA3 (EBML header)
-                is_webm = len(audio_bytes) > 4 and audio_bytes[:4] == b'\x1a\x45\xdf\xa3'
-
-                if is_webm:
-                    # Decode webm → WAV, then start STT + cancel pipeline in parallel
+                # Cancel any pending debounced audio processing
+                if _audio_debounce_task and not _audio_debounce_task.done():
+                    _audio_debounce_task.cancel()
                     try:
-                        import subprocess
-                        def _decode_webm(data):
-                            return subprocess.run(
-                                ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1"],
-                                input=data, capture_output=True, timeout=5
-                            )
-                        proc = await loop.run_in_executor(None, _decode_webm, audio_bytes)
-                        if proc.returncode != 0:
-                            print(f"❌ ffmpeg error: {proc.stderr.decode()[:100]}")
-                            continue
-                        wav_bytes = proc.stdout
-                    except FileNotFoundError:
-                        print("⚠️ ffmpeg not found, trying raw float32 decode")
+                        await _audio_debounce_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+                raw_bytes = message["bytes"]
+
+                async def _debounced_audio(audio_bytes, gen):
+                    nonlocal _audio_generation, pipeline_task
+                    # Brief wait to catch rapid-fire VAD segments
+                    await asyncio.sleep(0.30)
+                    # If a newer audio chunk arrived during the wait, abandon this one
+                    if gen != _audio_generation:
+                        return
+
+                    t0 = time.perf_counter()
+                    loop = asyncio.get_event_loop()
+
+                    # Detect format: webm starts with 0x1A45DFA3 (EBML header)
+                    is_webm = len(audio_bytes) > 4 and audio_bytes[:4] == b'\x1a\x45\xdf\xa3'
+
+                    if is_webm:
+                        try:
+                            import subprocess
+                            def _decode_webm(data):
+                                return subprocess.run(
+                                    ["ffmpeg", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "wav", "pipe:1"],
+                                    input=data, capture_output=True, timeout=5
+                                )
+                            proc = await loop.run_in_executor(None, _decode_webm, audio_bytes)
+                            if proc.returncode != 0:
+                                print(f"❌ ffmpeg error: {proc.stderr.decode()[:100]}")
+                                return
+                            wav_bytes = proc.stdout
+                        except FileNotFoundError:
+                            print("⚠️ ffmpeg not found, trying raw float32 decode")
+                            audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
+                            if len(audio_f32) < 1600:
+                                return
+                            wav_bytes = float32_to_wav(audio_f32, sr=16000)
+                        except Exception as e:
+                            print(f"❌ Audio decode error: {e}")
+                            return
+
+                        stt_future = loop.run_in_executor(_stt_executor, stt.transcribe, wav_bytes)
+                        await cancel_pipeline()
+                        try:
+                            transcript, detected_lang = await stt_future
+                        except Exception as e:
+                            print(f"❌ STT error: {e}")
+                            await ws.send_json({"type": "error", "text": f"STT error: {e}"})
+                            return
+                    else:
+                        # Raw Float32 PCM — pass numpy directly
                         audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
                         if len(audio_f32) < 1600:
-                            continue
-                        wav_bytes = float32_to_wav(audio_f32, sr=16000)
-                    except Exception as e:
-                        print(f"❌ Audio decode error: {e}")
-                        continue
+                            return
 
-                    # Start STT + cancel pipeline in parallel (don't wait for cancel before STT)
-                    stt_future = loop.run_in_executor(_stt_executor, stt.transcribe, wav_bytes)
-                    await cancel_pipeline()
-                    try:
-                        transcript, detected_lang = await stt_future
-                    except Exception as e:
-                        print(f"❌ STT error: {e}")
-                        await ws.send_json({"type": "error", "text": f"STT error: {e}"})
-                        continue
-                else:
-                    # Raw Float32 PCM — skip WAV conversion, pass numpy directly
-                    audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
-                    if len(audio_f32) < 1600:
-                        continue
+                        stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
+                        await cancel_pipeline()
+                        try:
+                            transcript, detected_lang = await stt_future
+                        except Exception as e:
+                            print(f"❌ STT error: {e}")
+                            await ws.send_json({"type": "error", "text": f"STT error: {e}"})
+                            return
 
-                    # Start STT + cancel pipeline in parallel
-                    stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
-                    await cancel_pipeline()
-                    try:
-                        transcript, detected_lang = await stt_future
-                    except Exception as e:
-                        print(f"❌ STT error: {e}")
-                        await ws.send_json({"type": "error", "text": f"STT error: {e}"})
-                        continue
+                    # Check again — newer audio may have arrived during STT
+                    if gen != _audio_generation:
+                        return
 
-                if not transcript or len(transcript.strip()) < 2:
-                    await ws.send_json({"type": "vad_no_speech"})
-                    continue
+                    if not transcript or len(transcript.strip()) < 2:
+                        await ws.send_json({"type": "vad_no_speech"})
+                        return
 
-                print(f"🎤 [{time.perf_counter()-t0:.2f}s] User ({detected_lang}): {transcript}")
+                    print(f"🎤 [{time.perf_counter()-t0:.2f}s] User ({detected_lang}): {transcript}")
 
-                # Topic filter
-                if not config.is_cbse_related(transcript):
+                    # Topic filter
+                    if not config.is_cbse_related(transcript):
+                        await ws.send_json({"type": "user_transcript", "text": transcript})
+                        await ws.send_json({"type": "llm_start"})
+                        await ws.send_json({"type": "llm_delta", "text": config.REJECT_MSG})
+                        await ws.send_json({"type": "llm_done"})
+                        await _send_tts(ws, config.REJECT_MSG)
+                        await ws.send_json({"type": "tts_done"})
+                        return
+
                     await ws.send_json({"type": "user_transcript", "text": transcript})
-                    await ws.send_json({"type": "llm_start"})
-                    await ws.send_json({"type": "llm_delta", "text": config.REJECT_MSG})
-                    await ws.send_json({"type": "llm_done"})
-                    await _send_tts(ws, config.REJECT_MSG)
-                    await ws.send_json({"type": "tts_done"})
-                    continue
+                    conversation_history.append({"role": "user", "content": transcript})
 
-                await ws.send_json({"type": "user_transcript", "text": transcript})
-                conversation_history.append({"role": "user", "content": transcript})
+                    pipeline_task = asyncio.create_task(run_voice_pipeline(transcript, detected_lang))
 
-                pipeline_task = asyncio.create_task(run_voice_pipeline(transcript, detected_lang))
+                _audio_debounce_task = asyncio.create_task(_debounced_audio(raw_bytes, my_gen))
 
     except (WebSocketDisconnect, RuntimeError):
         ping_task.cancel()
+        if _audio_debounce_task and not _audio_debounce_task.done():
+            _audio_debounce_task.cancel()
         await cancel_pipeline(notify=False)
         print("🔌 Client disconnected")
     except Exception as e:
         ping_task.cancel()
+        if _audio_debounce_task and not _audio_debounce_task.done():
+            _audio_debounce_task.cancel()
         print(f"❌ WS error: {e}")
         import traceback; traceback.print_exc()
 
