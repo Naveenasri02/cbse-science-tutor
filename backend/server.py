@@ -110,11 +110,13 @@ async def upload_document(
     file: UploadFile = File(...),
     session_id: str = Query(...),
 ):
-    """Upload a PDF/DOCX document for RAG-powered Q&A."""
+    """Upload a document for RAG-powered Q&A."""
+    from rag.chunker import SUPPORTED_EXTENSIONS
     filename = file.filename or "document"
     lower = filename.lower()
-    if not lower.endswith((".pdf", ".docx", ".doc")):
-        return JSONResponse(status_code=400, content={"error": "Unsupported file type. Use PDF, DOCX, or DOC."})
+    ext = lower[lower.rfind("."):] if "." in lower else ""
+    if ext not in SUPPORTED_EXTENSIONS:
+        return JSONResponse(status_code=400, content={"error": f"Unsupported file type. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"})
 
     file_bytes = await file.read()
     if len(file_bytes) > config.MAX_UPLOAD_SIZE:

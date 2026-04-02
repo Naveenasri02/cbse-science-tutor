@@ -15,10 +15,10 @@ export default function useDocuments(sessionId) {
       throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max: 50 MB`)
     }
 
-    const allowed = ['.pdf', '.docx', '.doc']
+    const allowed = ['.pdf', '.docx', '.doc', '.txt', '.md', '.csv', '.pptx', '.xlsx']
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
     if (!allowed.includes(ext)) {
-      throw new Error('Unsupported file type. Use PDF, DOCX, or DOC.')
+      throw new Error(`Unsupported file type. Supported: ${allowed.join(', ')}`)
     }
 
     setUploading(true)

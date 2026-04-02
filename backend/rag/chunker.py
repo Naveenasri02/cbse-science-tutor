@@ -120,6 +120,75 @@ def parse_docx(file_bytes: bytes) -> str:
     raise ValueError("Could not extract text from this Word document. The file may be corrupted.")
 
 
+def parse_txt(file_bytes: bytes) -> str:
+    """Extract text from plain text / markdown files."""
+    for enc in ("utf-8", "utf-8-sig", "latin-1"):
+        try:
+            return file_bytes.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return file_bytes.decode("utf-8", errors="replace")
+
+
+def parse_csv(file_bytes: bytes) -> str:
+    """Convert CSV to readable text (row-per-line)."""
+    import csv
+    text = parse_txt(file_bytes)
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if not rows:
+        return ""
+    headers = rows[0]
+    lines = []
+    for row in rows[1:]:
+        parts = [f"{h}: {v}" for h, v in zip(headers, row) if v.strip()]
+        if parts:
+            lines.append(", ".join(parts))
+    return "\n".join(lines) if lines else "\n".join([", ".join(r) for r in rows])
+
+
+def parse_pptx(file_bytes: bytes) -> str:
+    """Extract text from PowerPoint files."""
+    from pptx import Presentation
+    prs = Presentation(io.BytesIO(file_bytes))
+    slides = []
+    for i, slide in enumerate(prs.slides, 1):
+        texts = []
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    t = para.text.strip()
+                    if t:
+                        texts.append(t)
+        if texts:
+            slides.append(f"Slide {i}:\n" + "\n".join(texts))
+    return "\n\n".join(slides)
+
+
+def parse_xlsx(file_bytes: bytes) -> str:
+    """Extract text from Excel files."""
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    sheets = []
+    for ws in wb.worksheets:
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            cells = [str(c) if c is not None else "" for c in row]
+            if any(c.strip() for c in cells):
+                rows.append(", ".join(c for c in cells if c.strip()))
+        if rows:
+            sheets.append(f"Sheet: {ws.title}\n" + "\n".join(rows))
+    wb.close()
+    return "\n\n".join(sheets)
+
+
+SUPPORTED_EXTENSIONS = {
+    ".pdf", ".docx", ".doc",
+    ".txt", ".md", ".csv",
+    ".pptx", ".xlsx",
+}
+
+
 def parse_document(file_bytes: bytes, filename: str) -> str:
     """Auto-detect format and extract text."""
     lower = filename.lower()
@@ -127,8 +196,16 @@ def parse_document(file_bytes: bytes, filename: str) -> str:
         return parse_pdf(file_bytes)
     elif lower.endswith((".docx", ".doc")):
         return parse_docx(file_bytes)
+    elif lower.endswith((".txt", ".md")):
+        return parse_txt(file_bytes)
+    elif lower.endswith(".csv"):
+        return parse_csv(file_bytes)
+    elif lower.endswith(".pptx"):
+        return parse_pptx(file_bytes)
+    elif lower.endswith(".xlsx"):
+        return parse_xlsx(file_bytes)
     else:
-        raise ValueError(f"Unsupported file format: {filename}")
+        raise ValueError(f"Unsupported file format: {filename}. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
 
 
 def chunk_text(text: str) -> list[str]:
