@@ -54,12 +54,70 @@ def parse_pdf(file_bytes: bytes) -> str:
     return "\n\n".join(pages)
 
 
-def parse_docx(file_bytes: bytes) -> str:
-    """Extract text from DOCX bytes using python-docx."""
-    from docx import Document
-    doc = Document(io.BytesIO(file_bytes))
-    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+def _parse_docx_xml(file_bytes: bytes) -> str:
+    """Fallback: extract text by reading DOCX XML directly from the ZIP."""
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    zf = zipfile.ZipFile(io.BytesIO(file_bytes))
+
+    doc_xml = None
+    for name in ["word/document.xml", "word/document2.xml"]:
+        if name in zf.namelist():
+            doc_xml = zf.read(name)
+            break
+    if not doc_xml:
+        for name in zf.namelist():
+            if name.startswith("word/") and name.endswith(".xml") and "document" in name.lower():
+                doc_xml = zf.read(name)
+                break
+    if not doc_xml:
+        raise ValueError("Could not find document content in DOCX file")
+
+    root = ET.fromstring(doc_xml)
+    paragraphs = []
+    for p in root.iter(f"{WORD_NS}p"):
+        texts = [t.text for t in p.iter(f"{WORD_NS}t") if t.text]
+        if texts:
+            paragraphs.append("".join(texts))
     return "\n\n".join(paragraphs)
+
+
+def parse_docx(file_bytes: bytes) -> str:
+    """Extract text from DOCX bytes with multiple fallbacks."""
+    # Try python-docx first
+    try:
+        from docx import Document
+        doc = Document(io.BytesIO(file_bytes))
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        text = "\n\n".join(paragraphs)
+        if text.strip():
+            return text
+    except Exception:
+        pass
+
+    # Fallback: parse DOCX XML directly from ZIP
+    try:
+        text = _parse_docx_xml(file_bytes)
+        if text.strip():
+            return text
+    except Exception:
+        pass
+
+    # Last resort: use PyMuPDF (supports DOCX too)
+    try:
+        import fitz
+        doc = fitz.open(stream=file_bytes, filetype="docx")
+        pages = [page.get_text("text") for page in doc]
+        doc.close()
+        text = "\n\n".join(pages)
+        if text.strip():
+            return text
+    except Exception:
+        pass
+
+    raise ValueError("Could not extract text from this Word document. The file may be corrupted.")
 
 
 def parse_document(file_bytes: bytes, filename: str) -> str:
