@@ -1,6 +1,6 @@
 """
 CBSE Voice Chat Server — All-in-One GPU Backend
-STT (faster-whisper) + LLM (vLLM) + TTS (Kokoro ONNX GPU) on single GPU.
+STT (Parakeet TDT) + LLM (vLLM) + TTS (Kokoro ONNX GPU) on single GPU.
 Streaming WebSocket pipeline with barge-in support.
 """
 
@@ -34,8 +34,8 @@ tts = KokoroTTS()
 print("  ✓ TTS ready")
 
 print("  [2/3] STT...")
-from stt.whisper_stt import WhisperSTT
-stt = WhisperSTT()
+from stt.parakeet_stt import ParakeetSTT
+stt = ParakeetSTT()
 print("  ✓ STT ready")
 
 print("  [3/3] LLM client...")
@@ -285,57 +285,27 @@ async def voice_endpoint(ws: WebSocket):
                     chunk_buffer += delta
                     await ws.send_json({"type": "llm_delta", "text": delta})
 
-                    # Chunk extraction — fire TTS on first 2 words
+                    # Chunk extraction — split at sentence boundaries for fluent TTS
                     while True:
                         if chunks_sent == 0:
-                            # FIRST CHUNK: send after just 2 words or any punctuation
-                            match = re.search(r'[,;:.!?](?:\s|$)', chunk_buffer)
-                            if match:
-                                end = match.end()
-                                frag = chunk_buffer[:end].strip()
-                                chunk_buffer = chunk_buffer[end:]
-                                if frag:
-                                    await tts_q.put(frag)
-                                    chunks_sent += 1
-                                    print(f"📝 Chunk1 [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
-                                break
-                            # 2+ words → send immediately
-                            if len(chunk_buffer.split()) >= 2:
-                                last_sp = chunk_buffer.rfind(' ')
-                                if last_sp > 0:
-                                    frag = chunk_buffer[:last_sp].strip()
-                                    chunk_buffer = chunk_buffer[last_sp:]
-                                    if frag:
-                                        await tts_q.put(frag)
-                                        chunks_sent += 1
-                                        print(f"📝 Chunk1 (2w) [{time.perf_counter()-t0:.3f}s] \"{frag[:50]}\"")
-                            break
-                        elif chunks_sent == 1:
-                            # SECOND CHUNK: 6 words or any punctuation (still fast)
-                            match = re.search(r'[,;:.!?](?:\s|$)', chunk_buffer)
-                            if match:
-                                end = match.end()
-                                frag = chunk_buffer[:end].strip()
-                                chunk_buffer = chunk_buffer[end:]
-                                if frag:
-                                    await tts_q.put(frag)
-                                    chunks_sent += 1
-                                break
-                            if len(chunk_buffer.split()) >= 6:
-                                last_sp = chunk_buffer.rfind(' ')
-                                if last_sp > 0:
-                                    frag = chunk_buffer[:last_sp].strip()
-                                    chunk_buffer = chunk_buffer[last_sp:]
-                                    if frag:
-                                        await tts_q.put(frag)
-                                        chunks_sent += 1
-                            break
-                        else:
-                            # SUBSEQUENT CHUNKS: clause or sentence boundaries
+                            # FIRST CHUNK: wait for first sentence/clause end
                             match = re.search(r'[.!?](?:\s|$)', chunk_buffer)
                             if not match:
-                                # Also split on commas if buffer is getting long (10+ words)
-                                if len(chunk_buffer.split()) >= 10:
+                                match = re.search(r'[,;:](?:\s|$)', chunk_buffer)
+                            if match:
+                                end = match.end()
+                                frag = chunk_buffer[:end].strip()
+                                chunk_buffer = chunk_buffer[end:]
+                                if frag:
+                                    await tts_q.put(frag)
+                                    chunks_sent += 1
+                                    print(f'\U0001f4dd Chunk1 [{time.perf_counter()-t0:.3f}s] "{frag[:50]}"')
+                            break
+                        else:
+                            # ALL SUBSEQUENT: full sentence boundaries
+                            match = re.search(r'[.!?](?:\s|$)', chunk_buffer)
+                            if not match:
+                                if len(chunk_buffer.split()) >= 15:
                                     cm = re.search(r'[,;:](?:\s|$)', chunk_buffer)
                                     if cm:
                                         match = cm

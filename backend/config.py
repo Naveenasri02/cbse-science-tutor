@@ -33,10 +33,8 @@ VOICE_SYSTEM_PROMPT = (
     "/no_think"
 )
 
-# ── STT (faster-whisper on GPU) ──
-STT_MODEL_SIZE = os.getenv("STT_MODEL_SIZE", "large-v3-turbo")
-STT_DEVICE = os.getenv("STT_DEVICE", "cuda")
-STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "float16")
+# ── STT (NVIDIA Parakeet TDT 0.6B v2 on GPU) ──
+STT_MODEL_NAME = os.getenv("STT_MODEL_NAME", "nvidia/parakeet-tdt-0.6b-v2")
 
 # ── TTS (Kokoro ONNX on GPU) ──
 TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH", "/workspace/kokoro-v1.0.onnx")
@@ -44,7 +42,7 @@ TTS_VOICES_PATH = os.getenv("TTS_VOICES_PATH", "/workspace/voices-v1.0.bin")
 TTS_VOICE = os.getenv("TTS_VOICE", "af_bella")
 TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))
 
-# Language code (from Whisper) → Kokoro TTS voice
+# Language code → Kokoro TTS voice
 # Languages supported by Kokoro v1.0
 LANG_VOICE_MAP = {
     "en": "af_bella",       # English → American female (most expressive)

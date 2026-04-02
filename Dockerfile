@@ -32,8 +32,8 @@ COPY frontend/dist/ /app/static/
 RUN mkdir -p /app/voices && \
     python -c "from kokoro_onnx import Kokoro; print('Kokoro available')" || true
 
-# Pre-download Whisper model
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3', device='cpu', compute_type='int8')" || true
+# Pre-download Parakeet TDT model
+RUN python -c "import nemo.collections.asr as nemo_asr; nemo_asr.models.ASRModel.from_pretrained('nvidia/parakeet-tdt-0.6b-v2')" || true
 
 # Expose port
 EXPOSE 8000

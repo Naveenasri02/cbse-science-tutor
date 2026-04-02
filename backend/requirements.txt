@@ -8,8 +8,8 @@ httpx>=0.27
 # LLM client (OpenAI-compatible, talks to vLLM)
 openai>=1.50
 
-# STT (runs in-process on GPU)
-faster-whisper>=1.0
+# STT (NVIDIA Parakeet TDT — runs in-process on GPU)
+nemo_toolkit[asr]>=2.0
 soundfile>=0.12
 
 # TTS (Kokoro ONNX — runs in-process on GPU)
