@@ -36,7 +36,8 @@ export default function useDocuments(sessionId) {
         throw new Error(data.error || 'Upload failed')
       }
 
-      setDocuments(prev => [...prev, data])
+      const fileUrl = URL.createObjectURL(file)
+      setDocuments(prev => [...prev, { ...data, fileUrl, fileType: file.type }])
       setUploadProgress('')
       return data
     } catch (err) {
@@ -49,6 +50,8 @@ export default function useDocuments(sessionId) {
 
   const deleteDocument = useCallback(async (docId) => {
     try {
+      const doc = documents.find(d => d.doc_id === docId)
+      if (doc?.fileUrl) URL.revokeObjectURL(doc.fileUrl)
       const url = `${API_BASE}/api/documents/${docId}?session_id=${encodeURIComponent(sessionId)}`
       const res = await fetch(url, { method: 'DELETE' })
       if (res.ok) {
@@ -57,11 +60,12 @@ export default function useDocuments(sessionId) {
     } catch (err) {
       console.error('Delete failed:', err)
     }
-  }, [sessionId])
+  }, [sessionId, documents])
 
   const clearDocuments = useCallback(() => {
+    documents.forEach(d => { if (d.fileUrl) URL.revokeObjectURL(d.fileUrl) })
     setDocuments([])
-  }, [])
+  }, [documents])
 
   return { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments }
 }
