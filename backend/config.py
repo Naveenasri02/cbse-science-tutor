@@ -6,7 +6,7 @@ load_dotenv()
 # ── LLM (vLLM on same machine) ──
 VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://localhost:8002/v1")
 VLLM_MODEL = os.getenv("VLLM_MODEL", "invergent/Qwen3-30B-A3B-AWQ")
-VLLM_API_KEY = os.getenv("VLLM_API_KEY", "app-sk-local")
+VLLM_API_KEY = os.getenv("VLLM_API_KEY", "cbse-sk-local")
 
 SYSTEM_PROMPT = (
     "You are a helpful AI assistant. Answer questions clearly and accurately. "
