@@ -24,10 +24,16 @@ class KokoroTTS:
 
         sess_opts = ort.SessionOptions()
         sess_opts.log_severity_level = 3  # suppress warnings
+        # Optimized CUDA provider: DEFAULT algo search avoids 4-7x slowdown
+        # from exhaustive cuDNN kernel search on every call (GitHub issue #125)
+        cuda_opts = {"cudnn_conv_algo_search": "DEFAULT"}
         sess = ort.InferenceSession(
             model_path,
             sess_options=sess_opts,
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+            providers=[
+                ("CUDAExecutionProvider", cuda_opts),
+                "CPUExecutionProvider",
+            ],
         )
         active = sess.get_providers()
         print(f"  ONNX providers: {active}")
