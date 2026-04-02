@@ -68,7 +68,7 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 1400) -> str:
+def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 6000) -> str:
     """Build a ChatML prompt string with optional assistant pre-fill.
     Trims older messages (keeping system prompt) to stay within max_ctx tokens."""
     # Always keep system prompt (first message) and prefill overhead
@@ -282,7 +282,7 @@ async def voice_endpoint(ws: WebSocket):
         if rag_context:
             voice_messages[0]["content"] += rag_context
 
-        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1400)
+        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=6000)
 
         # Async queue: LLM feeds sentences → TTS worker consumes them
         tts_q: asyncio.Queue = asyncio.Queue()
@@ -330,7 +330,7 @@ async def voice_endpoint(ws: WebSocket):
                 "POST", "/v1/completions",
                 json={
                     "prompt": prompt,
-                    "max_tokens": 800,
+                    "max_tokens": 2048,
                     "temperature": 0.3,
                     "stop": ["<|im_end|>"],
                     "stream": True,
@@ -465,7 +465,7 @@ async def voice_endpoint(ws: WebSocket):
                             "POST", "/v1/completions",
                             json={
                                 "prompt": prompt,
-                                "max_tokens": 512,
+                                "max_tokens": 2048,
                                 "temperature": 0.3,
                                 "stop": ["<|im_end|>"],
                                 "stream": True,

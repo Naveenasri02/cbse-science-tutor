@@ -86,12 +86,20 @@ class RAGPipeline:
         total_chunks = self.store.get_chunk_count(session_id)
         is_summary = self._is_summary_query(query)
 
-        if is_summary or total_chunks <= config.RAG_TOP_K:
-            # Summary query OR small document: get ALL chunks in document order
-            results = self.store.get_all_chunks_ordered(session_id)
-            print(f"  📖 RAG: full-doc retrieval ({len(results)} chunks, summary={is_summary})")
+        # Estimate total doc size in tokens
+        all_chunks = self.store.get_all_chunks_ordered(session_id)
+        total_doc_tokens = sum(len(c["text"]) // 4 + 5 for c in all_chunks)
+
+        if total_doc_tokens <= config.RAG_MAX_CONTEXT_TOKENS:
+            # Small doc: inject FULL document (like ChatGPT does)
+            results = all_chunks
+            print(f"  📄 RAG: full-doc injection ({len(results)} chunks, {total_doc_tokens} tokens — fits in context)")
+        elif is_summary:
+            # Summary query on large doc: get all chunks, _build_context will truncate
+            results = all_chunks
+            print(f"  📖 RAG: full-doc retrieval for summary ({len(results)} chunks, {total_doc_tokens} tokens)")
         else:
-            # Specific question: semantic search
+            # Specific question on large doc: semantic search
             query_vec = self.embedder.embed(query)
             results = self.store.query(session_id, query_vec, top_k=config.RAG_TOP_K)
             print(f"  🔍 RAG: semantic search ({len(results)} chunks, scores={[round(r.get('score',0),2) for r in results[:3]]})")
