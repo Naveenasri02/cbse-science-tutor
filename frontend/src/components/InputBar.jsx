@@ -12,6 +12,7 @@ const VOICE_COLORS = {
 
 export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress, mode }) {
   const showUpload = mode === 'doc'
+  const showVoice = mode !== 'doc'
   const [text, setText] = useState('')
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -117,19 +118,21 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
               </button>
             )}
 
-            {/* Voice button */}
-            <button
-              onClick={onToggleVoice}
-              disabled={disabled}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0
-                ${voiceActive
-                  ? 'bg-[#10a37f] text-white shadow-[0_0_12px_rgba(16,163,127,0.5)] animate-pulse-mic'
-                  : 'text-[#8e8ea0] hover:text-[#ececf1] hover:bg-[#424242]'}
-                disabled:opacity-40`}
-              title={voiceActive ? 'Stop voice' : 'Start voice'}
-            >
-              {voiceActive ? <HiStop className="text-[1.1rem]" /> : <HiMicrophone className="text-[1.1rem]" />}
-            </button>
+            {/* Voice button (hidden in doc mode) */}
+            {showVoice && (
+              <button
+                onClick={onToggleVoice}
+                disabled={disabled}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0
+                  ${voiceActive
+                    ? 'bg-[#10a37f] text-white shadow-[0_0_12px_rgba(16,163,127,0.5)] animate-pulse-mic'
+                    : 'text-[#8e8ea0] hover:text-[#ececf1] hover:bg-[#424242]'}
+                  disabled:opacity-40`}
+                title={voiceActive ? 'Stop voice' : 'Start voice'}
+              >
+                {voiceActive ? <HiStop className="text-[1.1rem]" /> : <HiMicrophone className="text-[1.1rem]" />}
+              </button>
+            )}
 
             {/* Send button */}
             {!voiceActive && (

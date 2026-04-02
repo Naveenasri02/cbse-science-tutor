@@ -26,7 +26,7 @@ export default function NewChatModal({ onSelect, onClose }) {
             <div className="text-center">
               <div className="font-semibold text-[#ececf1] text-sm">Chat with Docs</div>
               <div className="text-[11px] text-[#8e8ea0] mt-1 leading-snug">
-                Upload files &amp; ask questions with voice or text
+                Upload files &amp; ask questions about them
               </div>
             </div>
           </button>

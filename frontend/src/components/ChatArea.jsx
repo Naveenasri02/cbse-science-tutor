@@ -20,7 +20,7 @@ export default function ChatArea({ messages, isBotResponding, mode }) {
                 </div>
                 <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Chat with Docs</h1>
                 <p className="text-[#8e8ea0] text-sm">
-                  Upload a file and ask questions — type or use voice
+                  Upload a file and ask questions about it
                 </p>
               </>
             ) : (
