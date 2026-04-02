@@ -50,6 +50,7 @@ class WhisperSTT:
 
         segments, info = self.model.transcribe(
             audio_f32,
+            language="en",
             beam_size=1,
             without_timestamps=True,
             condition_on_previous_text=False,
@@ -70,6 +71,7 @@ class WhisperSTT:
 
         segments, info = self.model.transcribe(
             audio_data,
+            language="en",
             beam_size=1,
             without_timestamps=True,
             condition_on_previous_text=False,
