@@ -119,11 +119,38 @@ class VectorStore:
             docs[did]["chunk_count"] += 1
         return list(docs.values())
 
-    def has_documents(self, session_id: str) -> bool:
-        """Check if session has any uploaded documents."""
+    def get_chunk_count(self, session_id: str) -> int:
+        """Get total number of chunks in a session."""
         col_name = self._collection_name(session_id)
         try:
             col = self.client.get_collection(col_name)
-            return col.count() > 0
+            return col.count()
         except Exception:
-            return False
+            return 0
+
+    def get_all_chunks_ordered(self, session_id: str) -> list[dict]:
+        """Get ALL chunks ordered by document then chunk position."""
+        col_name = self._collection_name(session_id)
+        try:
+            col = self.client.get_collection(col_name)
+        except Exception:
+            return []
+
+        if col.count() == 0:
+            return []
+
+        results = col.get(include=["documents", "metadatas"])
+        docs = []
+        for i in range(len(results["ids"])):
+            docs.append({
+                "text": results["documents"][i],
+                "filename": results["metadatas"][i].get("filename", ""),
+                "chunk_idx": results["metadatas"][i].get("chunk_idx", 0),
+                "doc_id": results["metadatas"][i].get("doc_id", ""),
+            })
+        docs.sort(key=lambda d: (d["doc_id"], d["chunk_idx"]))
+        return docs
+
+    def has_documents(self, session_id: str) -> bool:
+        """Check if session has any uploaded documents."""
+        return self.get_chunk_count(session_id) > 0

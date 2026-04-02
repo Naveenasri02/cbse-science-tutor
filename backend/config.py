@@ -59,18 +59,27 @@ TTS_SUPPORTED_LANGS = set(LANG_VOICE_MAP.keys())
 # ── RAG (Document Q&A) ──
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/workspace/vector_db")
-RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))       # tokens per chunk
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))   # overlap between chunks
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "10"))
+RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "900"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "300"))       # tokens per chunk
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "30"))   # overlap between chunks
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(50 * 1024 * 1024)))  # 50 MB
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/workspace/uploads")
 
 RAG_CONTEXT_PROMPT = (
     "\n\nDOCUMENT CONTEXT (from uploaded files):\n"
     "{context}\n\n"
-    "Answer the student's question using the above document context when relevant. "
-    "If the answer is clearly in the documents, base your response on that content. "
-    "If not covered in the documents, use your own knowledge but mention that it's from your general knowledge."
+    "Use the above document context to answer the user's question. "
+    "Base your response on the document content. "
+    "If the answer is not in the documents, say so and use your general knowledge."
+)
+
+RAG_SUMMARY_PROMPT = (
+    "\n\nFULL DOCUMENT CONTENT (from uploaded files):\n"
+    "{context}\n\n"
+    "The user wants a summary or overview of the above document. "
+    "Provide a comprehensive summary covering ALL main sections, key details, and important information. "
+    "Do not skip any section. Be thorough."
 )
 
 # ── Server ──
