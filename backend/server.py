@@ -437,6 +437,7 @@ async def voice_endpoint(ws: WebSocket):
 
                 elif msg_type == "text_chat":
                     user_text = data.get("text", "").strip()
+                    want_tts = data.get("tts", False)
                     if not user_text:
                         continue
                     print(f"💬 Text chat: {user_text[:60]}")
@@ -449,51 +450,57 @@ async def voice_endpoint(ws: WebSocket):
                         continue
 
                     conversation_history.append({"role": "user", "content": user_text})
-                    await ws.send_json({"type": "llm_start"})
 
-                    # Inject RAG context if documents are uploaded
-                    text_messages = list(conversation_history)
-                    loop = asyncio.get_event_loop()
-                    rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, user_text)
-                    if rag_context:
-                        text_messages[0] = {"role": "system", "content": text_messages[0]["content"] + rag_context}
+                    if want_tts:
+                        # Parallel LLM + TTS: response is streamed as text AND read aloud
+                        await cancel_pipeline()
+                        pipeline_task = asyncio.create_task(run_voice_pipeline(user_text))
+                    else:
+                        await ws.send_json({"type": "llm_start"})
 
-                    # Use raw completions with think pre-fill for instant answers
-                    prompt = _build_chatml_prompt(text_messages, prefill="<think>\n\n</think>\n\n")
-                    full_reply = ""
-                    t0 = time.perf_counter()
-                    try:
-                        async with _llm_http.stream(
-                            "POST", "/v1/completions",
-                            json={
-                                "prompt": prompt,
-                                "max_tokens": 2048,
-                                "temperature": 0.3,
-                                "stop": ["<|im_end|>"],
-                                "stream": True,
-                                "cache_prompt": True,
-                            },
-                        ) as resp:
-                            async for line in resp.aiter_lines():
-                                if not line.startswith("data: ") or line == "data: [DONE]":
-                                    continue
-                                chunk = json.loads(line[6:])
-                                delta = chunk["choices"][0].get("text", "")
-                                if delta:
-                                    full_reply += delta
-                                    await ws.send_json({"type": "llm_delta", "text": delta})
-                    except Exception as e:
-                        print(f"❌ Text LLM error: {e}")
-                        await ws.send_json({"type": "error", "text": str(e)})
-                        continue
+                        # Inject RAG context if documents are uploaded
+                        text_messages = list(conversation_history)
+                        loop = asyncio.get_event_loop()
+                        rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, user_text)
+                        if rag_context:
+                            text_messages[0] = {"role": "system", "content": text_messages[0]["content"] + rag_context}
 
-                    await ws.send_json({"type": "llm_done"})
-                    print(f"✅ [{time.perf_counter()-t0:.2f}s] Text reply: {full_reply[:60]}...")
+                        # Use raw completions with think pre-fill for instant answers
+                        prompt = _build_chatml_prompt(text_messages, prefill="<think>\n\n</think>\n\n")
+                        full_reply = ""
+                        t0 = time.perf_counter()
+                        try:
+                            async with _llm_http.stream(
+                                "POST", "/v1/completions",
+                                json={
+                                    "prompt": prompt,
+                                    "max_tokens": 2048,
+                                    "temperature": 0.3,
+                                    "stop": ["<|im_end|>"],
+                                    "stream": True,
+                                    "cache_prompt": True,
+                                },
+                            ) as resp:
+                                async for line in resp.aiter_lines():
+                                    if not line.startswith("data: ") or line == "data: [DONE]":
+                                        continue
+                                    chunk = json.loads(line[6:])
+                                    delta = chunk["choices"][0].get("text", "")
+                                    if delta:
+                                        full_reply += delta
+                                        await ws.send_json({"type": "llm_delta", "text": delta})
+                        except Exception as e:
+                            print(f"❌ Text LLM error: {e}")
+                            await ws.send_json({"type": "error", "text": str(e)})
+                            continue
 
-                    if full_reply:
-                        conversation_history.append({"role": "assistant", "content": full_reply.strip()})
-                        if len(conversation_history) > 21:
-                            del conversation_history[1:-20]
+                        await ws.send_json({"type": "llm_done"})
+                        print(f"✅ [{time.perf_counter()-t0:.2f}s] Text reply: {full_reply[:60]}...")
+
+                        if full_reply:
+                            conversation_history.append({"role": "assistant", "content": full_reply.strip()})
+                            if len(conversation_history) > 21:
+                                del conversation_history[1:-20]
 
                 continue
 

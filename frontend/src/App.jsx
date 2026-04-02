@@ -195,7 +195,10 @@ export default function App() {
     if (!text.trim() || !ws.current || ws.current.readyState !== WebSocket.OPEN) return
     addMsg('user', text.trim())
     updateChatTitle(text.trim())
-    ws.current.send(JSON.stringify({ type: 'text_chat', text: text.trim() }))
+    const payload = { type: 'text_chat', text: text.trim() }
+    // In doc mode, request parallel TTS so response is read aloud
+    if (activeChat.mode === 'doc') payload.tts = true
+    ws.current.send(JSON.stringify(payload))
   }
 
   const newChat = () => {
