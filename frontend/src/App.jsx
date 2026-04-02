@@ -244,11 +244,11 @@ export default function App() {
         <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#2a2a2a] bg-[#212121] shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="md:hidden text-lg text-[#8e8ea0] hover:text-white transition-colors">☰</button>
-            <h1 className="text-sm font-semibold text-[#ececf1] hidden md:block">CBSE Science Tutor</h1>
+            <h1 className="text-sm font-semibold text-[#ececf1] hidden md:block">Science Tutor</h1>
             <span className="md:hidden text-sm font-medium truncate text-[#ececf1]">{activeChat.title}</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#2a2a2a] text-[#8e8ea0] font-medium">Qwen3-30B</span>
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#2a2a2a] text-[#8e8ea0] font-medium">AI Tutor</span>
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-[#10a37f]' : 'bg-[#ef4444] animate-pulse'}`}
               title={connected ? 'Connected' : 'Reconnecting...'} />
           </div>

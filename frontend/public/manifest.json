@@ -1,7 +1,7 @@
 {
-  "name": "CBSE Science Tutor",
-  "short_name": "CBSE Tutor",
-  "description": "CBSE Class 10 Science AI Tutor — Voice & Text",
+  "name": "Science Tutor",
+  "short_name": "Science Tutor",
+  "description": "Class 10 Science AI Tutor — Voice & Text",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#212121",

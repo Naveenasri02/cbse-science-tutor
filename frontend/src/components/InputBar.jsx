@@ -92,7 +92,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKey}
             disabled={disabled || voiceActive}
-            placeholder={voiceActive ? 'Listening — speak or tap mic to stop' : 'Message CBSE Tutor...'}
+            placeholder={voiceActive ? 'Listening — speak or tap mic to stop' : 'Message Science Tutor...'}
             rows={1}
             className="flex-1 bg-transparent text-[#ececf1] text-[.95rem] outline-none resize-none
                        py-2 px-2 placeholder:text-[#6b6b6b] disabled:opacity-40
@@ -145,7 +145,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           </div>
         </div>
         <p className="text-center text-[10px] text-[#6b6b6b] mt-2.5 select-none">
-          CBSE Class 10 Science · NCERT aligned answers
+          Class 10 Science · NCERT aligned answers
         </p>
       </div>
     </div>

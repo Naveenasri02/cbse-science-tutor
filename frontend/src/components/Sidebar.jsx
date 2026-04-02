@@ -17,7 +17,7 @@ export default function Sidebar({ chats, activeChatId, onNewChat, onSwitchChat, 
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
             <span className="text-lg">⚛</span>
-            <span className="font-semibold text-sm text-[#ececf1]">CBSE Tutor</span>
+            <span className="font-semibold text-sm text-[#ececf1]">Science Tutor</span>
           </div>
           <button onClick={onClose} className="md:hidden text-[#8e8ea0] hover:text-white p-1 rounded-lg hover:bg-[#2f2f2f] transition">
             <HiX size={18} />
@@ -68,7 +68,7 @@ export default function Sidebar({ chats, activeChatId, onNewChat, onSwitchChat, 
 
         {/* Footer */}
         <div className="p-4 text-[#6b6b6b] text-[11px] leading-relaxed border-t border-[#2f2f2f]">
-          CBSE Class 10 Science · NCERT
+          Class 10 Science · NCERT
         </div>
       </aside>
     </>
