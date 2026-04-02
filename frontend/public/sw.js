@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cbse-tutor-v1'
+const CACHE_NAME = 'ai-chat-v1'
 const STATIC_ASSETS = ['/', '/index.html']
 
 self.addEventListener('install', (e) => {

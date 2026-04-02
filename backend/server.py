@@ -1,5 +1,5 @@
 """
-CBSE Voice Chat Server — All-in-One GPU Backend
+Voice Chat Server — All-in-One GPU Backend
 STT (Parakeet TDT) + LLM (vLLM) + TTS (Kokoro ONNX GPU) + RAG (ChromaDB) on single GPU.
 Streaming WebSocket pipeline with barge-in support and document Q&A.
 """
@@ -95,7 +95,7 @@ def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 1400)
 
 # ── FastAPI App ─────────────────────────────────────────────
 
-app = FastAPI(title="CBSE Voice Chat")
+app = FastAPI(title="Voice Chat")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
@@ -440,7 +440,7 @@ async def voice_endpoint(ws: WebSocket):
                     print(f"💬 Text chat: {user_text[:60]}")
 
                     # Topic filter
-                    if not config.is_cbse_related(user_text):
+                    if not config.is_topic_related(user_text):
                         await ws.send_json({"type": "llm_start"})
                         await ws.send_json({"type": "llm_delta", "text": config.REJECT_MSG})
                         await ws.send_json({"type": "llm_done"})
@@ -581,7 +581,7 @@ async def voice_endpoint(ws: WebSocket):
                     print(f"🎤 [{time.perf_counter()-t0:.2f}s] User ({detected_lang}): {transcript}")
 
                     # Topic filter
-                    if not config.is_cbse_related(transcript):
+                    if not config.is_topic_related(transcript):
                         await ws.send_json({"type": "user_transcript", "text": transcript})
                         await ws.send_json({"type": "llm_start"})
                         await ws.send_json({"type": "llm_delta", "text": config.REJECT_MSG})
