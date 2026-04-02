@@ -24,7 +24,7 @@ export default function NewChatModal({ onSelect, onClose }) {
               📁
             </div>
             <div className="text-center">
-              <div className="font-semibold text-[#ececf1] text-sm">Smart Scan</div>
+              <div className="font-semibold text-[#ececf1] text-sm">Chat with Docs</div>
               <div className="text-[11px] text-[#8e8ea0] mt-1 leading-snug">
                 Upload files &amp; ask questions with voice or text
               </div>
@@ -44,7 +44,7 @@ export default function NewChatModal({ onSelect, onClose }) {
               🧠
             </div>
             <div className="text-center">
-              <div className="font-semibold text-[#ececf1] text-sm">AI Assistant</div>
+              <div className="font-semibold text-[#ececf1] text-sm">Chat with AI</div>
               <div className="text-[11px] text-[#8e8ea0] mt-1 leading-snug">
                 AI assistant with voice &amp; text chat
               </div>

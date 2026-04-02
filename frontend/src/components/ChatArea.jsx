@@ -18,7 +18,7 @@ export default function ChatArea({ messages, isBotResponding, mode }) {
                 <div className="w-16 h-16 rounded-2xl bg-[#10a37f]/10 border border-[#10a37f]/20 flex items-center justify-center text-3xl mb-5 shadow-lg">
                   📁
                 </div>
-                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Smart Scan</h1>
+                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Chat with Docs</h1>
                 <p className="text-[#8e8ea0] text-sm">
                   Upload a file and ask questions — type or use voice
                 </p>
@@ -28,7 +28,7 @@ export default function ChatArea({ messages, isBotResponding, mode }) {
                 <div className="w-16 h-16 rounded-2xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center text-3xl mb-5 shadow-lg">
                   🧠
                 </div>
-                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">AI Assistant</h1>
+                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Chat with AI</h1>
                 <p className="text-[#8e8ea0] text-sm">
                   Ask me anything — type or tap the mic to talk
                 </p>
