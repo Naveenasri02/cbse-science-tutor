@@ -57,6 +57,23 @@ LANG_VOICE_MAP = {
 }
 TTS_SUPPORTED_LANGS = set(LANG_VOICE_MAP.keys())
 
+# ── RAG (Document Q&A) ──
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/workspace/vector_db")
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))       # tokens per chunk
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))   # overlap between chunks
+MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(50 * 1024 * 1024)))  # 50 MB
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/workspace/uploads")
+
+RAG_CONTEXT_PROMPT = (
+    "\n\nDOCUMENT CONTEXT (from uploaded files):\n"
+    "{context}\n\n"
+    "Answer the student's question using the above document context when relevant. "
+    "If the answer is clearly in the documents, base your response on that content. "
+    "If not covered in the documents, use your own knowledge but mention that it's from your general knowledge."
+)
+
 # ── Server ──
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")

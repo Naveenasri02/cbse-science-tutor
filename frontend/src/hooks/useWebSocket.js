@@ -4,15 +4,17 @@ export default function useWebSocket(url, onMessage) {
   const wsRef = useRef(null)
   const reconnectTimer = useRef(null)
   const onMessageRef = useRef(onMessage)
+  const urlRef = useRef(url)
   const [connected, setConnected] = useState(false)
   onMessageRef.current = onMessage
+  urlRef.current = url
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.close()
     }
 
-    const ws = new WebSocket(url)
+    const ws = new WebSocket(urlRef.current)
     ws.binaryType = 'arraybuffer'
     wsRef.current = ws
 
@@ -40,7 +42,7 @@ export default function useWebSocket(url, onMessage) {
         onMessageRef.current(event.data, true)
       }
     }
-  }, [url])
+  }, [])
 
   const reconnect = useCallback(() => {
     clearTimeout(reconnectTimer.current)

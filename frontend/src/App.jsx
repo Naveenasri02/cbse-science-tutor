@@ -5,8 +5,13 @@ import InputBar from './components/InputBar'
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
+import useDocuments from './hooks/useDocuments'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
+
+function generateSessionId() {
+  return Math.random().toString(36).slice(2, 14)
+}
 
 export default function App() {
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', messages: [] }])
@@ -17,9 +22,16 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const botBufferRef = useRef('')
   const chatIdCounter = useRef(2)
-  const interruptedRef = useRef(false)  // discard stale TTS audio after barge-in
+  const interruptedRef = useRef(false)
+  const sessionIdRef = useRef(generateSessionId())
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
+
+  // Documents (RAG)
+  const { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments } = useDocuments(sessionIdRef.current)
+
+  // WebSocket URL with session_id for per-chat RAG scoping
+  const wsUrl = `${WS_URL}?session_id=${sessionIdRef.current}`
 
   const addMsg = useCallback((role, text, chatId) => {
     setChats(prev => prev.map(c =>
@@ -127,7 +139,7 @@ export default function App() {
     }
   }, [voiceActive, addMsg, updateLastBotMsg, updateChatTitle, playAudio])
 
-  const { ws, connected, reconnect } = useWebSocket(WS_URL, onMessage)
+  const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
   // Voice mode — realistic conversation flow
   const onSpeechDetected = useCallback(() => {
@@ -189,7 +201,8 @@ export default function App() {
     setChats(prev => [...prev, { id, title: 'New Chat', messages: [] }])
     setActiveChatId(id)
     setSidebarOpen(false)
-    // Reconnect WS to reset server-side history
+    clearDocuments()
+    sessionIdRef.current = generateSessionId()
     reconnect()
   }
 
@@ -210,6 +223,8 @@ export default function App() {
   const switchChat = (id) => {
     setActiveChatId(id)
     setSidebarOpen(false)
+    clearDocuments()
+    sessionIdRef.current = generateSessionId()
     reconnect()
   }
 
@@ -246,6 +261,11 @@ export default function App() {
           voiceActive={voiceActive}
           voiceStatus={voiceStatus}
           disabled={!connected}
+          onUpload={uploadFile}
+          documents={documents}
+          onDeleteDoc={deleteDocument}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
         />
       </div>
     </div>

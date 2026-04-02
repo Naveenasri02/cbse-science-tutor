@@ -1,23 +1,25 @@
 """
 CBSE Voice Chat Server — All-in-One GPU Backend
-STT (Parakeet TDT) + LLM (vLLM) + TTS (Kokoro ONNX GPU) on single GPU.
-Streaming WebSocket pipeline with barge-in support.
+STT (Parakeet TDT) + LLM (vLLM) + TTS (Kokoro ONNX GPU) + RAG (ChromaDB) on single GPU.
+Streaming WebSocket pipeline with barge-in support and document Q&A.
 """
 
 import asyncio
 import json
 import io
+import os
 import re
+import uuid
 import wave
 import time
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 import config
 
@@ -28,17 +30,17 @@ _stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 
 print("🔧 Loading models...")
 
-print("  [1/3] TTS engine...")
+print("  [1/4] TTS engine...")
 from tts.kokoro_tts import KokoroTTS
 tts = KokoroTTS()
 print("  ✓ TTS ready")
 
-print("  [2/3] STT...")
+print("  [2/4] STT...")
 from stt.parakeet_stt import ParakeetSTT
 stt = ParakeetSTT()
 print("  ✓ STT ready")
 
-print("  [3/3] LLM client...")
+print("  [3/4] LLM client...")
 from openai import AsyncOpenAI
 llm_client = AsyncOpenAI(
     api_key=config.VLLM_API_KEY,
@@ -51,6 +53,14 @@ _llm_http = httpx.AsyncClient(
     headers={"Authorization": f"Bearer {config.VLLM_API_KEY}"},
 )
 print("  ✓ LLM ready")
+
+print("  [4/4] RAG pipeline...")
+from rag.pipeline import RAGPipeline
+rag = RAGPipeline()
+print("  ✓ RAG ready")
+
+# Dedicated executor for RAG embedding (avoid blocking event loop)
+_rag_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="rag")
 
 
 def _estimate_tokens(text: str) -> int:
@@ -92,6 +102,49 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── RAG Document Upload API ────────────────────────────────
+
+@app.post("/api/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    session_id: str = Query(...),
+):
+    """Upload a PDF/DOCX document for RAG-powered Q&A."""
+    filename = file.filename or "document"
+    lower = filename.lower()
+    if not lower.endswith((".pdf", ".docx", ".doc")):
+        return JSONResponse(status_code=400, content={"error": "Unsupported file type. Use PDF, DOCX, or DOC."})
+
+    file_bytes = await file.read()
+    if len(file_bytes) > config.MAX_UPLOAD_SIZE:
+        return JSONResponse(status_code=413, content={"error": f"File too large. Max: {config.MAX_UPLOAD_SIZE // 1024 // 1024} MB"})
+
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(_rag_executor, rag.ingest, session_id, file_bytes, filename)
+        return JSONResponse(content=result)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        print(f"❌ Upload error: {e}")
+        import traceback; traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": f"Processing failed: {str(e)}"})
+
+
+@app.get("/api/documents")
+async def list_documents(session_id: str = Query(...)):
+    """List uploaded documents for a session."""
+    docs = rag.list_documents(session_id)
+    return JSONResponse(content={"documents": docs})
+
+
+@app.delete("/api/documents/{doc_id}")
+async def delete_document(doc_id: str, session_id: str = Query(...)):
+    """Delete a document from the session's vector store."""
+    deleted = rag.delete_document(session_id, doc_id)
+    return JSONResponse(content={"deleted": deleted, "doc_id": doc_id})
+
 
 # Serve React build if available
 _static = Path(__file__).parent / "static"
@@ -163,7 +216,10 @@ def strip_md_for_tts(text: str) -> str:
 @app.websocket("/ws/voice")
 async def voice_endpoint(ws: WebSocket):
     await ws.accept()
-    print("🔌 Client connected")
+
+    # Extract session_id from query params for per-chat RAG scoping
+    session_id = ws.query_params.get("session_id", str(uuid.uuid4())[:12])
+    print(f"🔌 Client connected (session={session_id})")
 
     conversation_history = [
         {"role": "system", "content": config.SYSTEM_PROMPT}
@@ -219,6 +275,13 @@ async def voice_endpoint(ws: WebSocket):
             {"role": "system", "content": config.VOICE_SYSTEM_PROMPT + lang_instruction},
             *conversation_history[1:],
         ]
+
+        # Inject RAG context if documents are uploaded
+        loop = asyncio.get_event_loop()
+        rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, transcript)
+        if rag_context:
+            voice_messages[0]["content"] += rag_context
+
         prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=1400)
 
         # Async queue: LLM feeds sentences → TTS worker consumes them
@@ -386,8 +449,15 @@ async def voice_endpoint(ws: WebSocket):
                     conversation_history.append({"role": "user", "content": user_text})
                     await ws.send_json({"type": "llm_start"})
 
+                    # Inject RAG context if documents are uploaded
+                    text_messages = list(conversation_history)
+                    loop = asyncio.get_event_loop()
+                    rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, user_text)
+                    if rag_context:
+                        text_messages[0] = {"role": "system", "content": text_messages[0]["content"] + rag_context}
+
                     # Use raw completions with think pre-fill for instant answers
-                    prompt = _build_chatml_prompt(conversation_history, prefill="<think>\n\n</think>\n\n")
+                    prompt = _build_chatml_prompt(text_messages, prefill="<think>\n\n</think>\n\n")
                     full_reply = ""
                     t0 = time.perf_counter()
                     try:

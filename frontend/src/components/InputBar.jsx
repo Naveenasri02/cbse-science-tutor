@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { HiMicrophone, HiArrowUp, HiStop } from 'react-icons/hi2'
+import { HiMicrophone, HiArrowUp, HiStop, HiPaperClip } from 'react-icons/hi2'
+import DocumentChips from './DocumentChips'
 
 const VOICE_COLORS = {
   listening: '#10a37f',
@@ -9,9 +10,10 @@ const VOICE_COLORS = {
   error: '#ef4444',
 }
 
-export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled }) {
+export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress }) {
   const [text, setText] = useState('')
   const textareaRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const handleSend = () => {
     if (!text.trim()) return
@@ -35,6 +37,17 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
     }
   }, [text])
 
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = '' // reset so same file can be re-selected
+    try {
+      await onUpload(file)
+    } catch (err) {
+      alert(err.message || 'Upload failed')
+    }
+  }
+
   const statusColor = voiceActive ? (VOICE_COLORS[voiceStatus?.cls] || VOICE_COLORS.listening) : null
 
   return (
@@ -53,8 +66,26 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           </div>
         )}
 
+        {/* Document chips */}
+        <DocumentChips
+          documents={documents || []}
+          onDelete={onDeleteDoc}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+        />
+
         <div className={`relative flex items-end gap-1 rounded-3xl border bg-[#303030] px-3 py-2 transition-colors
           ${voiceActive ? 'border-[#10a37f] shadow-[0_0_0_1px_rgba(16,163,127,0.3)]' : 'border-[#424242] focus-within:border-[#565656]'}`}>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.docx,.doc"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
           <textarea
             ref={textareaRef}
             value={voiceActive ? '' : text}
@@ -69,6 +100,20 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           />
 
           <div className="flex items-center gap-1.5 pb-1">
+            {/* Upload button */}
+            {!voiceActive && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled || uploading}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0
+                  text-[#8e8ea0] hover:text-[#ececf1] hover:bg-[#424242]
+                  disabled:opacity-40"
+                title="Upload PDF or DOCX"
+              >
+                <HiPaperClip className="text-[1.1rem]" />
+              </button>
+            )}
+
             {/* Voice button */}
             <button
               onClick={onToggleVoice}

@@ -15,6 +15,10 @@ ldconfig 2>/dev/null
 mkdir -p /workspace/.cache/huggingface
 ln -sf /workspace/.cache/huggingface /root/.cache/huggingface 2>/dev/null || true
 
+# Ensure RAG directories exist
+mkdir -p /workspace/vector_db
+mkdir -p /workspace/uploads
+
 # Install ffmpeg if not present
 which ffmpeg > /dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq ffmpeg; }
 
