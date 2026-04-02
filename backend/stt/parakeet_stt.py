@@ -35,7 +35,13 @@ class ParakeetSTT:
                 sf.write(tmp_path, audio_f32, 16000)
             results = self.model.transcribe([tmp_path])
             if results and len(results) > 0:
-                text = results[0] if isinstance(results[0], str) else str(results[0])
+                r = results[0]
+                if isinstance(r, str):
+                    text = r
+                elif hasattr(r, 'text'):
+                    text = r.text
+                else:
+                    text = str(r)
             else:
                 text = ""
         finally:
