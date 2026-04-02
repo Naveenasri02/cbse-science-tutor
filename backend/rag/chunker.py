@@ -120,6 +120,80 @@ def parse_docx(file_bytes: bytes) -> str:
     raise ValueError("Could not extract text from this Word document. The file may be corrupted.")
 
 
+def parse_doc(file_bytes: bytes) -> str:
+    """Extract text from legacy binary .doc (OLE format)."""
+    # Try PyMuPDF with correct filetype
+    try:
+        import fitz
+        doc = fitz.open(stream=file_bytes, filetype="doc")
+        pages = [page.get_text("text") for page in doc]
+        doc.close()
+        text = "\n\n".join(pages)
+        if text.strip():
+            return text
+    except Exception:
+        pass
+
+    # Try antiword (Linux CLI tool)
+    try:
+        import subprocess
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".doc", delete=False) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+        result = subprocess.run(
+            ["antiword", tmp_path], capture_output=True, text=True, timeout=30
+        )
+        import os
+        os.unlink(tmp_path)
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout
+    except Exception:
+        pass
+
+    # Try catdoc (another Linux CLI tool)
+    try:
+        import subprocess
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".doc", delete=False) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+        result = subprocess.run(
+            ["catdoc", tmp_path], capture_output=True, text=True, timeout=30
+        )
+        import os
+        os.unlink(tmp_path)
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout
+    except Exception:
+        pass
+
+    # Try olefile raw text extraction
+    try:
+        import olefile
+        ole = olefile.OleFileIO(io.BytesIO(file_bytes))
+        if ole.exists("WordDocument"):
+            stream = ole.openstream("WordDocument")
+            raw = stream.read()
+            # Extract printable ASCII/Unicode text segments
+            text = raw.decode("utf-8", errors="ignore")
+            import re as _re
+            # Keep runs of printable chars (3+ length)
+            segments = _re.findall(r'[\x20-\x7E\n\r\t]{3,}', text)
+            text = " ".join(segments)
+            ole.close()
+            if len(text.strip()) > 50:
+                return text
+        ole.close()
+    except Exception:
+        pass
+
+    raise ValueError(
+        "Could not extract text from this .doc file. "
+        "Try converting it to .docx or .pdf first."
+    )
+
+
 def parse_txt(file_bytes: bytes) -> str:
     """Extract text from plain text / markdown files."""
     for enc in ("utf-8", "utf-8-sig", "latin-1"):
@@ -194,8 +268,10 @@ def parse_document(file_bytes: bytes, filename: str) -> str:
     lower = filename.lower()
     if lower.endswith(".pdf"):
         return parse_pdf(file_bytes)
-    elif lower.endswith((".docx", ".doc")):
+    elif lower.endswith(".docx"):
         return parse_docx(file_bytes)
+    elif lower.endswith(".doc"):
+        return parse_doc(file_bytes)
     elif lower.endswith((".txt", ".md")):
         return parse_txt(file_bytes)
     elif lower.endswith(".csv"):
