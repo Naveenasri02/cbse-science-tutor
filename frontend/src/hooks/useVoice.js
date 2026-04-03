@@ -4,11 +4,10 @@ import { MicVAD } from '@ricky0123/vad-web'
 export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef }) {
   const vadRef = useRef(null)
   const activeRef = useRef(false)
-  const bargeinCountRef = useRef(0)
   const notifiedRef = useRef(false)
   const initPromiseRef = useRef(null)
+  const pausedForPlaybackRef = useRef(false)
 
-  // Stable callback refs to avoid re-creating VAD
   const onSpeechDetectedRef = useRef(onSpeechDetected)
   const onSpeechEndRef = useRef(onSpeechEnd)
   onSpeechDetectedRef.current = onSpeechDetected
@@ -36,31 +35,8 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
           autoGainControl: true,
         },
 
-        onFrameProcessed: (probabilities) => {
-          if (!activeRef.current) return
-          const { isSpeech } = probabilities
-          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
-
-          // During playback: barge-in via sustained frames (echo-safe)
-          // When idle: no barge-in needed (onSpeechStart handles it)
-          if (botActive) {
-            if (isSpeech > 0.82) {
-              bargeinCountRef.current++
-              if (!notifiedRef.current && bargeinCountRef.current >= 3) {
-                notifiedRef.current = true
-                onSpeechDetectedRef.current()
-              }
-            } else {
-              bargeinCountRef.current = 0
-            }
-          }
-        },
-
         onSpeechStart: () => {
           if (!activeRef.current) return
-          // Suppress during playback — TTS echo triggers false starts.
-          // Barge-in is handled by onFrameProcessed (0.82 × 3 frames ≈ 90ms).
-          if (isBotRespondingRef?.current || isPlayingRef?.current) return
           if (!notifiedRef.current) {
             notifiedRef.current = true
             onSpeechDetectedRef.current()
@@ -69,14 +45,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         onSpeechEnd: (audio) => {
           if (!activeRef.current) return
-          // Fallback: if bot was active and barge-in didn't fire, trigger now
-          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
-          if (botActive && !notifiedRef.current) {
-            notifiedRef.current = true
-            onSpeechDetectedRef.current()
-          }
           notifiedRef.current = false
-          bargeinCountRef.current = 0
           if (audio.length < 1600) return
           const bytes = new Uint8Array(
             audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength)
@@ -86,7 +55,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         onVADMisfire: () => {
           notifiedRef.current = false
-          bargeinCountRef.current = 0
         },
       })
 
@@ -95,11 +63,28 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     })()
 
     return initPromiseRef.current
-  }, [isPlayingRef, isBotRespondingRef])
+  }, [])
+
+  // Pause VAD while TTS is playing to avoid echo triggers
+  const pauseForPlayback = useCallback(() => {
+    if (vadRef.current && activeRef.current && !pausedForPlaybackRef.current) {
+      pausedForPlaybackRef.current = true
+      vadRef.current.pause()
+    }
+  }, [])
+
+  // Resume VAD after TTS finishes
+  const resumeAfterPlayback = useCallback(() => {
+    if (vadRef.current && activeRef.current && pausedForPlaybackRef.current) {
+      pausedForPlaybackRef.current = false
+      vadRef.current.start()
+    }
+  }, [])
 
   const startVoice = useCallback(async () => {
     try {
       const vad = await initVAD()
+      pausedForPlaybackRef.current = false
       vad.start()
       activeRef.current = true
       return true
@@ -111,7 +96,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
   const stopVoice = useCallback(() => {
     activeRef.current = false
-    bargeinCountRef.current = 0
+    pausedForPlaybackRef.current = false
     notifiedRef.current = false
     if (vadRef.current) {
       vadRef.current.pause()
@@ -127,5 +112,5 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     }
   }, [])
 
-  return { startVoice, stopVoice }
+  return { startVoice, stopVoice, pauseForPlayback, resumeAfterPlayback }
 }

@@ -114,12 +114,14 @@ export default function App() {
       case 'tts_start':
         if (!interruptedRef.current) {
           setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
+          pauseForPlayback()
         }
         break
 
       case 'tts_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
+        resumeAfterPlayback()
         if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
@@ -142,53 +144,61 @@ export default function App() {
         }, 3000)
         break
     }
-  }, [voiceActive, addMsg, updateLastBotMsg, updateChatTitle, playAudio])
+  }, [voiceActive, addMsg, updateLastBotMsg, updateChatTitle, playAudio, pauseForPlayback, resumeAfterPlayback])
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
   // Voice mode — realistic conversation flow
   const onSpeechDetected = useCallback(() => {
-    // Barge-in: immediately stop audio playback
-    if (isPlayingRef.current || isBotRespondingRef.current) {
+    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
+  }, [])
+
+  const onSpeechEnd = useCallback((audio) => {
+    // If bot was still responding, interrupt it
+    if (isBotRespondingRef.current || isPlayingRef.current) {
+      interruptedRef.current = true
       stopPlayback()
-      // Don't set interruptedRef here — let the text continue accumulating
-      // in the chat so user can read the partial response.
-      // interruptedRef will be set when user's speech ends and new audio is sent.
+      setIsBotResponding(false)
+      isBotRespondingRef.current = false
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
     }
-    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
-  }, [stopPlayback, ws])
-
-  const onSpeechEnd = useCallback((audio) => {
-    // Now mark interrupted — new query incoming, stop rendering old response
-    interruptedRef.current = true
-    setIsBotResponding(false)
-    isBotRespondingRef.current = false
     setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(audio.buffer)
     }
-  }, [ws])
+  }, [stopPlayback, ws])
 
-  const { startVoice, stopVoice } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
+  const { startVoice, stopVoice, pauseForPlayback, resumeAfterPlayback } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
 
   const toggleVoice = async () => {
     if (voiceActive) {
+      // If bot is speaking, tap = interrupt (stop audio, resume VAD)
+      if (isPlayingRef.current || isBotRespondingRef.current) {
+        interruptedRef.current = true
+        stopPlayback()
+        setIsBotResponding(false)
+        isBotRespondingRef.current = false
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          ws.current.send(JSON.stringify({ type: 'interrupt' }))
+        }
+        resumeAfterPlayback()
+        setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+        return
+      }
+      // Otherwise, turn off voice mode
       stopVoice()
       stopPlayback()
       setVoiceActive(false)
       setVoiceStatus({ visible: false, cls: '', text: '' })
     } else {
-      // Show overlay immediately while VAD loads
       setVoiceActive(true)
       setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Starting...' })
       const ok = await startVoice()
       if (ok) {
         setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
       } else {
-        // Show error briefly then close
         setVoiceStatus({ visible: true, cls: 'error', text: '❌ Mic failed' })
         setTimeout(() => {
           setVoiceActive(false)
@@ -200,12 +210,10 @@ export default function App() {
 
   // Stop all active streams — call before switching chat/assistant
   const stopCurrentResponse = useCallback(() => {
-    // Interrupt server-side pipeline
     interruptedRef.current = true
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'interrupt' }))
     }
-    // Stop voice & audio
     stopVoice()
     stopPlayback()
     setVoiceActive(false)
