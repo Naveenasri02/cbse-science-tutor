@@ -3,7 +3,7 @@ import LandingPage from './components/LandingPage'
 import Sidebar, { ASSISTANTS } from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
-import VoiceOverlay from './components/VoiceOverlay'
+
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
@@ -310,9 +310,6 @@ export default function App() {
         />
       </div>
 
-      {voiceActive && (
-        <VoiceOverlay status={voiceStatus} onClose={toggleVoice} />
-      )}
     </div>
   )
 }
