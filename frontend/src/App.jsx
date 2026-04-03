@@ -260,7 +260,7 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
         onBackToLanding={() => setPageMode('landing')}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Header */}
         <header
           className="flex items-center justify-between border-b px-4 py-3 md:px-5 shrink-0"
