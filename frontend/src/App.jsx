@@ -32,8 +32,8 @@ export default function App() {
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
 
-  // Documents (RAG)
-  const { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments } = useDocuments(sessionIdRef.current)
+  // Documents (RAG) — pass ref so session ID is always current
+  const { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments } = useDocuments(sessionIdRef)
 
   // WebSocket URL with session_id for per-chat RAG scoping
   const wsUrl = `${WS_URL}?session_id=${sessionIdRef.current}`
