@@ -32,25 +32,44 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
               {assistantConfig?.welcomeMessage || 'Select a workflow to get started.'}
             </p>
 
-            {/* Workflow buttons */}
+            {/* Workflow cards */}
             {assistantConfig?.tryOptions && assistantConfig.tryOptions.length > 0 && (
-              <div className="mt-8">
-                <div className="flex flex-wrap justify-center gap-3">
+              <div className="mt-10">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] mb-4" style={{ color: palette.textMuted }}>
+                  Try a workflow
+                </p>
+                <div
+                  className="grid gap-3 mx-auto"
+                  style={{ gridTemplateColumns: `repeat(${Math.min(assistantConfig.tryOptions.length, 4)}, minmax(0, 1fr))`, maxWidth: assistantConfig.tryOptions.length <= 3 ? '480px' : '640px' }}
+                >
                   {assistantConfig.tryOptions.map((opt) => {
                     const Icon = opt.icon
                     return (
                       <button
                         key={opt.label}
                         onClick={() => onTryClick?.(opt.message)}
-                        className="flex items-center gap-2 rounded-full border px-5 py-2.5 text-[14px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
+                        className="group flex flex-col items-center gap-2.5 rounded-2xl border px-4 py-5 transition-all duration-200 hover:scale-[1.04] active:scale-[0.97]"
                         style={{
-                          borderColor: palette.borderStrong,
+                          borderColor: palette.border,
                           background: palette.panel,
                           color: palette.textPrimary,
                         }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'rgba(29,155,240,0.5)'
+                          e.currentTarget.style.boxShadow = '0 0 20px rgba(29,155,240,0.15)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = palette.border
+                          e.currentTarget.style.boxShadow = 'none'
+                        }}
                       >
-                        {Icon && <Icon size={16} style={{ color: palette.primary }} />}
-                        {opt.label}
+                        <div
+                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          style={{ background: 'rgba(29,155,240,0.1)' }}
+                        >
+                          {Icon && <Icon size={20} style={{ color: palette.primary }} />}
+                        </div>
+                        <span className="text-[13px] font-medium leading-snug">{opt.label}</span>
                       </button>
                     )
                   })}
