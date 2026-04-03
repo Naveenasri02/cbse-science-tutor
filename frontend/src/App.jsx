@@ -253,16 +253,22 @@ export default function App() {
     stopCurrentResponse()
     setActiveAssistant(assistantKey)
 
-    // Find an existing empty chat for this assistant (no messages yet)
-    const existingEmpty = chats.find(c => c.assistant === assistantKey && c.messages.length === 0)
-    if (existingEmpty) {
-      // Reuse existing empty chat — no new chat needed
-      setActiveChatId(existingEmpty.id)
+    // If current chat is empty (no messages), just switch it to the new assistant
+    const currentChat = chats.find(c => c.id === activeChatId)
+    if (currentChat && currentChat.messages.length === 0) {
+      setChats(prev => prev.map(c =>
+        c.id === activeChatId ? { ...c, assistant: assistantKey, mode: cfg.mode } : c
+      ))
     } else {
-      // All chats for this assistant have messages — create a new one
-      const id = chatIdCounter.current++
-      setChats(prev => [...prev, { id, title: 'New Chat', mode: cfg.mode, assistant: assistantKey, messages: [] }])
-      setActiveChatId(id)
+      // Current chat has messages — find existing empty chat for this assistant or create new
+      const existingEmpty = chats.find(c => c.assistant === assistantKey && c.messages.length === 0)
+      if (existingEmpty) {
+        setActiveChatId(existingEmpty.id)
+      } else {
+        const id = chatIdCounter.current++
+        setChats(prev => [...prev, { id, title: 'New Chat', mode: cfg.mode, assistant: assistantKey, messages: [] }])
+        setActiveChatId(id)
+      }
     }
     clearDocuments()
     sessionIdRef.current = generateSessionId()
