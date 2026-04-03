@@ -29,8 +29,6 @@ export default function App() {
   const chatIdCounter = useRef(2)
   const interruptedRef = useRef(false)
   const sessionIdRef = useRef(generateSessionId())
-  const ttsPlayingSinceRef = useRef(0)
-  const awaitingResponseRef = useRef(false)
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
 
@@ -90,7 +88,6 @@ export default function App() {
 
       case 'llm_start':
         interruptedRef.current = false
-        awaitingResponseRef.current = false
         setIsBotResponding(true)
         isBotRespondingRef.current = true
         botBufferRef.current = ''
@@ -117,15 +114,12 @@ export default function App() {
       case 'tts_start':
         if (!interruptedRef.current) {
           setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
-          ttsPlayingSinceRef.current = Date.now()
         }
         break
 
       case 'tts_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
-        ttsPlayingSinceRef.current = 0
-        awaitingResponseRef.current = false
         if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
@@ -134,7 +128,6 @@ export default function App() {
         break
 
       case 'vad_no_speech':
-        awaitingResponseRef.current = false
         if (voiceActive) setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         break
 
@@ -142,7 +135,6 @@ export default function App() {
         break
 
       case 'error':
-        awaitingResponseRef.current = false
         setVoiceStatus({ visible: true, cls: 'error', text: '❌ ' + msg.text })
         setTimeout(() => {
           if (voiceActive) setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
@@ -156,14 +148,12 @@ export default function App() {
 
   // Voice mode — instant barge-in on speech start
   const onSpeechDetected = useCallback(() => {
+    // Instant barge-in: stop bot the moment user starts speaking
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      // Grace period after TTS starts — let browser AEC converge before allowing barge-in
-      if (ttsPlayingSinceRef.current && Date.now() - ttsPlayingSinceRef.current < 1500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
       isBotRespondingRef.current = false
-      ttsPlayingSinceRef.current = 0
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
@@ -172,24 +162,18 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
-    // Don't send audio if already waiting for a response (prevents backend pipeline cancellation)
-    if (awaitingResponseRef.current) return
-
-    // If bot was still responding, interrupt it (with AEC grace period)
+    // If bot was still responding, interrupt it
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      if (ttsPlayingSinceRef.current && Date.now() - ttsPlayingSinceRef.current < 1500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
       isBotRespondingRef.current = false
-      ttsPlayingSinceRef.current = 0
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
     }
     setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
     if (ws.current?.readyState === WebSocket.OPEN) {
-      awaitingResponseRef.current = true
       ws.current.send(audio.buffer)
     }
   }, [stopPlayback, ws])
@@ -245,8 +229,6 @@ export default function App() {
     setIsBotResponding(false)
     isBotRespondingRef.current = false
     botBufferRef.current = ''
-    ttsPlayingSinceRef.current = 0
-    awaitingResponseRef.current = false
   }, [stopVoice, stopPlayback, ws])
 
   const sendText = (text) => {
