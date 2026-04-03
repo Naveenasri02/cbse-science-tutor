@@ -5,12 +5,15 @@ export default function useWebSocket(url, onMessage) {
   const reconnectTimer = useRef(null)
   const onMessageRef = useRef(onMessage)
   const urlRef = useRef(url)
+  const intentionalCloseRef = useRef(false)
   const [connected, setConnected] = useState(false)
   onMessageRef.current = onMessage
   urlRef.current = url
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    clearTimeout(reconnectTimer.current)
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
+      intentionalCloseRef.current = true
       wsRef.current.close()
     }
 
@@ -25,8 +28,12 @@ export default function useWebSocket(url, onMessage) {
     }
 
     ws.onclose = () => {
-      console.log('WS closed, reconnecting in 2s...')
       setConnected(false)
+      if (intentionalCloseRef.current) {
+        intentionalCloseRef.current = false
+        return
+      }
+      console.log('WS closed unexpectedly, reconnecting in 2s...')
       reconnectTimer.current = setTimeout(connect, 2000)
     }
 
@@ -46,14 +53,16 @@ export default function useWebSocket(url, onMessage) {
 
   const reconnect = useCallback(() => {
     clearTimeout(reconnectTimer.current)
+    intentionalCloseRef.current = true
     setConnected(false)
     if (wsRef.current) wsRef.current.close()
-    setTimeout(connect, 300)
+    reconnectTimer.current = setTimeout(connect, 300)
   }, [connect])
 
   useEffect(() => {
     connect()
     return () => {
+      intentionalCloseRef.current = true
       clearTimeout(reconnectTimer.current)
       if (wsRef.current) wsRef.current.close()
     }

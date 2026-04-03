@@ -24,19 +24,31 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: 0.5,
+        positiveSpeechThreshold: 0.6,
         negativeSpeechThreshold: 0.35,
-        minSpeechMs: 250,
+        minSpeechMs: 300,
         preSpeechPadMs: 400,
         redemptionMs: 800,
+
+        // Echo cancellation: request browser-level echo suppression
+        additionalAudioConstraints: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
 
         onFrameProcessed: (probabilities) => {
           if (!activeRef.current) return
           const { isSpeech } = probabilities
-          if (isSpeech > 0.85) {
+          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
+
+          // During TTS playback, require higher confidence + more frames to avoid echo triggers
+          const threshold = botActive ? 0.92 : 0.85
+          const framesNeeded = botActive ? 6 : 3
+
+          if (isSpeech > threshold) {
             bargeinCountRef.current++
-            const botActive = isBotRespondingRef?.current || isPlayingRef?.current
-            if (botActive && !notifiedRef.current && bargeinCountRef.current >= 2) {
+            if (botActive && !notifiedRef.current && bargeinCountRef.current >= framesNeeded) {
               notifiedRef.current = true
               onSpeechDetectedRef.current()
             }
@@ -47,6 +59,11 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         onSpeechStart: () => {
           if (!activeRef.current) return
+          // During bot response/TTS playback, suppress onSpeechStart to avoid
+          // false barge-in from TTS echo. Barge-in is handled by onFrameProcessed
+          // which has a higher threshold during playback.
+          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
+          if (botActive) return
           if (!notifiedRef.current) {
             notifiedRef.current = true
             onSpeechDetectedRef.current()
