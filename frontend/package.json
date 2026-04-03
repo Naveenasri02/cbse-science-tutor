@@ -29,7 +29,9 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "playwright": "^1.59.1",
     "vite": "^8.0.1",
-    "vite-plugin-static-copy": "^4.0.0"
+    "vite-plugin-static-copy": "^4.0.0",
+    "ws": "^8.20.0"
   }
 }

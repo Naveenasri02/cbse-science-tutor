@@ -6,7 +6,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
   const activeRef = useRef(false)
   const notifiedRef = useRef(false)
   const initPromiseRef = useRef(null)
-  const pausedForPlaybackRef = useRef(false)
 
   const onSpeechDetectedRef = useRef(onSpeechDetected)
   const onSpeechEndRef = useRef(onSpeechEnd)
@@ -27,7 +26,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         negativeSpeechThreshold: 0.35,
         minSpeechMs: 250,
         preSpeechPadMs: 400,
-        redemptionMs: 800,
+        redemptionMs: 600,
 
         additionalAudioConstraints: {
           echoCancellation: true,
@@ -65,26 +64,9 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     return initPromiseRef.current
   }, [])
 
-  // Pause VAD while TTS is playing to avoid echo triggers
-  const pauseForPlayback = useCallback(() => {
-    if (vadRef.current && activeRef.current && !pausedForPlaybackRef.current) {
-      pausedForPlaybackRef.current = true
-      vadRef.current.pause()
-    }
-  }, [])
-
-  // Resume VAD after TTS finishes
-  const resumeAfterPlayback = useCallback(() => {
-    if (vadRef.current && activeRef.current && pausedForPlaybackRef.current) {
-      pausedForPlaybackRef.current = false
-      vadRef.current.start()
-    }
-  }, [])
-
   const startVoice = useCallback(async () => {
     try {
       const vad = await initVAD()
-      pausedForPlaybackRef.current = false
       vad.start()
       activeRef.current = true
       return true
@@ -96,7 +78,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
   const stopVoice = useCallback(() => {
     activeRef.current = false
-    pausedForPlaybackRef.current = false
     notifiedRef.current = false
     if (vadRef.current) {
       vadRef.current.pause()
@@ -112,5 +93,5 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     }
   }, [])
 
-  return { startVoice, stopVoice, pauseForPlayback, resumeAfterPlayback }
+  return { startVoice, stopVoice }
 }

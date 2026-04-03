@@ -29,8 +29,6 @@ export default function App() {
   const chatIdCounter = useRef(2)
   const interruptedRef = useRef(false)
   const sessionIdRef = useRef(generateSessionId())
-  const pauseForPlaybackRef = useRef(() => {})
-  const resumeAfterPlaybackRef = useRef(() => {})
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
 
@@ -116,14 +114,12 @@ export default function App() {
       case 'tts_start':
         if (!interruptedRef.current) {
           setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
-          pauseForPlaybackRef.current()
         }
         break
 
       case 'tts_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
-        resumeAfterPlaybackRef.current()
         if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
@@ -150,10 +146,20 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — realistic conversation flow
+  // Voice mode — instant barge-in on speech start
   const onSpeechDetected = useCallback(() => {
+    // Instant barge-in: stop bot the moment user starts speaking
+    if (isBotRespondingRef.current || isPlayingRef.current) {
+      interruptedRef.current = true
+      stopPlayback()
+      setIsBotResponding(false)
+      isBotRespondingRef.current = false
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify({ type: 'interrupt' }))
+      }
+    }
     setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
-  }, [])
+  }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
     // If bot was still responding, interrupt it
@@ -172,9 +178,7 @@ export default function App() {
     }
   }, [stopPlayback, ws])
 
-  const { startVoice, stopVoice, pauseForPlayback, resumeAfterPlayback } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
-  pauseForPlaybackRef.current = pauseForPlayback
-  resumeAfterPlaybackRef.current = resumeAfterPlayback
+  const { startVoice, stopVoice } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
 
   const toggleVoice = async () => {
     if (voiceActive) {
@@ -187,7 +191,6 @@ export default function App() {
         if (ws.current?.readyState === WebSocket.OPEN) {
           ws.current.send(JSON.stringify({ type: 'interrupt' }))
         }
-        resumeAfterPlayback()
         setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         return
       }

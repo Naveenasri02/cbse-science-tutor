@@ -2,7 +2,7 @@ import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Messa
 import { palette } from '../palette'
 
 export const ASSISTANTS = [
-  { key: 'legal',    label: 'Legal Assistant',      icon: Scale,          mode: 'doc',   voice: false },
+  { key: 'legal',    label: 'Legal Assistant',      icon: Scale,          mode: 'doc',   voice: true },
   { key: 'tutor',    label: 'AI Tutor',             icon: GraduationCap,  mode: 'smart', voice: true },
   { key: 'employee', label: 'Employee Assistance',  icon: Briefcase,      mode: 'doc',   voice: true },
   { key: 'customer', label: 'Customer Service',     icon: Headset,        mode: 'smart', voice: true },
