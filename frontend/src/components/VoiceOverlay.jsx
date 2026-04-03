@@ -1,7 +1,7 @@
-import { HiMicrophone, HiXMark } from 'react-icons/hi2'
+import { Mic, X } from 'lucide-react'
 
 const STATUS_MAP = {
-  listening:  { label: 'Listening',  color: '#10a37f', hint: 'Start speaking...' },
+  listening:  { label: 'Listening',  color: '#1D9BF0', hint: 'Start speaking...' },
   thinking:   { label: 'Thinking',   color: '#f59e0b', hint: '' },
   processing: { label: 'Processing', color: '#f59e0b', hint: '' },
   speaking:   { label: 'Speaking',   color: '#8b5cf6', hint: '' },
@@ -27,7 +27,7 @@ export default function VoiceOverlay({ status, onClose }) {
             boxShadow: `0 0 80px ${cfg.color}25, 0 0 160px ${cfg.color}08`,
           }}
         >
-          <HiMicrophone className="text-5xl" style={{ color: cfg.color }} />
+          <Mic className="w-12 h-12" style={{ color: cfg.color }} />
         </div>
       </div>
 
@@ -44,7 +44,7 @@ export default function VoiceOverlay({ status, onClose }) {
                    border border-[#ef4444]/30 flex items-center justify-center
                    transition-all duration-200 group"
       >
-        <HiXMark className="text-2xl text-red-400 group-hover:text-red-300" />
+        <X className="w-6 h-6 text-red-400 group-hover:text-red-300" />
       </button>
       <p className="mt-2 text-xs text-[#555]">End voice</p>
     </div>

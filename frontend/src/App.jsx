@@ -1,12 +1,15 @@
 import { useState, useRef, useCallback } from 'react'
+import LandingPage from './components/LandingPage'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
+import VoiceOverlay from './components/VoiceOverlay'
 import NewChatModal from './components/NewChatModal'
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
+import { palette } from './palette'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
 
@@ -15,6 +18,7 @@ function generateSessionId() {
 }
 
 export default function App() {
+  const [pageMode, setPageMode] = useState('landing')
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'smart', messages: [] }])
   const [activeChatId, setActiveChatId] = useState(1)
   const [showNewChatModal, setShowNewChatModal] = useState(false)
@@ -236,8 +240,13 @@ export default function App() {
     reconnect()
   }
 
+  // Landing page
+  if (pageMode === 'landing') {
+    return <LandingPage onTryDemo={() => setPageMode('demo')} />
+  }
+
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div className="h-screen flex overflow-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
@@ -246,19 +255,38 @@ export default function App() {
         onDeleteChat={deleteChat}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        onBackToLanding={() => setPageMode('landing')}
       />
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
-        <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#2a2a2a] bg-[#212121] shrink-0">
+        <header
+          className="flex items-center justify-between border-b px-5 py-5 md:px-6 shrink-0"
+          style={{ borderColor: palette.border, background: palette.bg }}
+        >
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden text-lg text-[#8e8ea0] hover:text-white transition-colors">☰</button>
-            <h1 className="text-sm font-semibold text-[#ececf1] hidden md:block">AI Chat</h1>
-            <span className="md:hidden text-sm font-medium truncate text-[#ececf1]">{activeChat.title}</span>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden text-lg transition-colors"
+              style={{ color: palette.textMuted }}
+            >
+              ☰
+            </button>
+            <div className="text-[15px] font-semibold" style={{ color: palette.textPrimary }}>
+              Secure AI Chat
+            </div>
           </div>
-          <div className="flex items-center gap-2.5">
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#2a2a2a] text-[#8e8ea0] font-medium">AI Assistant</span>
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-[#10a37f]' : 'bg-[#ef4444] animate-pulse'}`}
-              title={connected ? 'Connected' : 'Reconnecting...'} />
+          <div className="flex items-center gap-3">
+            <div
+              className="rounded-full px-4 py-2 text-sm"
+              style={{ background: palette.panel, color: palette.textSecondary }}
+            >
+              AI Assistant
+            </div>
+            <span
+              className={`w-3 h-3 rounded-full ${connected ? '' : 'animate-pulse'}`}
+              style={{ background: connected ? '#10b981' : '#ef4444' }}
+              title={connected ? 'Connected' : 'Reconnecting...'}
+            />
           </div>
         </header>
 
@@ -277,6 +305,10 @@ export default function App() {
           mode={activeChat.mode}
         />
       </div>
+
+      {voiceActive && (
+        <VoiceOverlay status={voiceStatus} onClose={toggleVoice} />
+      )}
 
       {showNewChatModal && (
         <NewChatModal

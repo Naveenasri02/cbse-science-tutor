@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { HiMicrophone, HiArrowUp, HiStop, HiPaperClip } from 'react-icons/hi2'
+import { Mic, SendHorizontal, Square, Paperclip } from 'lucide-react'
 import DocumentChips from './DocumentChips'
+import { palette } from '../palette'
 
 const VOICE_COLORS = {
-  listening: '#10a37f',
+  listening: '#1D9BF0',
   thinking: '#f59e0b',
   processing: '#f59e0b',
   speaking: '#8b5cf6',
@@ -14,14 +15,13 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
   const showUpload = mode === 'doc'
   const showVoice = mode !== 'doc'
   const [text, setText] = useState('')
-  const textareaRef = useRef(null)
+  const inputRef = useRef(null)
   const fileInputRef = useRef(null)
 
   const handleSend = () => {
     if (!text.trim()) return
     onSend(text)
     setText('')
-    if (textareaRef.current) textareaRef.current.style.height = '52px'
   }
 
   const handleKey = (e) => {
@@ -31,18 +31,10 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
     }
   }
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '52px'
-      const scrollH = textareaRef.current.scrollHeight
-      textareaRef.current.style.height = Math.min(scrollH, 200) + 'px'
-    }
-  }, [text])
-
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    e.target.value = '' // reset so same file can be re-selected
+    e.target.value = ''
     try {
       await onUpload(file)
     } catch (err) {
@@ -53,11 +45,11 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
   const statusColor = voiceActive ? (VOICE_COLORS[voiceStatus?.cls] || VOICE_COLORS.listening) : null
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#212121] from-85% to-transparent px-4 pb-4 pt-6">
-      <div className="max-w-[760px] mx-auto">
+    <div className="absolute inset-x-0 bottom-0 px-4 pb-6 md:px-8 md:pb-8">
+      <div className="mx-auto max-w-4xl">
         {/* Inline voice status pill */}
         {voiceActive && voiceStatus?.text && (
-          <div className="flex items-center justify-center mb-2 animate-fade-in">
+          <div className="flex items-center justify-center mb-3 animate-fade-in">
             <span
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
               style={{ backgroundColor: statusColor + '18', color: statusColor, border: `1px solid ${statusColor}30` }}
@@ -78,9 +70,16 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           />
         )}
 
-        <div className={`relative flex items-end gap-1 rounded-3xl border bg-[#303030] px-3 py-2 transition-colors
-          ${voiceActive ? 'border-[#10a37f] shadow-[0_0_0_1px_rgba(16,163,127,0.3)]' : 'border-[#424242] focus-within:border-[#565656]'}`}>
-
+        <div
+          className="flex items-center gap-3 rounded-[30px] border px-5 py-4"
+          style={{
+            borderColor: voiceActive ? palette.primary : palette.borderStrong,
+            background: 'rgba(43,43,43,0.92)',
+            boxShadow: voiceActive
+              ? `0 0 0 1px rgba(29,155,240,0.3), 0 16px 50px rgba(0,0,0,0.28)`
+              : '0 16px 50px rgba(0,0,0,0.28)',
+          }}
+        >
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -90,69 +89,66 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             className="hidden"
           />
 
-          <textarea
-            ref={textareaRef}
+          {/* Upload button (doc mode) */}
+          {showUpload && !voiceActive && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || uploading}
+              className="flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-40"
+              style={{ background: 'transparent', color: palette.textMuted }}
+              title="Upload file"
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+          )}
+
+          <input
+            ref={inputRef}
             value={voiceActive ? '' : text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKey}
             disabled={disabled || voiceActive}
             placeholder={voiceActive ? 'Listening — speak or tap mic to stop' : 'Send a message...'}
-            rows={1}
-            className="flex-1 bg-transparent text-[#ececf1] text-[.95rem] outline-none resize-none
-                       py-2 px-2 placeholder:text-[#6b6b6b] disabled:opacity-40
-                       min-h-[36px] max-h-[200px] leading-relaxed"
+            className="min-w-0 flex-1 bg-transparent px-1 py-3 text-base outline-none placeholder:opacity-60 md:text-lg"
+            style={{ color: palette.textPrimary }}
           />
 
-          <div className="flex items-center gap-1.5 pb-1">
-            {/* Upload button (doc mode only) */}
-            {showUpload && !voiceActive && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={disabled || uploading}
-                className="w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0
-                  text-[#8e8ea0] hover:text-[#ececf1] hover:bg-[#424242]
-                  disabled:opacity-40"
-                title="Upload file"
-              >
-                <HiPaperClip className="text-[1.1rem]" />
-              </button>
-            )}
+          {/* Voice button */}
+          {showVoice && (
+            <button
+              onClick={onToggleVoice}
+              disabled={disabled}
+              className={`flex h-11 w-11 items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40
+                ${voiceActive ? 'animate-pulse-mic' : ''}`}
+              style={{
+                background: voiceActive ? palette.primary : 'transparent',
+                color: voiceActive ? 'white' : palette.textMuted,
+                boxShadow: voiceActive ? '0 0 16px rgba(29,155,240,0.5)' : 'none',
+              }}
+              title={voiceActive ? 'Stop voice' : 'Start voice'}
+            >
+              {voiceActive ? <Square className="h-4 w-4" /> : <Mic className="h-5 w-5" />}
+            </button>
+          )}
 
-            {/* Voice button (hidden in doc mode) */}
-            {showVoice && (
-              <button
-                onClick={onToggleVoice}
-                disabled={disabled}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0
-                  ${voiceActive
-                    ? 'bg-[#10a37f] text-white shadow-[0_0_12px_rgba(16,163,127,0.5)] animate-pulse-mic'
-                    : 'text-[#8e8ea0] hover:text-[#ececf1] hover:bg-[#424242]'}
-                  disabled:opacity-40`}
-                title={voiceActive ? 'Stop voice' : 'Start voice'}
-              >
-                {voiceActive ? <HiStop className="text-[1.1rem]" /> : <HiMicrophone className="text-[1.1rem]" />}
-              </button>
-            )}
-
-            {/* Send button */}
-            {!voiceActive && (
-              <button
-                onClick={handleSend}
-                disabled={disabled || !text.trim()}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0
-                  ${text.trim()
-                    ? 'bg-white text-[#212121] hover:bg-[#e0e0e0]'
-                    : 'bg-[#424242] text-[#6b6b6b] cursor-default'}
-                  disabled:bg-[#424242] disabled:text-[#6b6b6b] disabled:cursor-default`}
-              >
-                <HiArrowUp className="text-[1.1rem] font-bold" />
-              </button>
-            )}
-          </div>
+          {/* Send button */}
+          {!voiceActive && (
+            <button
+              onClick={handleSend}
+              disabled={disabled || !text.trim()}
+              className="flex h-11 w-11 items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40"
+              style={{
+                background: text.trim() ? palette.primary : 'rgba(255,255,255,0.08)',
+                color: text.trim() ? 'white' : palette.textMuted,
+              }}
+            >
+              <SendHorizontal className="h-5 w-5" />
+            </button>
+          )}
         </div>
-        <p className="text-center text-[10px] text-[#6b6b6b] mt-2.5 select-none">
+        <div className="mt-4 text-center text-sm" style={{ color: palette.textMuted }}>
           AI-powered answers · Voice & Text
-        </p>
+        </div>
       </div>
     </div>
   )

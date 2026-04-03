@@ -4,7 +4,7 @@ set -e
 # Environment for GPU inference
 export HF_HOME=/workspace/.cache/huggingface
 export PATH=/usr/local/cuda/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/lib/python3.11/dist-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cusparse/lib:/usr/local/lib/python3.11/dist-packages/nvidia/nccl/lib:${LD_LIBRARY_PATH:-}
+export LD_LIBRARY_PATH=/usr/local/lib/python3.11/dist-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cusolver/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cusparse/lib:/usr/local/lib/python3.11/dist-packages/nvidia/nccl/lib:/usr/local/lib/python3.11/dist-packages/nvidia/nvjitlink/lib:${LD_LIBRARY_PATH:-}
 
 # Symlink cuDNN/cuBLAS so ONNX Runtime finds them (Kokoro TTS GPU)
 ln -sf /usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib/libcudnn*.so* /usr/local/lib/ 2>/dev/null
@@ -35,7 +35,7 @@ nohup vllm serve invergent/Qwen3-30B-A3B-AWQ \
   --host 0.0.0.0 \
   --port 8002 \
   --gpu-memory-utilization 0.55 \
-  --max-model-len 2048 \
+  --max-model-len 8192 \
   --api-key cbse-sk-local \
   --dtype auto \
   --quantization awq_marlin \

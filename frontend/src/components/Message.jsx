@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import { marked } from 'marked'
 import renderMathInElement from 'katex/contrib/auto-render'
 import 'katex/dist/katex.min.css'
+import { palette } from '../palette'
 
 marked.setOptions({ breaks: true, gfm: true })
 
@@ -11,7 +12,6 @@ export default function Message({ role, text, streaming }) {
   const textRef = useRef(text || '')
   const displayTextRef = useRef('')
 
-  // Typewriter: gradually reveal characters during streaming
   const [displayLen, setDisplayLen] = useState(text?.length || 0)
 
   useEffect(() => {
@@ -38,7 +38,6 @@ export default function Message({ role, text, streaming }) {
   const displayText = (role === 'bot') ? (text || '').slice(0, displayLen) : (text || '')
   displayTextRef.current = displayText
 
-  // Throttled markdown rendering
   const [renderedHtml, setRenderedHtml] = useState('')
 
   useEffect(() => {
@@ -67,7 +66,6 @@ export default function Message({ role, text, streaming }) {
     }
   }, [])
 
-  // KaTeX — only after streaming ends
   useEffect(() => {
     if (role === 'bot' && contentRef.current && text && !streaming) {
       try {
@@ -86,8 +84,11 @@ export default function Message({ role, text, streaming }) {
 
   if (role === 'user') {
     return (
-      <div className="flex justify-end py-2 animate-msg">
-        <div className="max-w-[80%] bg-[#303030] rounded-3xl px-5 py-3 text-[.95rem] leading-relaxed text-[#ececf1]">
+      <div className="flex justify-end animate-msg">
+        <div
+          className="max-w-[85%] rounded-[26px] px-5 py-4 text-sm leading-7 md:text-[15px]"
+          style={{ background: palette.primary, color: 'white' }}
+        >
           {text}
         </div>
       </div>
@@ -95,14 +96,14 @@ export default function Message({ role, text, streaming }) {
   }
 
   return (
-    <div className="flex gap-3 py-2 animate-msg group">
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#10a37f] to-[#0d8c6c] flex items-center justify-center text-sm shrink-0 mt-1 shadow-sm">
-        ⚛
-      </div>
-      <div className="flex-1 min-w-0 pt-1">
+    <div className="flex justify-start animate-msg">
+      <div
+        className="max-w-[85%] rounded-[26px] px-5 py-4 text-sm leading-7 md:text-[15px]"
+        style={{ background: palette.panelAlt, color: palette.textSecondary, border: `1px solid ${palette.border}` }}
+      >
         <div
           ref={contentRef}
-          className="msg-md text-[.95rem] leading-[1.75]"
+          className="msg-md"
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
         {streaming && <span className="typing-cursor" />}

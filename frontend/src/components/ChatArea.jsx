@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import Message from './Message'
+import { MatifyLogo } from './LandingPage'
+import { palette } from '../palette'
 
 export default function ChatArea({ messages, isBotResponding, mode }) {
   const bottomRef = useRef(null)
@@ -9,58 +11,56 @@ export default function ChatArea({ messages, isBotResponding, mode }) {
   }, [messages, isBotResponding])
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin">
-      <div className="max-w-[760px] mx-auto px-4 pb-40 pt-6">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-[65vh] text-center">
-            {mode === 'doc' ? (
-              <>
-                <div className="w-16 h-16 rounded-2xl bg-[#10a37f]/10 border border-[#10a37f]/20 flex items-center justify-center text-3xl mb-5 shadow-lg">
-                  📁
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {messages.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center px-6 py-10">
+          <div className="text-center">
+            <div
+              className="mx-auto flex h-20 w-20 items-center justify-center rounded-[24px] border p-2"
+              style={{ borderColor: 'rgba(29,155,240,0.22)', background: 'rgba(29,155,240,0.08)' }}
+            >
+              <MatifyLogo className="h-full w-full rounded-[18px] object-cover" />
+            </div>
+
+            <h2 className="mt-7 text-4xl font-semibold tracking-tight md:text-5xl" style={{ color: palette.textPrimary }}>
+              {mode === 'doc' ? 'Chat with Docs' : 'Chat with AI'}
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 md:text-lg" style={{ color: palette.textMuted }}>
+              {mode === 'doc'
+                ? 'Upload a file and ask questions about it'
+                : 'This is our SLM running in our own premise. We build the same with your data and deploy it to your premise.'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto px-5 pb-44 pt-8 md:px-8 lg:px-10 scrollbar-thin">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+            {messages.map((msg, idx) => (
+              <Message
+                key={msg.id}
+                role={msg.role}
+                text={msg.text}
+                streaming={isBotResponding && msg.role === 'bot' && idx === messages.length - 1}
+              />
+            ))}
+
+            {isBotResponding && messages.length > 0 && messages[messages.length - 1]?.text === '' && (
+              <div className="flex justify-start">
+                <div
+                  className="max-w-[85%] rounded-[26px] px-5 py-4 text-sm leading-7 flex gap-2 items-center"
+                  style={{ background: palette.panelAlt, border: `1px solid ${palette.border}` }}
+                >
+                  <span className="typing-dot"></span>
+                  <span className="typing-dot"></span>
+                  <span className="typing-dot"></span>
                 </div>
-                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Chat with Docs</h1>
-                <p className="text-[#8e8ea0] text-sm">
-                  Upload a file and ask questions about it
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 rounded-2xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center text-3xl mb-5 shadow-lg">
-                  🧠
-                </div>
-                <h1 className="text-2xl font-semibold mb-1 text-[#ececf1]">Chat with AI</h1>
-                <p className="text-[#8e8ea0] text-sm">
-                  Ask me anything — type or tap the mic to talk
-                </p>
-              </>
+              </div>
             )}
+
+            <div ref={bottomRef} />
           </div>
-        )}
-
-        {messages.map((msg, idx) => (
-          <Message
-            key={msg.id}
-            role={msg.role}
-            text={msg.text}
-            streaming={isBotResponding && msg.role === 'bot' && idx === messages.length - 1}
-          />
-        ))}
-
-        {isBotResponding && messages.length > 0 && messages[messages.length - 1]?.text === '' && (
-          <div className="flex gap-3 py-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#10a37f] to-[#0d8c6c] flex items-center justify-center text-sm shrink-0 shadow-sm">
-              ⚛
-            </div>
-            <div className="pt-2.5 flex gap-1">
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-            </div>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
-      </div>
+        </div>
+      )}
     </div>
   )
 }
