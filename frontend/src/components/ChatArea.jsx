@@ -47,7 +47,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                     return (
                       <button
                         key={opt.label}
-                        onClick={() => onTryClick?.(opt.message)}
+                        onClick={() => onTryClick?.(opt.message, opt.label)}
                         className="group flex flex-col items-center gap-2.5 rounded-2xl border px-4 py-5 transition-all duration-200 hover:scale-[1.04] active:scale-[0.97]"
                         style={{
                           borderColor: palette.border,

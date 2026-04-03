@@ -247,10 +247,10 @@ export default function App() {
     ws.current.send(JSON.stringify(payload))
   }
 
-  // Handle Try button click — set workflow on chat (reveals InputBar, no message sent)
-  const handleTryClick = (message) => {
+  // Handle Try button click — set workflow + title on chat (reveals InputBar, no message sent)
+  const handleTryClick = (message, label) => {
     setChats(prev => prev.map(c =>
-      c.id === activeChatId ? { ...c, workflow: message } : c
+      c.id === activeChatId ? { ...c, workflow: message, title: label || message } : c
     ))
   }
 
@@ -260,15 +260,15 @@ export default function App() {
     stopCurrentResponse()
     setActiveAssistant(assistantKey)
 
-    // If current chat is empty (no messages and no workflow), just switch it to the new assistant
+    // If current chat has no messages, morph it to the new assistant (even if workflow was set)
     const currentChat = chats.find(c => c.id === activeChatId)
-    if (currentChat && currentChat.messages.length === 0 && !currentChat.workflow) {
+    if (currentChat && currentChat.messages.length === 0) {
       setChats(prev => prev.map(c =>
-        c.id === activeChatId ? { ...c, assistant: assistantKey, mode: cfg.mode, workflow: null } : c
+        c.id === activeChatId ? { ...c, assistant: assistantKey, mode: cfg.mode, workflow: null, title: 'New Chat' } : c
       ))
     } else {
       // Current chat has messages — find existing empty chat for this assistant or create new
-      const existingEmpty = chats.find(c => c.assistant === assistantKey && c.messages.length === 0 && !c.workflow)
+      const existingEmpty = chats.find(c => c.assistant === assistantKey && c.messages.length === 0)
       if (existingEmpty) {
         setActiveChatId(existingEmpty.id)
       } else {
