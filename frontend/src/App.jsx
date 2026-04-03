@@ -194,6 +194,24 @@ export default function App() {
     }
   }
 
+  // Stop all active streams — call before switching chat/assistant
+  const stopCurrentResponse = useCallback(() => {
+    // Interrupt server-side pipeline
+    interruptedRef.current = true
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'interrupt' }))
+    }
+    // Stop voice & audio
+    stopVoice()
+    stopPlayback()
+    setVoiceActive(false)
+    setVoiceStatus({ visible: false, cls: '', text: '' })
+    // Reset bot state
+    setIsBotResponding(false)
+    isBotRespondingRef.current = false
+    botBufferRef.current = ''
+  }, [stopVoice, stopPlayback, ws])
+
   const sendText = (text) => {
     if (!text.trim() || !ws.current || ws.current.readyState !== WebSocket.OPEN) return
     addMsg('user', text.trim())
@@ -205,6 +223,7 @@ export default function App() {
   const selectAssistant = (assistantKey) => {
     const cfg = ASSISTANTS.find(a => a.key === assistantKey)
     if (!cfg) return
+    stopCurrentResponse()
     setActiveAssistant(assistantKey)
     const id = chatIdCounter.current++
     setChats(prev => [...prev, { id, title: 'New Chat', mode: cfg.mode, assistant: assistantKey, messages: [] }])
@@ -216,6 +235,7 @@ export default function App() {
   }
 
   const deleteChat = (id) => {
+    if (id === activeChatId) stopCurrentResponse()
     setChats(prev => {
       const next = prev.filter(c => c.id !== id)
       if (next.length === 0) {
@@ -231,6 +251,7 @@ export default function App() {
   }
 
   const switchChat = (id) => {
+    stopCurrentResponse()
     setActiveChatId(id)
     const chat = chats.find(c => c.id === id)
     if (chat?.assistant) setActiveAssistant(chat.assistant)
