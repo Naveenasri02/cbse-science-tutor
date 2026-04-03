@@ -90,7 +90,6 @@ export default function App() {
 
       case 'llm_start':
         interruptedRef.current = false
-        awaitingResponseRef.current = false
         setIsBotResponding(true)
         isBotRespondingRef.current = true
         botBufferRef.current = ''
@@ -154,16 +153,18 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — instant barge-in on speech start
+  // Voice mode — barge-in on speech
   const onSpeechDetected = useCallback(() => {
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      // Grace period after TTS starts — let browser AEC converge before allowing barge-in
-      if (ttsPlayingSinceRef.current && Date.now() - ttsPlayingSinceRef.current < 1500) return
+      // During TTS playback: suppress entirely — echo from speakers, not real speech
+      if (isPlayingRef.current) return
+      // LLM-only phase (before TTS): allow instant barge-in
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
       isBotRespondingRef.current = false
       ttsPlayingSinceRef.current = 0
+      awaitingResponseRef.current = false
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
@@ -172,21 +173,28 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
-    // Don't send audio if already waiting for a response (prevents backend pipeline cancellation)
-    if (awaitingResponseRef.current) return
-
-    // If bot was still responding, interrupt it (with AEC grace period)
+    // If bot is actively responding/playing, handle barge-in first
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      if (ttsPlayingSinceRef.current && Date.now() - ttsPlayingSinceRef.current < 1500) return
+      // During TTS playback: use 2s grace period for AEC convergence
+      if (isPlayingRef.current) {
+        const ttsElapsed = ttsPlayingSinceRef.current ? Date.now() - ttsPlayingSinceRef.current : 0
+        if (ttsElapsed < 2000) return // Within grace — likely echo, suppress
+      }
+      // Past grace or LLM-only phase: real barge-in
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
       isBotRespondingRef.current = false
       ttsPlayingSinceRef.current = 0
+      awaitingResponseRef.current = false
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
     }
+
+    // Don't send audio if still waiting for response from previous speech
+    if (awaitingResponseRef.current) return
+
     setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
     if (ws.current?.readyState === WebSocket.OPEN) {
       awaitingResponseRef.current = true
