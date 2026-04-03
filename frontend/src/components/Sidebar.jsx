@@ -1,12 +1,14 @@
-import { Plus, Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, MessageSquareText } from 'lucide-react'
+import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, MessageSquareText } from 'lucide-react'
 import { palette } from '../palette'
 
-const assistantOptions = [
-  { label: 'Smart Chat', icon: '🧠' },
-  { label: 'Doc Chat', icon: '📁' },
+export const ASSISTANTS = [
+  { key: 'legal',    label: 'Legal Assistant',      icon: Scale,          mode: 'doc' },
+  { key: 'tutor',    label: 'AI Tutor',             icon: GraduationCap,  mode: 'smart' },
+  { key: 'employee', label: 'Employee Assistance',  icon: Briefcase,      mode: 'doc' },
+  { key: 'customer', label: 'Customer Service',     icon: Headset,        mode: 'smart' },
 ]
 
-export default function Sidebar({ chats, activeChatId, onNewChat, onSwitchChat, onDeleteChat, open, onClose, onBackToLanding }) {
+export default function Sidebar({ chats, activeChatId, activeAssistant, onSelectAssistant, onSwitchChat, onDeleteChat, open, onClose, onBackToLanding }) {
   return (
     <>
       {open && (
@@ -34,25 +36,6 @@ export default function Sidebar({ chats, activeChatId, onNewChat, onSwitchChat, 
           </button>
         </div>
 
-        {/* New Chat + Close */}
-        <div className="flex items-center justify-between px-5 pt-5">
-          <button
-            onClick={onNewChat}
-            className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors hover:opacity-90"
-            style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.textPrimary }}
-          >
-            <Plus className="h-4 w-4" style={{ color: palette.primary }} />
-            New chat
-          </button>
-          <button
-            onClick={onClose}
-            className="lg:hidden p-2 rounded-lg transition-colors"
-            style={{ color: palette.textMuted }}
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
         {/* AI Assistants */}
         <div className="px-5 pt-8">
           <div
@@ -62,26 +45,32 @@ export default function Sidebar({ chats, activeChatId, onNewChat, onSwitchChat, 
             AI Assistants
           </div>
           <div className="space-y-2">
-            {assistantOptions.map((assistant, index) => (
-              <div
-                key={assistant.label}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px]"
-                style={{
-                  background: index === 0 ? palette.panelAlt : 'transparent',
-                  color: palette.textPrimary,
-                }}
-              >
-                <div
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-base"
+            {ASSISTANTS.map((assistant) => {
+              const Icon = assistant.icon
+              const isActive = activeAssistant === assistant.key
+              return (
+                <button
+                  key={assistant.key}
+                  onClick={() => onSelectAssistant(assistant.key)}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] transition-colors"
                   style={{
-                    background: index === 0 ? 'rgba(29,155,240,0.12)' : palette.panel,
+                    background: isActive ? palette.panelAlt : 'transparent',
+                    color: palette.textPrimary,
                   }}
                 >
-                  {assistant.icon}
-                </div>
-                <span>{assistant.label}</span>
-              </div>
-            ))}
+                  <div
+                    className="flex h-9 w-9 items-center justify-center rounded-lg"
+                    style={{
+                      background: isActive ? 'rgba(29,155,240,0.12)' : palette.panel,
+                      color: isActive ? palette.primary : palette.textSecondary,
+                    }}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span>{assistant.label}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -96,46 +85,60 @@ export default function Sidebar({ chats, activeChatId, onNewChat, onSwitchChat, 
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 space-y-2 scrollbar-thin">
-          {chats.map((chat, index) => (
-            <div
-              key={chat.id}
-              onClick={() => onSwitchChat(chat.id)}
-              className="group flex w-full items-start gap-3 rounded-2xl px-4 py-4 text-left transition-colors cursor-pointer"
-              style={{
-                background: chat.id === activeChatId ? palette.panelAlt : 'transparent',
-                color: palette.textPrimary,
-              }}
-            >
+          {chats.map((chat) => {
+            const assistantCfg = ASSISTANTS.find(a => a.key === chat.assistant) || ASSISTANTS[1]
+            const Icon = assistantCfg.icon
+            const isActive = chat.id === activeChatId
+            return (
               <div
-                className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg text-base shrink-0"
+                key={chat.id}
+                onClick={() => onSwitchChat(chat.id)}
+                className="group flex w-full items-start gap-3 rounded-2xl px-4 py-4 text-left transition-colors cursor-pointer"
                 style={{
-                  background: chat.id === activeChatId ? 'rgba(29,155,240,0.12)' : palette.panel,
+                  background: isActive ? palette.panelAlt : 'transparent',
+                  color: palette.textPrimary,
                 }}
               >
-                {chat.mode === 'doc' ? '📁' : '🧠'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[15px] truncate">{chat.title}</div>
-                <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: palette.textMuted }}>
-                  <MessageSquareText className="h-3.5 w-3.5" />
-                  {chat.mode === 'doc' ? 'Doc Chat' : 'Smart Chat'}
-                </div>
-              </div>
-              {chats.length > 1 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
-                  className="opacity-0 group-hover:opacity-100 transition p-1 rounded-lg hover:bg-white/5"
-                  style={{ color: palette.textMuted }}
+                <div
+                  className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
+                  style={{
+                    background: isActive ? 'rgba(29,155,240,0.12)' : palette.panel,
+                    color: isActive ? palette.primary : palette.textSecondary,
+                  }}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[15px] truncate">{chat.title}</div>
+                  <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: palette.textMuted }}>
+                    <MessageSquareText className="h-3.5 w-3.5" />
+                    {assistantCfg.label}
+                  </div>
+                </div>
+                {chats.length > 1 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
+                    className="opacity-0 group-hover:opacity-100 transition p-1 rounded-lg hover:bg-white/5"
+                    style={{ color: palette.textMuted }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Footer */}
-        <div className="border-t px-5 py-5" style={{ borderColor: palette.border }}>
+        <div className="mt-auto border-t px-5 py-5" style={{ borderColor: palette.border }}>
+          <button
+            onClick={onBackToLanding}
+            className="mb-4 inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-colors hover:opacity-90"
+            style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.textSecondary }}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to landing
+          </button>
           <div className="text-sm" style={{ color: palette.textMuted }}>
             Voice & Text · AI Assistant
           </div>
