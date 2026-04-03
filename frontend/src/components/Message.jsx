@@ -38,6 +38,11 @@ export default function Message({ role, text, streaming }) {
   const displayText = (role === 'bot') ? (text || '').slice(0, displayLen) : (text || '')
   displayTextRef.current = displayText
 
+  // Ensure markdown headers/lists have preceding newlines for proper parsing
+  const fixMarkdown = (md) => md
+    .replace(/([^\n])(#{1,4}\s)/g, '$1\n$2')
+    .replace(/([^\n])(\n?- \*\*)/g, '$1\n$2')
+
   const [renderedHtml, setRenderedHtml] = useState('')
 
   useEffect(() => {
@@ -46,13 +51,13 @@ export default function Message({ role, text, streaming }) {
       return
     }
     if (!streaming) {
-      setRenderedHtml(marked.parse(displayText))
+      setRenderedHtml(marked.parse(fixMarkdown(displayText)))
       return
     }
     if (!renderTimer.current) {
       renderTimer.current = setTimeout(() => {
         renderTimer.current = null
-        setRenderedHtml(marked.parse(displayTextRef.current))
+        setRenderedHtml(marked.parse(fixMarkdown(displayTextRef.current)))
       }, 50)
     }
   }, [displayText, streaming, role])
