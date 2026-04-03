@@ -32,27 +32,28 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
               {assistantConfig?.welcomeMessage || 'Select a workflow to get started.'}
             </p>
 
-            {/* Try workflow buttons */}
+            {/* Workflow buttons */}
             {assistantConfig?.tryOptions && assistantConfig.tryOptions.length > 0 && (
               <div className="mt-8">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.14em] mb-3" style={{ color: palette.textMuted }}>
-                  Try
-                </p>
                 <div className="flex flex-wrap justify-center gap-3">
-                  {assistantConfig.tryOptions.map((opt) => (
-                    <button
-                      key={opt.label}
-                      onClick={() => onTryClick?.(opt.message)}
-                      className="rounded-full border px-5 py-2.5 text-[14px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
-                      style={{
-                        borderColor: palette.borderStrong,
-                        background: palette.panel,
-                        color: palette.textPrimary,
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                  {assistantConfig.tryOptions.map((opt) => {
+                    const Icon = opt.icon
+                    return (
+                      <button
+                        key={opt.label}
+                        onClick={() => onTryClick?.(opt.message)}
+                        className="flex items-center gap-2 rounded-full border px-5 py-2.5 text-[14px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
+                        style={{
+                          borderColor: palette.borderStrong,
+                          background: palette.panel,
+                          color: palette.textPrimary,
+                        }}
+                      >
+                        {Icon && <Icon size={16} style={{ color: palette.primary }} />}
+                        {opt.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             )}

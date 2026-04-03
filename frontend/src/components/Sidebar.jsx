@@ -1,4 +1,4 @@
-import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Landmark, MessageSquareText } from 'lucide-react'
+import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Landmark, MessageSquareText, FileSearch, FileText, ShieldCheck, BookOpen, PenLine, ClipboardList, Users, UserPlus, Monitor, Package, Wrench, Info, ClipboardCheck } from 'lucide-react'
 import { palette } from '../palette'
 
 export const ASSISTANTS = [
@@ -10,9 +10,9 @@ export const ASSISTANTS = [
     voice: true,
     welcomeMessage: 'Private, enterprise-grade Legal Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
-      { label: 'Due diligence', message: 'I want help with due diligence' },
-      { label: 'Contract analysis', message: 'I want help with contract analysis' },
-      { label: 'Compliance lookup', message: 'I want help with compliance lookup' },
+      { label: 'Due diligence', icon: FileSearch, message: 'I want help with due diligence' },
+      { label: 'Contract analysis', icon: FileText, message: 'I want help with contract analysis' },
+      { label: 'Compliance lookup', icon: ShieldCheck, message: 'I want help with compliance lookup' },
     ],
   },
   {
@@ -23,9 +23,9 @@ export const ASSISTANTS = [
     voice: true,
     welcomeMessage: 'Private, enterprise-grade Teaching Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
-      { label: 'Curriculum doubt solving', message: 'I want help with curriculum doubt solving' },
-      { label: 'Lesson plan creation', message: 'I want help with lesson plan creation' },
-      { label: 'Exam preparation', message: 'I want help with exam preparation' },
+      { label: 'Curriculum doubt solving', icon: BookOpen, message: 'I want help with curriculum doubt solving' },
+      { label: 'Lesson plan creation', icon: PenLine, message: 'I want help with lesson plan creation' },
+      { label: 'Exam preparation', icon: ClipboardList, message: 'I want help with exam preparation' },
     ],
   },
   {
@@ -36,9 +36,9 @@ export const ASSISTANTS = [
     voice: true,
     welcomeMessage: 'Private, enterprise-grade Employee Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
-      { label: 'HR policy support', message: 'I want help with HR policy support' },
-      { label: 'Employee onboarding', message: 'I want help with employee onboarding' },
-      { label: 'IT helpdesk guidance', message: 'I want help with IT helpdesk guidance' },
+      { label: 'HR policy support', icon: Users, message: 'I want help with HR policy support' },
+      { label: 'Employee onboarding', icon: UserPlus, message: 'I want help with employee onboarding' },
+      { label: 'IT helpdesk guidance', icon: Monitor, message: 'I want help with IT helpdesk guidance' },
     ],
   },
   {
@@ -49,9 +49,9 @@ export const ASSISTANTS = [
     voice: true,
     welcomeMessage: 'Private, enterprise-grade Customer Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
-      { label: 'Product discovery', message: 'I want help with product discovery' },
-      { label: 'Issue troubleshooting', message: 'I want help with issue troubleshooting' },
-      { label: 'Policy clarification', message: 'I want help with policy clarification' },
+      { label: 'Product discovery', icon: Package, message: 'I want help with product discovery' },
+      { label: 'Issue troubleshooting', icon: Wrench, message: 'I want help with issue troubleshooting' },
+      { label: 'Policy clarification', icon: Info, message: 'I want help with policy clarification' },
     ],
   },
   {
@@ -62,9 +62,9 @@ export const ASSISTANTS = [
     voice: true,
     welcomeMessage: 'Private, enterprise-grade Banking & Insurance Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
-      { label: 'Policy lookup', message: 'I want help with policy and product lookup' },
-      { label: 'Claims guidance', message: 'I want help with claims and service guidance' },
-      { label: 'Compliance support', message: 'I want help with compliance and regulatory support' },
+      { label: 'Policy lookup', icon: FileSearch, message: 'I want help with policy and product lookup' },
+      { label: 'Claims guidance', icon: ClipboardCheck, message: 'I want help with claims and service guidance' },
+      { label: 'Compliance support', icon: ShieldCheck, message: 'I want help with compliance and regulatory support' },
     ],
   },
 ]
