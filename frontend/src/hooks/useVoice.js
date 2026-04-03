@@ -24,13 +24,12 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: 0.6,
+        positiveSpeechThreshold: 0.5,
         negativeSpeechThreshold: 0.35,
-        minSpeechMs: 300,
+        minSpeechMs: 250,
         preSpeechPadMs: 400,
         redemptionMs: 800,
 
-        // Echo cancellation: request browser-level echo suppression
         additionalAudioConstraints: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -42,9 +41,9 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
           const { isSpeech } = probabilities
           const botActive = isBotRespondingRef?.current || isPlayingRef?.current
 
-          // During TTS playback, require higher confidence + more frames to avoid echo triggers
-          const threshold = botActive ? 0.92 : 0.85
-          const framesNeeded = botActive ? 6 : 3
+          // During playback, slightly higher bar to filter residual echo
+          const threshold = botActive ? 0.88 : 0.85
+          const framesNeeded = botActive ? 4 : 3
 
           if (isSpeech > threshold) {
             bargeinCountRef.current++
@@ -59,9 +58,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         onSpeechStart: () => {
           if (!activeRef.current) return
-          // During bot response/TTS playback, suppress onSpeechStart to avoid
-          // false barge-in from TTS echo. Barge-in is handled by onFrameProcessed
-          // which has a higher threshold during playback.
+          // During playback, let onFrameProcessed handle barge-in with threshold
           const botActive = isBotRespondingRef?.current || isPlayingRef?.current
           if (botActive) return
           if (!notifiedRef.current) {
@@ -72,6 +69,13 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         onSpeechEnd: (audio) => {
           if (!activeRef.current) return
+          // If bot was active and barge-in didn't fire via onFrameProcessed,
+          // trigger it now so client stops old playback before sending new audio
+          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
+          if (botActive && !notifiedRef.current) {
+            notifiedRef.current = true
+            onSpeechDetectedRef.current()
+          }
           notifiedRef.current = false
           bargeinCountRef.current = 0
           if (audio.length < 1600) return
