@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 
 const API_BASE = import.meta.env.VITE_WS_URL
   ? import.meta.env.VITE_WS_URL.replace(/^wss?:/, match => match === 'wss:' ? 'https:' : 'http:').replace(/\/ws\/voice$/, '')
@@ -8,6 +8,25 @@ export default function useDocuments(sessionIdRef) {
   const [documents, setDocuments] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const processingTimer = useRef(null)
+
+  const stopProcessingTimer = useCallback(() => {
+    if (processingTimer.current) {
+      clearInterval(processingTimer.current)
+      processingTimer.current = null
+    }
+  }, [])
+
+  // Simulate gradual progress during server-side processing (90→98%)
+  const startProcessingTimer = useCallback(() => {
+    stopProcessingTimer()
+    let current = 90
+    processingTimer.current = setInterval(() => {
+      current = Math.min(current + 1, 98)
+      setUploadProgress(current)
+      if (current >= 98) stopProcessingTimer()
+    }, 400)
+  }, [stopProcessingTimer])
 
   const uploadFile = useCallback(async (file) => {
     const sessionId = sessionIdRef.current
@@ -23,7 +42,7 @@ export default function useDocuments(sessionIdRef) {
     }
 
     setUploading(true)
-    setUploadProgress(0)
+    setUploadProgress(2)
 
     try {
       const formData = new FormData()
@@ -34,15 +53,24 @@ export default function useDocuments(sessionIdRef) {
         const xhr = new XMLHttpRequest()
         xhr.open('POST', url)
 
+        let uploadDone = false
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 90)
+            // Map upload 0-100% to display 5-85%
+            const pct = 5 + Math.round((e.loaded / e.total) * 80)
             setUploadProgress(pct)
           }
         }
 
+        xhr.upload.onload = () => {
+          // Upload complete, server is now processing (parsing, chunking, embedding)
+          uploadDone = true
+          setUploadProgress(90)
+          startProcessingTimer()
+        }
+
         xhr.onload = () => {
-          setUploadProgress(95)
+          stopProcessingTimer()
           try {
             const json = JSON.parse(xhr.responseText)
             if (xhr.status >= 200 && xhr.status < 300) {
@@ -56,25 +84,27 @@ export default function useDocuments(sessionIdRef) {
           }
         }
 
-        xhr.onerror = () => reject(new Error('Network error'))
-        xhr.ontimeout = () => reject(new Error('Upload timed out'))
+        xhr.onerror = () => { stopProcessingTimer(); reject(new Error('Network error')) }
+        xhr.ontimeout = () => { stopProcessingTimer(); reject(new Error('Upload timed out')) }
         xhr.timeout = 120000
         xhr.send(formData)
       })
 
       const fileUrl = URL.createObjectURL(file)
       setDocuments(prev => [...prev, { ...data, fileUrl, fileType: file.type }])
+      // Show 100% briefly before hiding
       setUploadProgress(100)
-      await new Promise(r => setTimeout(r, 500))
+      await new Promise(r => setTimeout(r, 800))
       setUploadProgress(0)
       return data
     } catch (err) {
+      stopProcessingTimer()
       setUploadProgress(0)
       throw err
     } finally {
       setUploading(false)
     }
-  }, [sessionIdRef])
+  }, [sessionIdRef, startProcessingTimer, stopProcessingTimer])
 
   const deleteDocument = useCallback(async (docId) => {
     const sessionId = sessionIdRef.current

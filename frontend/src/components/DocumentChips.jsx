@@ -69,7 +69,7 @@ export default function DocumentChips({ documents, onDelete, uploading, uploadPr
             </span>
           </div>
           <span style={{ color: palette.textSecondary }}>
-            {pct < 90 ? 'Uploading...' : pct < 100 ? 'Processing...' : 'Done!'}
+            {pct < 85 ? 'Uploading...' : pct < 100 ? 'Processing...' : 'Done!'}
           </span>
         </div>
       )}
