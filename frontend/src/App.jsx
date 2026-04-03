@@ -263,30 +263,30 @@ export default function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
         <header
-          className="flex items-center justify-between border-b px-5 py-5 md:px-6 shrink-0"
+          className="flex items-center justify-between border-b px-4 py-3 md:px-5 shrink-0"
           style={{ borderColor: palette.border, background: palette.bg }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden text-lg transition-colors"
+              className="lg:hidden text-sm transition-colors"
               style={{ color: palette.textMuted }}
             >
               ☰
             </button>
-            <div className="text-[15px] font-semibold" style={{ color: palette.textPrimary }}>
+            <div className="text-[13px] font-semibold" style={{ color: palette.textPrimary }}>
               Secure AI Chat
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <div
-              className="rounded-full px-4 py-2 text-sm"
+              className="rounded-full px-3 py-1.5 text-[12px]"
               style={{ background: palette.panel, color: palette.textSecondary }}
             >
               {activeAssistantCfg.label}
             </div>
             <span
-              className={`w-3 h-3 rounded-full ${connected ? '' : 'animate-pulse'}`}
+              className={`w-2.5 h-2.5 rounded-full ${connected ? '' : 'animate-pulse'}`}
               style={{ background: connected ? '#10b981' : '#ef4444' }}
               title={connected ? 'Connected' : 'Reconnecting...'}
             />
