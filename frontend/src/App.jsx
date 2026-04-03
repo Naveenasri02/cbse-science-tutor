@@ -247,14 +247,11 @@ export default function App() {
     ws.current.send(JSON.stringify(payload))
   }
 
-  // Handle Try button click — set workflow on chat, then send message
+  // Handle Try button click — set workflow on chat (reveals InputBar, no message sent)
   const handleTryClick = (message) => {
-    // Set workflow on current chat
     setChats(prev => prev.map(c =>
       c.id === activeChatId ? { ...c, workflow: message } : c
     ))
-    // Send the message to backend
-    sendText(message)
   }
 
   const selectAssistant = (assistantKey) => {
