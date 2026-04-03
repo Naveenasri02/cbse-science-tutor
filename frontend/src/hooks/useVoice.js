@@ -39,15 +39,10 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         onFrameProcessed: (probabilities) => {
           if (!activeRef.current) return
           const { isSpeech } = probabilities
-          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
-
-          // During playback, slightly higher bar to filter residual echo
-          const threshold = botActive ? 0.88 : 0.85
-          const framesNeeded = botActive ? 4 : 3
-
-          if (isSpeech > threshold) {
+          if (isSpeech > 0.85) {
             bargeinCountRef.current++
-            if (botActive && !notifiedRef.current && bargeinCountRef.current >= framesNeeded) {
+            const botActive = isBotRespondingRef?.current || isPlayingRef?.current
+            if (botActive && !notifiedRef.current && bargeinCountRef.current >= 2) {
               notifiedRef.current = true
               onSpeechDetectedRef.current()
             }
@@ -58,9 +53,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         onSpeechStart: () => {
           if (!activeRef.current) return
-          // During playback, let onFrameProcessed handle barge-in with threshold
-          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
-          if (botActive) return
           if (!notifiedRef.current) {
             notifiedRef.current = true
             onSpeechDetectedRef.current()
@@ -69,13 +61,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
 
         onSpeechEnd: (audio) => {
           if (!activeRef.current) return
-          // If bot was active and barge-in didn't fire via onFrameProcessed,
-          // trigger it now so client stops old playback before sending new audio
-          const botActive = isBotRespondingRef?.current || isPlayingRef?.current
-          if (botActive && !notifiedRef.current) {
-            notifiedRef.current = true
-            onSpeechDetectedRef.current()
-          }
           notifiedRef.current = false
           bargeinCountRef.current = 0
           if (audio.length < 1600) return
