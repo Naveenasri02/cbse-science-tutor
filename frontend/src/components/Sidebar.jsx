@@ -3,9 +3,9 @@ import { palette } from '../palette'
 
 export const ASSISTANTS = [
   { key: 'legal',    label: 'Legal Assistant',      icon: Scale,          mode: 'doc',   voice: true },
-  { key: 'tutor',    label: 'AI Tutor',             icon: GraduationCap,  mode: 'smart', voice: true },
+  { key: 'tutor',    label: 'AI Tutor',             icon: GraduationCap,  mode: 'doc',   voice: true },
   { key: 'employee', label: 'Employee Assistance',  icon: Briefcase,      mode: 'doc',   voice: true },
-  { key: 'customer', label: 'Customer Service',     icon: Headset,        mode: 'smart', voice: true },
+  { key: 'customer', label: 'Customer Service',     icon: Headset,        mode: 'doc',   voice: true },
 ]
 
 export default function Sidebar({ chats, activeChatId, activeAssistant, onSelectAssistant, onSwitchChat, onDeleteChat, open, onClose, onBackToLanding }) {
