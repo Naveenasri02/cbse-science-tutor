@@ -2,10 +2,10 @@ import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Messa
 import { palette } from '../palette'
 
 export const ASSISTANTS = [
-  { key: 'legal',    label: 'Legal Assistant',      icon: Scale,          mode: 'doc' },
-  { key: 'tutor',    label: 'AI Tutor',             icon: GraduationCap,  mode: 'smart' },
-  { key: 'employee', label: 'Employee Assistance',  icon: Briefcase,      mode: 'doc' },
-  { key: 'customer', label: 'Customer Service',     icon: Headset,        mode: 'smart' },
+  { key: 'legal',    label: 'Legal Assistant',      icon: Scale,          mode: 'doc',   voice: false },
+  { key: 'tutor',    label: 'AI Tutor',             icon: GraduationCap,  mode: 'smart', voice: true },
+  { key: 'employee', label: 'Employee Assistance',  icon: Briefcase,      mode: 'doc',   voice: true },
+  { key: 'customer', label: 'Customer Service',     icon: Headset,        mode: 'smart', voice: true },
 ]
 
 export default function Sidebar({ chats, activeChatId, activeAssistant, onSelectAssistant, onSwitchChat, onDeleteChat, open, onClose, onBackToLanding }) {

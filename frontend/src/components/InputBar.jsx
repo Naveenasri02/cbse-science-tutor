@@ -11,9 +11,9 @@ const VOICE_COLORS = {
   error: '#ef4444',
 }
 
-export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress, mode }) {
+export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress, mode, voiceEnabled = true }) {
   const showUpload = mode === 'doc'
-  const showVoice = mode !== 'doc'
+  const showVoice = voiceEnabled
   const [text, setText] = useState('')
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)

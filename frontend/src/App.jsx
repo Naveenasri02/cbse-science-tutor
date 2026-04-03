@@ -306,6 +306,7 @@ export default function App() {
           uploading={uploading}
           uploadProgress={uploadProgress}
           mode={activeChat.mode}
+          voiceEnabled={activeAssistantCfg.voice}
         />
       </div>
 
