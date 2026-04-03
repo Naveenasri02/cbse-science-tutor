@@ -28,6 +28,7 @@ export default function App() {
   const botBufferRef = useRef('')
   const chatIdCounter = useRef(2)
   const interruptedRef = useRef(false)
+  const ttsPlayingSinceRef = useRef(0)
   const sessionIdRef = useRef(generateSessionId())
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
@@ -114,12 +115,14 @@ export default function App() {
       case 'tts_start':
         if (!interruptedRef.current) {
           setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
+          ttsPlayingSinceRef.current = Date.now()
         }
         break
 
       case 'tts_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
+        ttsPlayingSinceRef.current = 0
         if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
@@ -148,12 +151,14 @@ export default function App() {
 
   // Voice mode — instant barge-in on speech start
   const onSpeechDetected = useCallback(() => {
-    // Instant barge-in: stop bot the moment user starts speaking
     if (isBotRespondingRef.current || isPlayingRef.current) {
+      // Grace period: suppress during first 2s of TTS — echo from AEC convergence
+      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 2000) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
       isBotRespondingRef.current = false
+      ttsPlayingSinceRef.current = 0
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
@@ -162,12 +167,15 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
-    // If bot was still responding, interrupt it
+    // If bot is responding/playing, check for barge-in
     if (isBotRespondingRef.current || isPlayingRef.current) {
+      // Grace period: suppress during first 2s of TTS — echo from AEC convergence
+      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 2000) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
       isBotRespondingRef.current = false
+      ttsPlayingSinceRef.current = 0
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
