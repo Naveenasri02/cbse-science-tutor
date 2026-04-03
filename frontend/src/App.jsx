@@ -29,6 +29,8 @@ export default function App() {
   const chatIdCounter = useRef(2)
   const interruptedRef = useRef(false)
   const sessionIdRef = useRef(generateSessionId())
+  const pauseForPlaybackRef = useRef(() => {})
+  const resumeAfterPlaybackRef = useRef(() => {})
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
 
@@ -114,14 +116,14 @@ export default function App() {
       case 'tts_start':
         if (!interruptedRef.current) {
           setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
-          pauseForPlayback()
+          pauseForPlaybackRef.current()
         }
         break
 
       case 'tts_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
-        resumeAfterPlayback()
+        resumeAfterPlaybackRef.current()
         if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
@@ -144,7 +146,7 @@ export default function App() {
         }, 3000)
         break
     }
-  }, [voiceActive, addMsg, updateLastBotMsg, updateChatTitle, playAudio, pauseForPlayback, resumeAfterPlayback])
+  }, [voiceActive, addMsg, updateLastBotMsg, updateChatTitle, playAudio])
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
@@ -171,6 +173,8 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const { startVoice, stopVoice, pauseForPlayback, resumeAfterPlayback } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
+  pauseForPlaybackRef.current = pauseForPlayback
+  resumeAfterPlaybackRef.current = resumeAfterPlayback
 
   const toggleVoice = async () => {
     if (voiceActive) {
