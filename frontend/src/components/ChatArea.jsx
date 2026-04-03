@@ -3,16 +3,19 @@ import Message from './Message'
 import { MatifyLogo } from './LandingPage'
 import { palette } from '../palette'
 
-export default function ChatArea({ messages, isBotResponding, mode, assistantConfig, onTryClick }) {
+export default function ChatArea({ messages, isBotResponding, mode, assistantConfig, onTryClick, workflow }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isBotResponding])
 
+  // Phase 1: No workflow selected — show welcome + Try buttons
+  const showWelcome = !workflow && messages.length === 0
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {messages.length === 0 ? (
+      {showWelcome ? (
         <div className="flex flex-1 items-center justify-center px-6 py-8">
           <div className="text-center max-w-lg">
             <div
@@ -23,13 +26,10 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
             </div>
 
             <h2 className="mt-5 text-xl font-semibold tracking-tight md:text-2xl" style={{ color: palette.textPrimary }}>
-              {assistantConfig?.label || (mode === 'doc' ? 'Chat with Docs' : 'Chat with AI')}
+              {assistantConfig?.label || 'AI Assistant'}
             </h2>
             <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed" style={{ color: palette.textMuted }}>
-              {assistantConfig?.welcomeMessage ||
-                (mode === 'doc'
-                  ? 'Upload a file and ask questions about it'
-                  : 'This is our SLM running in our own premise. We build the same with your data and deploy it to your premise.')}
+              {assistantConfig?.welcomeMessage || 'Select a workflow to get started.'}
             </p>
 
             {/* Try workflow buttons */}

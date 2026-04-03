@@ -18,7 +18,7 @@ function generateSessionId() {
 
 export default function App() {
   const [pageMode, setPageMode] = useState('landing')
-  const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'doc', assistant: 'legal', messages: [] }])
+  const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'doc', assistant: 'legal', workflow: null, messages: [] }])
   const [activeChatId, setActiveChatId] = useState(1)
   const [activeAssistant, setActiveAssistant] = useState('legal')
   const [voiceActive, setVoiceActive] = useState(false)
@@ -247,26 +247,36 @@ export default function App() {
     ws.current.send(JSON.stringify(payload))
   }
 
+  // Handle Try button click — set workflow on chat, then send message
+  const handleTryClick = (message) => {
+    // Set workflow on current chat
+    setChats(prev => prev.map(c =>
+      c.id === activeChatId ? { ...c, workflow: message } : c
+    ))
+    // Send the message to backend
+    sendText(message)
+  }
+
   const selectAssistant = (assistantKey) => {
     const cfg = ASSISTANTS.find(a => a.key === assistantKey)
     if (!cfg) return
     stopCurrentResponse()
     setActiveAssistant(assistantKey)
 
-    // If current chat is empty (no messages), just switch it to the new assistant
+    // If current chat is empty (no messages and no workflow), just switch it to the new assistant
     const currentChat = chats.find(c => c.id === activeChatId)
-    if (currentChat && currentChat.messages.length === 0) {
+    if (currentChat && currentChat.messages.length === 0 && !currentChat.workflow) {
       setChats(prev => prev.map(c =>
-        c.id === activeChatId ? { ...c, assistant: assistantKey, mode: cfg.mode } : c
+        c.id === activeChatId ? { ...c, assistant: assistantKey, mode: cfg.mode, workflow: null } : c
       ))
     } else {
       // Current chat has messages — find existing empty chat for this assistant or create new
-      const existingEmpty = chats.find(c => c.assistant === assistantKey && c.messages.length === 0)
+      const existingEmpty = chats.find(c => c.assistant === assistantKey && c.messages.length === 0 && !c.workflow)
       if (existingEmpty) {
         setActiveChatId(existingEmpty.id)
       } else {
         const id = chatIdCounter.current++
-        setChats(prev => [...prev, { id, title: 'New Chat', mode: cfg.mode, assistant: assistantKey, messages: [] }])
+        setChats(prev => [...prev, { id, title: 'New Chat', mode: cfg.mode, assistant: assistantKey, workflow: null, messages: [] }])
         setActiveChatId(id)
       }
     }
@@ -282,7 +292,7 @@ export default function App() {
       const next = prev.filter(c => c.id !== id)
       if (next.length === 0) {
         const newId = chatIdCounter.current++
-        next.push({ id: newId, title: 'New Chat', mode: 'doc', assistant: activeAssistant, messages: [] })
+        next.push({ id: newId, title: 'New Chat', mode: 'doc', assistant: activeAssistant, workflow: null, messages: [] })
         setActiveChatId(newId)
       } else if (activeChatId === id) {
         setActiveChatId(next[next.length - 1].id)
@@ -361,22 +371,25 @@ export default function App() {
           isBotResponding={isBotResponding}
           mode={activeChat.mode}
           assistantConfig={activeAssistantCfg}
-          onTryClick={sendText}
+          onTryClick={handleTryClick}
+          workflow={activeChat.workflow}
         />
-        <InputBar
-          onSend={sendText}
-          onToggleVoice={toggleVoice}
-          voiceActive={voiceActive}
-          voiceStatus={voiceStatus}
-          disabled={!connected}
-          onUpload={uploadFile}
-          documents={documents}
-          onDeleteDoc={deleteDocument}
-          uploading={uploading}
-          uploadProgress={uploadProgress}
-          mode={activeChat.mode}
-          voiceEnabled={activeAssistantCfg.voice}
-        />
+        {activeChat.workflow && (
+          <InputBar
+            onSend={sendText}
+            onToggleVoice={toggleVoice}
+            voiceActive={voiceActive}
+            voiceStatus={voiceStatus}
+            disabled={!connected}
+            onUpload={uploadFile}
+            documents={documents}
+            onDeleteDoc={deleteDocument}
+            uploading={uploading}
+            uploadProgress={uploadProgress}
+            mode={activeChat.mode}
+            voiceEnabled={activeAssistantCfg.voice}
+          />
+        )}
       </div>
 
     </div>
