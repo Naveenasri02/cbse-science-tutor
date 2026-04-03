@@ -25,25 +25,25 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
               <MatifyLogo className="h-full w-full rounded-[12px] object-cover" />
             </div>
 
-            <h2 className="mt-5 text-xl font-semibold tracking-tight md:text-2xl" style={{ color: palette.textPrimary }}>
+            <h2 className="mt-5 text-2xl font-semibold tracking-tight md:text-3xl" style={{ color: palette.textPrimary }}>
               {assistantConfig?.label || 'AI Assistant'}
             </h2>
-            <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed" style={{ color: palette.textMuted }}>
+            <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed" style={{ color: palette.textMuted }}>
               {assistantConfig?.welcomeMessage || 'Select a workflow to get started.'}
             </p>
 
             {/* Try workflow buttons */}
             {assistantConfig?.tryOptions && assistantConfig.tryOptions.length > 0 && (
-              <div className="mt-6">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-3" style={{ color: palette.textMuted }}>
+              <div className="mt-8">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.14em] mb-3" style={{ color: palette.textMuted }}>
                   Try
                 </p>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-3">
                   {assistantConfig.tryOptions.map((opt) => (
                     <button
                       key={opt.label}
                       onClick={() => onTryClick?.(opt.message)}
-                      className="rounded-full border px-4 py-2 text-[13px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
+                      className="rounded-full border px-5 py-2.5 text-[14px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
                       style={{
                         borderColor: palette.borderStrong,
                         background: palette.panel,
@@ -73,7 +73,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
             {isBotResponding && messages.length > 0 && messages[messages.length - 1]?.text === '' && (
               <div className="flex justify-start">
                 <div
-                  className="max-w-[80%] rounded-[20px] px-4 py-2.5 text-[13px] leading-[1.55] flex gap-1.5 items-center"
+                  className="max-w-[80%] rounded-[20px] px-4 py-2.5 text-[15px] leading-[1.6] flex gap-1.5 items-center"
                   style={{ background: palette.panelAlt, border: `1px solid ${palette.border}` }}
                 >
                   <span className="typing-dot"></span>

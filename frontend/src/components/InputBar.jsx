@@ -109,7 +109,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             onKeyDown={handleKey}
             disabled={disabled || voiceActive}
             placeholder={voiceActive ? 'Listening — speak or tap mic to stop' : 'Send a message...'}
-            className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-[13px] outline-none placeholder:opacity-50"
+            className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-[15px] outline-none placeholder:opacity-50"
             style={{ color: palette.textPrimary }}
           />
 
@@ -146,7 +146,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             </button>
           )}
         </div>
-        <div className="mt-2 text-center text-[11px]" style={{ color: palette.textMuted }}>
+        <div className="mt-2 text-center text-[12px]" style={{ color: palette.textMuted }}>
           AI-powered answers · Voice & Text
         </div>
       </div>

@@ -344,13 +344,13 @@ export default function App() {
             >
               ☰
             </button>
-            <div className="text-[13px] font-semibold" style={{ color: palette.textPrimary }}>
+            <div className="text-[15px] font-semibold" style={{ color: palette.textPrimary }}>
               Secure AI Chat
             </div>
           </div>
           <div className="flex items-center gap-2.5">
             <div
-              className="rounded-full px-3 py-1.5 text-[12px]"
+              className="rounded-full px-3 py-1.5 text-[13px]"
               style={{ background: palette.panel, color: palette.textSecondary }}
             >
               {activeAssistantCfg.label}

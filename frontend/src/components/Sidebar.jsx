@@ -100,7 +100,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
         {/* AI Assistants */}
         <div className="px-4 pt-5">
           <div
-            className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]"
+            className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em]"
             style={{ color: palette.textMuted }}
           >
             AI Assistants
@@ -113,7 +113,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
                 <button
                   key={assistant.key}
                   onClick={() => onSelectAssistant(assistant.key)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors"
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors"
                   style={{
                     background: isActive ? palette.panelAlt : 'transparent',
                     color: palette.textPrimary,
@@ -138,7 +138,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
         {/* Chats */}
         <div className="px-4 pt-5">
           <div
-            className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]"
+            className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em]"
             style={{ color: palette.textMuted }}
           >
             Chats
@@ -170,8 +170,8 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] truncate">{chat.title}</div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px]" style={{ color: palette.textMuted }}>
+                  <div className="text-[14px] truncate">{chat.title}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[12px]" style={{ color: palette.textMuted }}>
                     <MessageSquareText className="h-3 w-3" />
                     {assistantCfg.label}
                   </div>
@@ -194,13 +194,13 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
         <div className="mt-auto border-t px-4 py-3" style={{ borderColor: palette.border }}>
           <button
             onClick={onBackToLanding}
-            className="mb-2 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:opacity-90"
+            className="mb-2 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors hover:opacity-90"
             style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.textSecondary }}
           >
             <ChevronLeft className="h-3 w-3" />
             Back to landing
           </button>
-          <div className="text-[11px]" style={{ color: palette.textMuted }}>
+          <div className="text-[12px]" style={{ color: palette.textMuted }}>
             Voice & Text · AI Assistant
           </div>
         </div>
