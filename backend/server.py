@@ -219,12 +219,13 @@ def strip_md_for_tts(text: str) -> str:
 async def voice_endpoint(ws: WebSocket):
     await ws.accept()
 
-    # Extract session_id from query params for per-chat RAG scoping
+    # Extract session_id and assistant type from query params
     session_id = ws.query_params.get("session_id", str(uuid.uuid4())[:12])
-    print(f"🔌 Client connected (session={session_id})")
+    assistant_key = ws.query_params.get("assistant", "")
+    print(f"🔌 Client connected (session={session_id}, assistant={assistant_key})")
 
     conversation_history = [
-        {"role": "system", "content": config.SYSTEM_PROMPT}
+        {"role": "system", "content": config.get_system_prompt(assistant_key)}
     ]
     pipeline_task = None
     # Debounce: wait briefly after receiving audio to catch rapid-fire VAD splits
@@ -274,7 +275,7 @@ async def voice_endpoint(ws: WebSocket):
             lang_instruction = " Respond in English only — the student's language is not supported for voice output."
 
         voice_messages = [
-            {"role": "system", "content": config.VOICE_SYSTEM_PROMPT + lang_instruction},
+            {"role": "system", "content": config.get_voice_system_prompt(assistant_key) + lang_instruction},
             *conversation_history[1:],
         ]
 

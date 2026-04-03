@@ -3,7 +3,7 @@ import Message from './Message'
 import { MatifyLogo } from './LandingPage'
 import { palette } from '../palette'
 
-export default function ChatArea({ messages, isBotResponding, mode }) {
+export default function ChatArea({ messages, isBotResponding, mode, assistantConfig, onTryClick }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -14,7 +14,7 @@ export default function ChatArea({ messages, isBotResponding, mode }) {
     <div className="relative flex min-h-0 flex-1 flex-col">
       {messages.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-6 py-8">
-          <div className="text-center">
+          <div className="text-center max-w-lg">
             <div
               className="mx-auto flex h-14 w-14 items-center justify-center rounded-[16px] border p-1.5"
               style={{ borderColor: 'rgba(29,155,240,0.22)', background: 'rgba(29,155,240,0.08)' }}
@@ -23,13 +23,39 @@ export default function ChatArea({ messages, isBotResponding, mode }) {
             </div>
 
             <h2 className="mt-5 text-xl font-semibold tracking-tight md:text-2xl" style={{ color: palette.textPrimary }}>
-              {mode === 'doc' ? 'Chat with Docs' : 'Chat with AI'}
+              {assistantConfig?.label || (mode === 'doc' ? 'Chat with Docs' : 'Chat with AI')}
             </h2>
             <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed" style={{ color: palette.textMuted }}>
-              {mode === 'doc'
-                ? 'Upload a file and ask questions about it'
-                : 'This is our SLM running in our own premise. We build the same with your data and deploy it to your premise.'}
+              {assistantConfig?.welcomeMessage ||
+                (mode === 'doc'
+                  ? 'Upload a file and ask questions about it'
+                  : 'This is our SLM running in our own premise. We build the same with your data and deploy it to your premise.')}
             </p>
+
+            {/* Try workflow buttons */}
+            {assistantConfig?.tryOptions && assistantConfig.tryOptions.length > 0 && (
+              <div className="mt-6">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-3" style={{ color: palette.textMuted }}>
+                  Try
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {assistantConfig.tryOptions.map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={() => onTryClick?.(opt.message)}
+                      className="rounded-full border px-4 py-2 text-[13px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
+                      style={{
+                        borderColor: palette.borderStrong,
+                        background: palette.panel,
+                        color: palette.textPrimary,
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

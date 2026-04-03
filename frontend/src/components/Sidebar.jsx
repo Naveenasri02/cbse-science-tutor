@@ -1,11 +1,72 @@
-import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, MessageSquareText } from 'lucide-react'
+import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Landmark, MessageSquareText } from 'lucide-react'
 import { palette } from '../palette'
 
 export const ASSISTANTS = [
-  { key: 'legal',    label: 'Legal Assistant',      icon: Scale,          mode: 'doc',   voice: true },
-  { key: 'tutor',    label: 'AI Tutor',             icon: GraduationCap,  mode: 'doc',   voice: true },
-  { key: 'employee', label: 'Employee Assistance',  icon: Briefcase,      mode: 'doc',   voice: true },
-  { key: 'customer', label: 'Customer Service',     icon: Headset,        mode: 'doc',   voice: true },
+  {
+    key: 'legal',
+    label: 'Legal Assistant',
+    icon: Scale,
+    mode: 'doc',
+    voice: true,
+    welcomeMessage: 'Private, enterprise-grade Legal Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
+    tryOptions: [
+      { label: 'Due diligence', message: 'I want help with due diligence' },
+      { label: 'Contract analysis', message: 'I want help with contract analysis' },
+      { label: 'Compliance lookup', message: 'I want help with compliance lookup' },
+    ],
+  },
+  {
+    key: 'teaching',
+    label: 'Teaching Assistant',
+    icon: GraduationCap,
+    mode: 'doc',
+    voice: true,
+    welcomeMessage: 'Private, enterprise-grade Teaching Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
+    tryOptions: [
+      { label: 'Curriculum doubt solving', message: 'I want help with curriculum doubt solving' },
+      { label: 'Lesson plan creation', message: 'I want help with lesson plan creation' },
+      { label: 'Exam preparation', message: 'I want help with exam preparation' },
+    ],
+  },
+  {
+    key: 'employee',
+    label: 'Employee Assistant',
+    icon: Briefcase,
+    mode: 'doc',
+    voice: true,
+    welcomeMessage: 'Private, enterprise-grade Employee Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
+    tryOptions: [
+      { label: 'HR policy support', message: 'I want help with HR policy support' },
+      { label: 'Employee onboarding', message: 'I want help with employee onboarding' },
+      { label: 'IT helpdesk guidance', message: 'I want help with IT helpdesk guidance' },
+    ],
+  },
+  {
+    key: 'customer',
+    label: 'Customer Assistant',
+    icon: Headset,
+    mode: 'doc',
+    voice: true,
+    welcomeMessage: 'Private, enterprise-grade Customer Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
+    tryOptions: [
+      { label: 'Product discovery', message: 'I want help with product discovery' },
+      { label: 'Issue troubleshooting', message: 'I want help with issue troubleshooting' },
+      { label: 'Policy clarification', message: 'I want help with policy clarification' },
+    ],
+  },
+  {
+    key: 'banking',
+    label: 'Banking & Insurance',
+    icon: Landmark,
+    mode: 'doc',
+    voice: true,
+    welcomeMessage: 'Private, enterprise-grade Banking & Insurance Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
+    tryOptions: [
+      { label: 'Policy lookup', message: 'I want help with policy and product lookup' },
+      { label: 'Claims guidance', message: 'I want help with claims and service guidance' },
+      { label: 'Compliance support', message: 'I want help with compliance and regulatory support' },
+    ],
+  },
 ]
 
 export default function Sidebar({ chats, activeChatId, activeAssistant, onSelectAssistant, onSwitchChat, onDeleteChat, open, onClose, onBackToLanding }) {

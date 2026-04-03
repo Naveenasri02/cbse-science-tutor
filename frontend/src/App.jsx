@@ -36,8 +36,8 @@ export default function App() {
   // Documents (RAG) — pass ref so session ID is always current
   const { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments } = useDocuments(sessionIdRef)
 
-  // WebSocket URL with session_id for per-chat RAG scoping
-  const wsUrl = `${WS_URL}?session_id=${sessionIdRef.current}`
+  // WebSocket URL with session_id for per-chat RAG scoping + assistant key for system prompt
+  const wsUrl = `${WS_URL}?session_id=${sessionIdRef.current}&assistant=${activeAssistant}`
 
   const addMsg = useCallback((role, text, chatId) => {
     setChats(prev => prev.map(c =>
@@ -303,7 +303,7 @@ export default function App() {
     reconnect()
   }
 
-  const activeAssistantCfg = ASSISTANTS.find(a => a.key === activeAssistant) || ASSISTANTS[1]
+  const activeAssistantCfg = ASSISTANTS.find(a => a.key === activeAssistant) || ASSISTANTS[0]
 
   // Landing page
   if (pageMode === 'landing') {
@@ -356,7 +356,13 @@ export default function App() {
           </div>
         </header>
 
-        <ChatArea messages={activeChat.messages} isBotResponding={isBotResponding} mode={activeChat.mode} />
+        <ChatArea
+          messages={activeChat.messages}
+          isBotResponding={isBotResponding}
+          mode={activeChat.mode}
+          assistantConfig={activeAssistantCfg}
+          onTryClick={sendText}
+        />
         <InputBar
           onSend={sendText}
           onToggleVoice={toggleVoice}
