@@ -3,7 +3,7 @@ import { useRef, useCallback, useState } from 'react'
 export default function useAudioPlayer() {
   const queueRef = useRef([])
   const playingRef = useRef(false)
-  const sourceRef = useRef(null)
+  const activeSourcesRef = useRef([])
   const ctxRef = useRef(null)
   const gainRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -46,21 +46,21 @@ export default function useAudioPlayer() {
       src.buffer = audioBuffer
       src.connect(gainRef.current)
 
-      // Schedule gapless: use precise timing to avoid gaps/overlaps between chunks
       const now = ctx.currentTime
       const startAt = nextStartTimeRef.current > now ? nextStartTimeRef.current : now
       nextStartTimeRef.current = startAt + audioBuffer.duration
 
-      sourceRef.current = src
+      // Track all scheduled sources so stopPlayback can kill them all
+      activeSourcesRef.current.push(src)
 
       src.onended = () => {
-        sourceRef.current = null
-        playNext()
+        activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== src)
+        // Only chain to next if this source is still from current pipeline
+        if (pipelineId === pipelineIdRef.current) playNext()
       }
       src.start(startAt)
     } catch (err) {
       console.error('Audio decode error:', err)
-      sourceRef.current = null
       playNext()
     }
   }, [getCtx])
@@ -74,10 +74,11 @@ export default function useAudioPlayer() {
     pipelineIdRef.current++
     queueRef.current = []
     nextStartTimeRef.current = 0
-    if (sourceRef.current) {
-      try { sourceRef.current.stop(); sourceRef.current.disconnect() } catch {}
-      sourceRef.current = null
+    // Stop ALL scheduled/playing sources immediately
+    for (const src of activeSourcesRef.current) {
+      try { src.stop(); src.disconnect() } catch {}
     }
+    activeSourcesRef.current = []
     playingRef.current = false
     setIsPlaying(false)
   }, [])

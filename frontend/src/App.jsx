@@ -148,12 +148,12 @@ export default function App() {
 
   // Voice mode — realistic conversation flow
   const onSpeechDetected = useCallback(() => {
-    // Barge-in: instant audio stop using refs (not stale state)
+    // Barge-in: immediately stop audio playback
     if (isPlayingRef.current || isBotRespondingRef.current) {
-      interruptedRef.current = true
       stopPlayback()
-      setIsBotResponding(false)
-      isBotRespondingRef.current = false
+      // Don't set interruptedRef here — let the text continue accumulating
+      // in the chat so user can read the partial response.
+      // interruptedRef will be set when user's speech ends and new audio is sent.
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
@@ -162,6 +162,10 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
+    // Now mark interrupted — new query incoming, stop rendering old response
+    interruptedRef.current = true
+    setIsBotResponding(false)
+    isBotRespondingRef.current = false
     setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(audio.buffer)
