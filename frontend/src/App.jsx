@@ -18,9 +18,9 @@ function generateSessionId() {
 
 export default function App() {
   const [pageMode, setPageMode] = useState('landing')
-  const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'smart', assistant: 'tutor', messages: [] }])
+  const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'doc', assistant: 'legal', messages: [] }])
   const [activeChatId, setActiveChatId] = useState(1)
-  const [activeAssistant, setActiveAssistant] = useState('tutor')
+  const [activeAssistant, setActiveAssistant] = useState('legal')
   const [voiceActive, setVoiceActive] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState({ visible: false, cls: '', text: '' })
   const [isBotResponding, setIsBotResponding] = useState(false)
@@ -252,9 +252,18 @@ export default function App() {
     if (!cfg) return
     stopCurrentResponse()
     setActiveAssistant(assistantKey)
-    const id = chatIdCounter.current++
-    setChats(prev => [...prev, { id, title: 'New Chat', mode: cfg.mode, assistant: assistantKey, messages: [] }])
-    setActiveChatId(id)
+
+    // Find an existing empty chat for this assistant (no messages yet)
+    const existingEmpty = chats.find(c => c.assistant === assistantKey && c.messages.length === 0)
+    if (existingEmpty) {
+      // Reuse existing empty chat — no new chat needed
+      setActiveChatId(existingEmpty.id)
+    } else {
+      // All chats for this assistant have messages — create a new one
+      const id = chatIdCounter.current++
+      setChats(prev => [...prev, { id, title: 'New Chat', mode: cfg.mode, assistant: assistantKey, messages: [] }])
+      setActiveChatId(id)
+    }
     clearDocuments()
     sessionIdRef.current = generateSessionId()
     reconnect()
@@ -267,11 +276,11 @@ export default function App() {
       const next = prev.filter(c => c.id !== id)
       if (next.length === 0) {
         const newId = chatIdCounter.current++
-        next.push({ id: newId, title: 'New Chat', mode: 'smart', assistant: activeAssistant, messages: [] })
+        next.push({ id: newId, title: 'New Chat', mode: 'doc', assistant: activeAssistant, messages: [] })
         setActiveChatId(newId)
       } else if (activeChatId === id) {
         setActiveChatId(next[next.length - 1].id)
-        setActiveAssistant(next[next.length - 1].assistant || 'tutor')
+        setActiveAssistant(next[next.length - 1].assistant || 'legal')
       }
       return next
     })
