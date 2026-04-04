@@ -8,7 +8,6 @@ import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
-import VoiceOverlay from './components/VoiceOverlay'
 import { palette } from '@cbse/shared'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
@@ -439,11 +438,6 @@ export default function App() {
           />
         )}
       </div>
-
-      {/* Gemini Live-style full-screen voice overlay */}
-      {voiceActive && (
-        <VoiceOverlay status={voiceStatus} onClose={toggleVoice} />
-      )}
     </div>
   )
 }
