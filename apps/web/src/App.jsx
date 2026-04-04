@@ -28,7 +28,6 @@ export default function App() {
   const botBufferRef = useRef('')
   const chatIdCounter = useRef(2)
   const interruptedRef = useRef(false)
-  const ttsPlayingSinceRef = useRef(0)
   const processingTimerRef = useRef(null)
   const sessionIdRef = useRef(generateSessionId())
 
@@ -75,8 +74,6 @@ export default function App() {
   // WebSocket handler
   const onMessage = useCallback((msg, binary) => {
     if (binary) {
-      // Discard stale TTS audio from interrupted pipeline
-      if (interruptedRef.current) return
       playAudio(msg)
       return
     }
@@ -96,8 +93,6 @@ export default function App() {
         break
 
       case 'llm_start':
-        interruptedRef.current = false
-        stopPlayback()
         setIsBotResponding(true)
         isBotRespondingRef.current = true
         botBufferRef.current = ''
@@ -106,7 +101,6 @@ export default function App() {
         break
 
       case 'llm_delta': {
-        if (interruptedRef.current) break
         botBufferRef.current += msg.text
         updateLastBotMsg(botBufferRef.current)
         break
@@ -115,40 +109,26 @@ export default function App() {
       case 'llm_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
-        if (msg.interrupted) {
-          if (botBufferRef.current) updateLastBotMsg(botBufferRef.current + ' …')
-        }
         botBufferRef.current = ''
         break
 
       case 'tts_start':
-        if (!interruptedRef.current) {
-          setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking... 🎤' })
-          ttsPlayingSinceRef.current = Date.now()
-        }
+        setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
         break
 
       case 'tts_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
-        ttsPlayingSinceRef.current = 0
         if (voiceActive) {
-          if (!interruptedRef.current) {
-            // Normal completion: reset VAD for fresh listening
-            resetVoiceRef.current()
-            setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
-          }
-          // If interrupted: don't reset VAD — user is still speaking,
-          // let onSpeechEnd fire naturally to capture their audio
+          resetVoiceRef.current()
+          setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
           setVoiceStatus({ visible: false, cls: '', text: '' })
         }
         break
 
       case 'vad_no_speech':
-        interruptedRef.current = false
-        // Only show Listening if bot isn't actively speaking (grace period echo)
-        if (voiceActive && !isPlayingRef.current && ttsPlayingSinceRef.current === 0) {
+        if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         }
         break
@@ -168,83 +148,35 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — barge-in with AEC grace period (Gemini Live-style)
-  // ttsPlayingSinceRef > 0 catches the gap after llm_done where isPlayingRef
-  // can briefly go false between audio chunks but TTS hasn't finished yet
+  // Voice mode — simple: speak → send → wait for response → listen again
   const onSpeechDetected = useCallback(() => {
-    const botActive = isBotRespondingRef.current || isPlayingRef.current || ttsPlayingSinceRef.current > 0
-    if (botActive) {
-      // 600ms grace lets browser AEC converge (vs 1.5s before)
-      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 600) return
-      interruptedRef.current = true
-      stopPlayback()
-      setIsBotResponding(false)
-      isBotRespondingRef.current = false
-      ttsPlayingSinceRef.current = 0
-      if (ws.current?.readyState === WebSocket.OPEN) {
-        ws.current.send(JSON.stringify({ type: 'interrupt' }))
-      }
-    }
     setVoiceStatus({ visible: true, cls: 'recording', text: '🎤 Recording...' })
-  }, [stopPlayback, ws])
+  }, [])
 
   const onSpeechEnd = useCallback((audio) => {
-    const botActive = isBotRespondingRef.current || isPlayingRef.current || ttsPlayingSinceRef.current > 0
-    const inGracePeriod = botActive && ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 600
-
-    if (botActive && !inGracePeriod) {
-      // Past grace period — interrupt immediately on client side
-      interruptedRef.current = true
-      stopPlayback()
-      setIsBotResponding(false)
-      isBotRespondingRef.current = false
-      ttsPlayingSinceRef.current = 0
-      if (ws.current?.readyState === WebSocket.OPEN) {
-        ws.current.send(JSON.stringify({ type: 'interrupt' }))
-      }
-    }
-    // During grace period: no client-side interrupt, but still send audio.
-    // Backend STT-first approach filters echo vs real speech server-side.
-
-    if (!inGracePeriod) {
-      setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
-    }
+    setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
 
     // Safety timeout: if backend silently fails, auto-recover to Listening after 15s
     if (processingTimerRef.current) clearTimeout(processingTimerRef.current)
     processingTimerRef.current = setTimeout(() => {
       processingTimerRef.current = null
-      // Only recover if we're still stuck (no response came)
       if (!isBotRespondingRef.current && !isPlayingRef.current) {
         setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
-        interruptedRef.current = false
       }
     }, 15000)
 
-    // ALWAYS send audio — never drop user speech
+    // Send audio to backend
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(audio.buffer)
     }
-  }, [stopPlayback, ws])
+  }, [ws])
 
   const { startVoice, stopVoice, resetVoice } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
   resetVoiceRef.current = resetVoice
 
   const toggleVoice = async () => {
     if (voiceActive) {
-      // If bot is speaking, tap = interrupt (stop audio, resume VAD)
-      if (isPlayingRef.current || isBotRespondingRef.current) {
-        interruptedRef.current = true
-        stopPlayback()
-        setIsBotResponding(false)
-        isBotRespondingRef.current = false
-        if (ws.current?.readyState === WebSocket.OPEN) {
-          ws.current.send(JSON.stringify({ type: 'interrupt' }))
-        }
-        setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
-        return
-      }
-      // Otherwise, turn off voice mode
+      // Turn off voice mode
       stopVoice()
       stopPlayback()
       setVoiceActive(false)
