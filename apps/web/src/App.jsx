@@ -152,8 +152,8 @@ export default function App() {
   // Voice mode — instant barge-in on speech start
   const onSpeechDetected = useCallback(() => {
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      // Grace period: suppress during first 2s of TTS — echo from AEC convergence
-      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 2000) return
+      // Grace period: suppress during first 3.5s of TTS — AEC convergence needs time
+      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 3500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
@@ -169,8 +169,8 @@ export default function App() {
   const onSpeechEnd = useCallback((audio) => {
     // If bot is responding/playing, check for barge-in
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      // Grace period: suppress during first 2s of TTS — echo from AEC convergence
-      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 2000) return
+      // Grace period: suppress during first 3.5s of TTS — AEC convergence needs time
+      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 3500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)

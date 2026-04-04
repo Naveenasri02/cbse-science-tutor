@@ -591,7 +591,7 @@ async def voice_endpoint(ws: WebSocket):
                 async def _debounced_audio(audio_bytes, gen):
                     nonlocal _audio_generation, pipeline_task
                     # Brief wait to catch rapid-fire VAD segments
-                    await asyncio.sleep(0.30)
+                    await asyncio.sleep(0.15)
                     # If a newer audio chunk arrived during the wait, abandon this one
                     if gen != _audio_generation:
                         return

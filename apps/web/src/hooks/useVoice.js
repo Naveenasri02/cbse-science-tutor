@@ -22,11 +22,11 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: 0.5,
-        negativeSpeechThreshold: 0.35,
-        minSpeechMs: 250,
-        preSpeechPadMs: 400,
-        redemptionMs: 600,
+        positiveSpeechThreshold: 0.6,
+        negativeSpeechThreshold: 0.45,
+        minSpeechMs: 300,
+        preSpeechPadMs: 500,
+        redemptionMs: 1000,
 
         additionalAudioConstraints: {
           echoCancellation: true,
@@ -46,9 +46,9 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
           if (!activeRef.current) return
           notifiedRef.current = false
           if (audio.length < 1600) return
-          const bytes = new Uint8Array(
-            audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength)
-          )
+          // Copy audio correctly — avoid buffer offset corruption
+          const bytes = new Uint8Array(audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength))
+          if (bytes.length === 0) return
           onSpeechEndRef.current(bytes)
         },
 
