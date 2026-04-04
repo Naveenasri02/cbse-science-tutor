@@ -72,9 +72,6 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
       return true
     } catch (err) {
       console.error('VAD init error:', err)
-      // Surface the actual error for debugging
-      window.__vadError = err?.message || String(err)
-      // Reset so next attempt retries fresh
       vadRef.current = null
       initPromiseRef.current = null
       return false

@@ -214,12 +214,11 @@ export default function App() {
       if (ok) {
         setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
       } else {
-        const detail = window.__vadError || 'unknown'
-        setVoiceStatus({ visible: true, cls: 'error', text: `❌ Mic failed: ${detail}` })
+        setVoiceStatus({ visible: true, cls: 'error', text: '❌ Mic failed — check permissions' })
         setTimeout(() => {
           setVoiceActive(false)
           setVoiceStatus({ visible: false, cls: '', text: '' })
-        }, 5000)
+        }, 3000)
       }
     }
   }
