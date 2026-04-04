@@ -17,8 +17,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     if (initPromiseRef.current) return initPromiseRef.current
 
     initPromiseRef.current = (async () => {
-      const vad = await MicVAD.new({
-        model: 'v5',
+      const vadOptions = {
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
@@ -55,10 +54,19 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         onVADMisfire: () => {
           notifiedRef.current = false
         },
-      })
+      }
 
-      vadRef.current = vad
-      return vad
+      // Try v5 model first, fall back to legacy on mobile/older devices
+      try {
+        const vad = await MicVAD.new({ ...vadOptions, model: 'v5' })
+        vadRef.current = vad
+        return vad
+      } catch (e) {
+        console.warn('VAD v5 failed, trying legacy model:', e)
+        const vad = await MicVAD.new({ ...vadOptions, model: 'legacy' })
+        vadRef.current = vad
+        return vad
+      }
     })()
 
     return initPromiseRef.current
@@ -72,6 +80,9 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
       return true
     } catch (err) {
       console.error('VAD init error:', err)
+      // Reset so next attempt retries fresh
+      vadRef.current = null
+      initPromiseRef.current = null
       return false
     }
   }, [initVAD])
