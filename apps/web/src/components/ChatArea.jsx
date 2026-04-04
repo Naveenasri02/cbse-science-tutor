@@ -16,16 +16,16 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {showWelcome ? (
-        <div className="flex flex-1 items-center justify-center overflow-auto px-4 py-4 md:px-6 md:py-8">
+        <div className="flex flex-1 flex-col items-center justify-start overflow-auto px-4 pt-8 pb-4 sm:justify-center sm:pt-4 md:px-6 md:py-8">
           <div className="text-center max-w-lg w-full">
             <div
-              className="mx-auto flex h-12 w-12 md:h-14 md:w-14 items-center justify-center rounded-[16px] border p-1.5"
-              style={{ borderColor: 'rgba(29,155,240,0.22)', background: 'rgba(29,155,240,0.08)' }}
+              className="mx-auto flex h-16 w-16 md:h-14 md:w-14 items-center justify-center rounded-[18px] border-2 p-2"
+              style={{ borderColor: 'rgba(29,155,240,0.35)', background: 'rgba(29,155,240,0.12)' }}
             >
               <MatifyLogo className="h-full w-full rounded-[12px] object-cover" />
             </div>
 
-            <h2 className="mt-3 text-xl font-semibold tracking-tight md:mt-5 md:text-3xl" style={{ color: palette.textPrimary }}>
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-xl md:mt-5 md:text-3xl" style={{ color: palette.textPrimary }}>
               {assistantConfig?.label || 'AI Assistant'}
             </h2>
             <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed md:mt-3 md:text-[15px]" style={{ color: palette.textMuted }}>
@@ -38,8 +38,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] mb-3 md:mb-4" style={{ color: palette.textMuted }}>
                   Try a workflow
                 </p>
-                <div
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mx-auto"
+                <div className="flex flex-col gap-2.5 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-3 mx-auto"
                   style={{ maxWidth: assistantConfig.tryOptions.length <= 3 ? '480px' : '640px' }}
                 >
                   {assistantConfig.tryOptions.map((opt) => {
@@ -48,10 +47,10 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                       <button
                         key={opt.label}
                         onClick={() => onTryClick?.(opt.message, opt.label)}
-                        className="group flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2.5 rounded-2xl border px-3 py-3 sm:px-4 sm:py-5 transition-all duration-200 hover:scale-[1.04] active:scale-[0.97] min-h-[48px]"
+                        className="group flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2.5 rounded-2xl border px-4 py-3.5 sm:px-4 sm:py-5 transition-all duration-200 hover:scale-[1.04] active:scale-[0.97] min-h-[52px]"
                         style={{
-                          borderColor: palette.border,
-                          background: palette.panel,
+                          borderColor: 'rgba(29,155,240,0.25)',
+                          background: 'rgba(29,155,240,0.06)',
                           color: palette.textPrimary,
                         }}
                         onMouseEnter={(e) => {

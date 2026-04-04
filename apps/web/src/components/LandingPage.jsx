@@ -134,11 +134,13 @@ export default function LandingPage({ onTryDemo }) {
               className="mx-auto max-w-[600px] font-semibold tracking-tight sm:max-w-[720px] md:max-w-[1400px]"
               style={{
                 color: palette.textPrimary,
-                fontSize: 'clamp(1.25rem, 4.5vw, 4.5rem)',
+                fontSize: 'clamp(1.5rem, 5.5vw, 4.5rem)',
                 lineHeight: 1.15,
               }}
             >
-              Who owns the AI you are using?
+              Who owns the AI
+              <br className="sm:hidden" />
+              {' '}you are using?
               <br className="hidden sm:block" />
               <span className="sm:hidden"> </span>
               And how secure is your data?

@@ -241,10 +241,16 @@ export default function App() {
 
   const sendText = (text) => {
     if (!text.trim() || !ws.current || ws.current.readyState !== WebSocket.OPEN) return
+    // Auto-select first workflow if user types before choosing one
+    if (!activeChat.workflow && activeAssistantCfg.tryOptions?.length > 0) {
+      const defaultWf = activeAssistantCfg.tryOptions[0].message
+      setChats(prev => prev.map(c =>
+        c.id === activeChatId ? { ...c, workflow: defaultWf } : c
+      ))
+    }
     addMsg('user', text.trim())
     updateChatTitle(text.trim())
     const payload = { type: 'text_chat', text: text.trim() }
-    // Send active workflow so backend knows the selected workflow context
     if (activeChat.workflow) payload.workflow = activeChat.workflow
     ws.current.send(JSON.stringify(payload))
   }
@@ -373,22 +379,21 @@ export default function App() {
           onTryClick={handleTryClick}
           workflow={activeChat.workflow}
         />
-        {activeChat.workflow && (
-          <InputBar
-            onSend={sendText}
-            onToggleVoice={toggleVoice}
-            voiceActive={voiceActive}
-            voiceStatus={voiceStatus}
-            disabled={!connected}
-            onUpload={uploadFile}
-            documents={documents}
-            onDeleteDoc={deleteDocument}
-            uploading={uploading}
-            uploadProgress={uploadProgress}
-            mode={activeChat.mode}
-            voiceEnabled={activeAssistantCfg.voice}
-          />
-        )}
+        <InputBar
+          onSend={sendText}
+          onToggleVoice={toggleVoice}
+          voiceActive={voiceActive}
+          voiceStatus={voiceStatus}
+          disabled={!connected}
+          onUpload={uploadFile}
+          documents={documents}
+          onDeleteDoc={deleteDocument}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+          mode={activeChat.mode}
+          voiceEnabled={activeAssistantCfg.voice}
+          hasWorkflow={!!activeChat.workflow}
+        />
       </div>
 
     </div>

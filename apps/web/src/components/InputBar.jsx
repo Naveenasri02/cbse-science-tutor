@@ -11,7 +11,7 @@ const VOICE_COLORS = {
   error: '#ef4444',
 }
 
-export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress, mode, voiceEnabled = true }) {
+export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress, mode, voiceEnabled = true, hasWorkflow = true }) {
   const showUpload = mode === 'doc'
   const showVoice = voiceEnabled
   const [text, setText] = useState('')
@@ -108,7 +108,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKey}
             disabled={disabled || voiceActive}
-            placeholder={voiceActive ? 'Listening — speak or tap mic to stop' : 'Send a message...'}
+            placeholder={voiceActive ? 'Listening — speak or tap mic to stop' : hasWorkflow ? 'Send a message...' : 'Pick a topic above or just type here...'}
             className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-base md:text-[15px] outline-none placeholder:opacity-50"
             style={{ color: palette.textPrimary }}
           />
