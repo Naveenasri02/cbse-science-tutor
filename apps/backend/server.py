@@ -103,6 +103,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ── Warmup vLLM on first startup (prevents cold-start truncation) ──
+@app.on_event("startup")
+async def warmup_llm():
+    """Send a short warmup request to vLLM so first real query isn't slow."""
+    try:
+        warmup_prompt = "<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n"
+        resp = await _llm_http.post("/v1/completions", json={
+            "prompt": warmup_prompt,
+            "max_tokens": 8,
+            "temperature": 0,
+            "stop": ["<|im_end|>"],
+        })
+        if resp.status_code == 200:
+            print("  ✓ LLM warmup done")
+        else:
+            print(f"  ⚠️ LLM warmup returned {resp.status_code} (vLLM may still be loading)")
+    except Exception as e:
+        print(f"  ⚠️ LLM warmup skipped ({e}) — will warm on first request")
+
 # ── RAG Document Upload API ────────────────────────────────
 
 @app.post("/api/upload")
@@ -345,6 +365,9 @@ async def voice_endpoint(ws: WebSocket):
                     "cache_prompt": True,
                 },
             ) as resp:
+                if resp.status_code != 200:
+                    body = await resp.aread()
+                    raise RuntimeError(f"vLLM returned {resp.status_code}: {body.decode()[:200]}")
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
@@ -502,6 +525,9 @@ async def voice_endpoint(ws: WebSocket):
                                     "cache_prompt": True,
                                 },
                             ) as resp:
+                                if resp.status_code != 200:
+                                    body = await resp.aread()
+                                    raise RuntimeError(f"vLLM returned {resp.status_code}: {body.decode()[:200]}")
                                 async for line in resp.aiter_lines():
                                     if not line.startswith("data: ") or line == "data: [DONE]":
                                         continue
@@ -515,7 +541,17 @@ async def voice_endpoint(ws: WebSocket):
                                         await ws.send_json({"type": "llm_delta", "text": delta})
                         except Exception as e:
                             print(f"❌ Text LLM error: {e}")
-                            await ws.send_json({"type": "error", "text": str(e)})
+                            import traceback; traceback.print_exc()
+                            try:
+                                await ws.send_json({"type": "error", "text": str(e)})
+                                await ws.send_json({"type": "llm_done"})
+                            except Exception:
+                                pass
+                            # Save partial reply if any
+                            if full_reply:
+                                conversation_history.append({"role": "assistant", "content": full_reply.strip()})
+                                if len(conversation_history) > 21:
+                                    del conversation_history[1:-20]
                             continue
 
                         await ws.send_json({"type": "llm_done"})
