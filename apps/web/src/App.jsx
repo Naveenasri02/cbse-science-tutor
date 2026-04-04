@@ -133,8 +133,17 @@ export default function App() {
           if (!interruptedRef.current) {
             resetVoiceRef.current()
             setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+          } else {
+            // Interrupted: user might still be speaking. Safety timer recovers if
+            // VAD misfires (speech too short → no audio sent → no vad_no_speech).
+            setTimeout(() => {
+              if (interruptedRef.current && !isBotRespondingRef.current && !isPlayingRef.current) {
+                interruptedRef.current = false
+                resetVoiceRef.current()
+                setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+              }
+            }, 3000)
           }
-          // If interrupted: VAD is still capturing user speech, don't reset
         } else {
           setVoiceStatus({ visible: false, cls: '', text: '' })
         }
@@ -143,6 +152,7 @@ export default function App() {
       case 'vad_no_speech':
         interruptedRef.current = false
         if (voiceActive) {
+          resetVoiceRef.current()
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         }
         break
