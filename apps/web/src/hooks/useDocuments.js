@@ -35,7 +35,7 @@ export default function useDocuments(sessionIdRef) {
       throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max: 50 MB`)
     }
 
-    const allowed = ['.pdf', '.docx', '.doc', '.txt', '.md', '.csv', '.pptx', '.xlsx']
+    const allowed = ['.pdf', '.docx', '.doc', '.txt', '.md', '.csv', '.pptx', '.xlsx', '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.webp', '.gif']
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
     if (!allowed.includes(ext)) {
       throw new Error(`Unsupported file type. Supported: ${allowed.join(', ')}`)

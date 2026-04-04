@@ -11,6 +11,13 @@ try:
 except ImportError:
     _HAS_OCR = False
 
+# Image support via Pillow
+try:
+    from PIL import Image
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
+
 
 # ── Utilities ────────────────────────────────────────────────────────────
 
@@ -615,6 +622,41 @@ def parse_xlsx(file_bytes: bytes) -> str:
     return "\n\n".join(sheets)
 
 
+def parse_image(file_bytes: bytes) -> str:
+    """Extract text from an image using OCR."""
+    global _ocr_reader
+
+    if not _HAS_PIL:
+        raise ValueError("Pillow is required for image processing. Install with: pip install Pillow")
+
+    img = Image.open(io.BytesIO(file_bytes))
+    # Convert to RGB if needed (e.g., RGBA PNGs, palette images)
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+
+    if _HAS_OCR:
+        if _ocr_reader is None:
+            _ocr_reader = easyocr.Reader(["en"], gpu=True)
+        import numpy as np
+        img_array = np.array(img)
+        results = _ocr_reader.readtext(img_array, detail=0, paragraph=True)
+        text = "\n".join(results)
+    else:
+        # Fallback: try pytesseract
+        try:
+            import pytesseract
+            text = pytesseract.image_to_string(img)
+        except ImportError:
+            raise ValueError(
+                "No OCR engine available. Install easyocr (pip install easyocr) "
+                "or pytesseract (pip install pytesseract + system tesseract)."
+            )
+
+    if not text.strip():
+        raise ValueError("No text could be extracted from the image.")
+    return text
+
+
 # ── Non-PDF chunking helper ─────────────────────────────────────────────
 
 
@@ -644,6 +686,8 @@ SUPPORTED_EXTENSIONS = {
     ".pdf", ".docx", ".doc",
     ".txt", ".md", ".csv",
     ".pptx", ".xlsx",
+    ".png", ".jpg", ".jpeg", ".bmp",
+    ".tiff", ".tif", ".webp", ".gif",
 }
 
 
@@ -683,6 +727,8 @@ def process_document(file_bytes: bytes, filename: str) -> list[dict]:
         text = parse_pptx(file_bytes)
     elif lower.endswith(".xlsx"):
         text = parse_xlsx(file_bytes)
+    elif lower.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".webp", ".gif")):
+        text = parse_image(file_bytes)
     else:
         raise ValueError(
             f"Unsupported file format: {filename}. "

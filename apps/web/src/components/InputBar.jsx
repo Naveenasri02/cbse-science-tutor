@@ -85,7 +85,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.docx,.doc,.txt,.md,.csv,.pptx,.xlsx"
+            accept=".pdf,.docx,.doc,.txt,.md,.csv,.pptx,.xlsx,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.webp,.gif"
             onChange={handleFileSelect}
             className="hidden"
           />
