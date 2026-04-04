@@ -30,15 +30,15 @@ _stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 
 print("🔧 Loading models...")
 
-print("  [1/4] TTS engine...")
-from tts.kokoro_tts import KokoroTTS
-tts = KokoroTTS()
-print("  ✓ TTS ready")
-
-print("  [2/4] STT...")
+print("  [1/4] STT (torch/NeMo must load before ONNX to avoid CUDA conflict)...")
 from stt.parakeet_stt import ParakeetSTT
 stt = ParakeetSTT()
 print("  ✓ STT ready")
+
+print("  [2/4] TTS engine...")
+from tts.kokoro_tts import KokoroTTS
+tts = KokoroTTS()
+print("  ✓ TTS ready")
 
 print("  [3/4] LLM client...")
 from openai import AsyncOpenAI
