@@ -379,21 +379,22 @@ export default function App() {
           onTryClick={handleTryClick}
           workflow={activeChat.workflow}
         />
-        <InputBar
-          onSend={sendText}
-          onToggleVoice={toggleVoice}
-          voiceActive={voiceActive}
-          voiceStatus={voiceStatus}
-          disabled={!connected}
-          onUpload={uploadFile}
-          documents={documents}
-          onDeleteDoc={deleteDocument}
-          uploading={uploading}
-          uploadProgress={uploadProgress}
-          mode={activeChat.mode}
-          voiceEnabled={activeAssistantCfg.voice}
-          hasWorkflow={!!activeChat.workflow}
-        />
+        {activeChat.workflow && (
+          <InputBar
+            onSend={sendText}
+            onToggleVoice={toggleVoice}
+            voiceActive={voiceActive}
+            voiceStatus={voiceStatus}
+            disabled={!connected}
+            onUpload={uploadFile}
+            documents={documents}
+            onDeleteDoc={deleteDocument}
+            uploading={uploading}
+            uploadProgress={uploadProgress}
+            mode={activeChat.mode}
+            voiceEnabled={activeAssistantCfg.voice}
+          />
+        )}
       </div>
 
     </div>
