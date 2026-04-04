@@ -57,9 +57,9 @@ function BrandHeader() {
 
 function LandingFooter() {
   return (
-    <footer className="mt-10">
+    <footer className="mt-6 sm:mt-10">
       <section
-        className="rounded-[28px] border px-6 py-7 md:px-8 md:py-8"
+        className="rounded-2xl sm:rounded-[28px] border px-4 py-5 sm:px-6 sm:py-7 md:px-8 md:py-8"
         style={{ borderColor: palette.border, background: palette.panel }}
       >
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
@@ -116,26 +116,26 @@ function LandingFooter() {
 
 export default function LandingPage({ onTryDemo }) {
   return (
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-4 sm:px-6 md:px-8 md:py-6 lg:px-10">
+    <div className="min-h-dvh w-full overflow-x-hidden overflow-y-auto" style={{ background: palette.bg, color: palette.textPrimary }}>
+      <div className="mx-auto flex min-h-dvh max-w-7xl flex-col px-4 py-3 sm:px-6 sm:py-4 md:px-8 md:py-6 lg:px-10">
         <BrandHeader />
 
-        <main className="flex flex-1 items-center justify-center py-8 sm:py-10 md:py-12">
+        <main className="flex flex-1 items-center justify-center py-6 sm:py-10 md:py-12">
           <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
             <div
-              className="mb-4 sm:mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.18em]"
+              className="mb-3 sm:mb-5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em]"
               style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.primary }}
             >
-              <ShieldCheck className="h-3.5 w-3.5" />
+              <ShieldCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               Own Your AI
             </div>
 
             <h1
-              className="mx-auto max-w-[720px] font-semibold tracking-tight md:max-w-[1400px]"
+              className="mx-auto max-w-[600px] font-semibold tracking-tight sm:max-w-[720px] md:max-w-[1400px]"
               style={{
                 color: palette.textPrimary,
-                fontSize: 'clamp(1.35rem, 5vw, 4.5rem)',
-                lineHeight: 1.2,
+                fontSize: 'clamp(1.25rem, 4.5vw, 4.5rem)',
+                lineHeight: 1.15,
               }}
             >
               Who owns the AI you are using?
@@ -145,16 +145,16 @@ export default function LandingPage({ onTryDemo }) {
             </h1>
 
             <p
-              className="mx-auto mt-4 max-w-md text-[0.9rem] leading-relaxed sm:mt-5 sm:max-w-2xl sm:text-base md:text-lg md:leading-7"
+              className="mx-auto mt-3 max-w-sm text-[0.85rem] leading-relaxed sm:mt-5 sm:max-w-2xl sm:text-base md:text-lg md:leading-7"
               style={{ color: palette.textSecondary }}
             >
               We build GPT for your business using your data, deploy it on your server, and keep your data inside your premise.
             </p>
 
-            <div className="mt-6 sm:mt-8 flex justify-center gap-3">
+            <div className="mt-5 sm:mt-8 flex justify-center">
               <button
                 onClick={onTryDemo}
-                className="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-semibold transition-all hover:-translate-y-0.5 active:scale-95 min-h-[48px]"
+                className="inline-flex items-center gap-2 rounded-2xl px-7 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 active:scale-95 min-h-[48px]"
                 style={{
                   background: palette.primary,
                   color: 'white',

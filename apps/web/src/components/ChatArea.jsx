@@ -14,28 +14,28 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
   const showWelcome = !workflow && messages.length === 0
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {showWelcome ? (
-        <div className="flex flex-1 items-center justify-center px-4 py-6 md:px-6 md:py-8">
-          <div className="text-center max-w-lg">
+        <div className="flex flex-1 items-center justify-center overflow-auto px-4 py-4 md:px-6 md:py-8">
+          <div className="text-center max-w-lg w-full">
             <div
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-[16px] border p-1.5"
+              className="mx-auto flex h-12 w-12 md:h-14 md:w-14 items-center justify-center rounded-[16px] border p-1.5"
               style={{ borderColor: 'rgba(29,155,240,0.22)', background: 'rgba(29,155,240,0.08)' }}
             >
               <MatifyLogo className="h-full w-full rounded-[12px] object-cover" />
             </div>
 
-            <h2 className="mt-5 text-2xl font-semibold tracking-tight md:text-3xl" style={{ color: palette.textPrimary }}>
+            <h2 className="mt-3 text-xl font-semibold tracking-tight md:mt-5 md:text-3xl" style={{ color: palette.textPrimary }}>
               {assistantConfig?.label || 'AI Assistant'}
             </h2>
-            <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed" style={{ color: palette.textMuted }}>
+            <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed md:mt-3 md:text-[15px]" style={{ color: palette.textMuted }}>
               {assistantConfig?.welcomeMessage || 'Select a workflow to get started.'}
             </p>
 
             {/* Workflow cards */}
             {assistantConfig?.tryOptions && assistantConfig.tryOptions.length > 0 && (
-              <div className="mt-10">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] mb-4" style={{ color: palette.textMuted }}>
+              <div className="mt-6 md:mt-10">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] mb-3 md:mb-4" style={{ color: palette.textMuted }}>
                   Try a workflow
                 </p>
                 <div
@@ -48,7 +48,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                       <button
                         key={opt.label}
                         onClick={() => onTryClick?.(opt.message, opt.label)}
-                        className="group flex flex-col items-center gap-2.5 rounded-2xl border px-4 py-5 transition-all duration-200 hover:scale-[1.04] active:scale-[0.97]"
+                        className="group flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2.5 rounded-2xl border px-3 py-3 sm:px-4 sm:py-5 transition-all duration-200 hover:scale-[1.04] active:scale-[0.97] min-h-[48px]"
                         style={{
                           borderColor: palette.border,
                           background: palette.panel,
@@ -64,7 +64,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                         }}
                       >
                         <div
-                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl"
                           style={{ background: 'rgba(29,155,240,0.1)' }}
                         >
                           {Icon && <Icon size={20} style={{ color: palette.primary }} />}
@@ -79,7 +79,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto px-3 pb-24 pt-5 md:px-6 md:pb-32 lg:px-8 scrollbar-thin">
+        <div className="flex-1 overflow-auto px-3 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 scrollbar-thin">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
             {messages.map((msg, idx) => (
               <Message

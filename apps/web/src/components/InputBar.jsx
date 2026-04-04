@@ -45,7 +45,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
   const statusColor = voiceActive ? (VOICE_COLORS[voiceStatus?.cls] || VOICE_COLORS.listening) : null
 
   return (
-    <div className="sticky bottom-0 z-10 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5" style={{ background: `linear-gradient(transparent, ${palette.bg} 12px)` }}>
+    <div className="sticky bottom-0 z-10 shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:px-6 md:pb-5 md:pt-2" style={{ background: palette.bg }}>
       <div className="mx-auto max-w-3xl">
         {/* Inline voice status pill */}
         {voiceActive && voiceStatus?.text && (
@@ -146,7 +146,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             </button>
           )}
         </div>
-        <div className="mt-2 text-center text-[12px]" style={{ color: palette.textMuted }}>
+        <div className="mt-1.5 text-center text-[11px] md:text-[12px] md:mt-2" style={{ color: palette.textMuted }}>
           AI-powered answers · Voice & Text
         </div>
       </div>
