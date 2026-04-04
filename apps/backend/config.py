@@ -480,8 +480,8 @@ TTS_SUPPORTED_LANGS = set(LANG_VOICE_MAP.keys())
 # ── RAG (Document Q&A) ──
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/workspace/vector_db")
-RAG_TOP_K = int(os.getenv("RAG_TOP_K", "10"))
-RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "4000"))
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
+RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "2000"))
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "300"))       # tokens per chunk
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "30"))   # overlap between chunks
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(50 * 1024 * 1024)))  # 50 MB
