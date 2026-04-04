@@ -14,6 +14,8 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #323232; border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #444; }
+  /* Enable momentum scrolling on iOS */
+  .overflow-y-auto, .overflow-auto { -webkit-overflow-scrolling: touch; }
   textarea, input { font-family: inherit; }
   @supports (padding: env(safe-area-inset-bottom)) {
     body {

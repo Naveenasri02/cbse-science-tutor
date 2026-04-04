@@ -116,8 +116,8 @@ function LandingFooter() {
 
 export default function LandingPage({ onTryDemo }) {
   return (
-    <div className="min-h-dvh w-full overflow-x-hidden overflow-y-auto" style={{ background: palette.bg, color: palette.textPrimary }}>
-      <div className="mx-auto flex min-h-dvh max-w-7xl flex-col px-4 py-3 sm:px-6 sm:py-4 md:px-8 md:py-6 lg:px-10">
+    <div className="h-dvh w-full overflow-x-hidden overflow-y-auto -webkit-overflow-scrolling-touch" style={{ background: palette.bg, color: palette.textPrimary }}>
+      <div className="mx-auto flex min-h-full max-w-7xl flex-col px-4 py-3 sm:px-6 sm:py-4 md:px-8 md:py-6 lg:px-10">
         <BrandHeader />
 
         <main className="flex flex-1 items-center justify-center py-6 sm:py-10 md:py-12">
