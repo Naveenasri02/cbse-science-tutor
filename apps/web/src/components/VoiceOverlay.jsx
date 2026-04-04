@@ -14,7 +14,7 @@ export default function VoiceOverlay({ status, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center voice-overlay-bg animate-overlay-in">
       {/* Animated rings */}
-      <div className="relative flex items-center justify-center w-80 h-80">
+      <div className="relative flex items-center justify-center w-60 h-60 sm:w-80 sm:h-80">
         <div className={`voice-ring ring-outer ${status.cls}`} style={{ borderColor: cfg.color }} />
         <div className={`voice-ring ring-mid ${status.cls}`} style={{ borderColor: cfg.color }} />
         <div className={`voice-ring ring-inner ${status.cls}`} style={{ borderColor: cfg.color }} />
@@ -27,7 +27,7 @@ export default function VoiceOverlay({ status, onClose }) {
             boxShadow: `0 0 80px ${cfg.color}25, 0 0 160px ${cfg.color}08`,
           }}
         >
-          <Mic className="w-12 h-12" style={{ color: cfg.color }} />
+          <Mic className="w-8 h-8 sm:w-12 sm:h-12" style={{ color: cfg.color }} />
         </div>
       </div>
 
@@ -40,7 +40,7 @@ export default function VoiceOverlay({ status, onClose }) {
       {/* End button */}
       <button
         onClick={onClose}
-        className="mt-14 w-14 h-14 rounded-full bg-[#ef4444]/15 hover:bg-[#ef4444]/30
+        className="mt-8 sm:mt-14 w-14 h-14 rounded-full bg-[#ef4444]/15 hover:bg-[#ef4444]/30
                    border border-[#ef4444]/30 flex items-center justify-center
                    transition-all duration-200 group"
       >

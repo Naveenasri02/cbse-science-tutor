@@ -222,6 +222,7 @@ async def voice_endpoint(ws: WebSocket):
     # Extract session_id and assistant type from query params
     session_id = ws.query_params.get("session_id", str(uuid.uuid4())[:12])
     assistant_key = ws.query_params.get("assistant", "")
+    active_workflow = ""  # Updated when client sends workflow in text_chat
     print(f"🔌 Client connected (session={session_id}, assistant={assistant_key})")
 
     conversation_history = [
@@ -275,7 +276,7 @@ async def voice_endpoint(ws: WebSocket):
             lang_instruction = " Respond in English only — the student's language is not supported for voice output."
 
         voice_messages = [
-            {"role": "system", "content": config.get_voice_system_prompt(assistant_key) + lang_instruction},
+            {"role": "system", "content": config.get_voice_system_prompt(assistant_key, active_workflow) + lang_instruction},
             *conversation_history[1:],
         ]
 
@@ -439,9 +440,29 @@ async def voice_endpoint(ws: WebSocket):
                 elif msg_type == "text_chat":
                     user_text = data.get("text", "").strip()
                     want_tts = data.get("tts", False)
+                    # Track workflow selection from frontend
+                    msg_workflow = data.get("workflow", "")
+                    if msg_workflow:
+                        active_workflow = msg_workflow
                     if not user_text:
                         continue
-                    print(f"💬 Text chat: {user_text[:60]}")
+                    print(f"💬 Text chat: {user_text[:60]} (workflow={active_workflow[:30]})")
+
+                    # ── Document-required gate (code-level enforcement) ──
+                    # If assistant is a known role and no documents uploaded, enforce upload first
+                    if assistant_key in config.ASSISTANT_ROLES:
+                        loop = asyncio.get_event_loop()
+                        has_docs = await loop.run_in_executor(_rag_executor, rag.has_documents, session_id)
+                        if not has_docs:
+                            upload_msg = config.get_upload_message(assistant_key)
+                            await ws.send_json({"type": "llm_start"})
+                            await ws.send_json({"type": "llm_delta", "text": upload_msg})
+                            await ws.send_json({"type": "llm_done"})
+                            if want_tts:
+                                await _send_tts(ws, upload_msg)
+                                await ws.send_json({"type": "tts_done"})
+                            print(f"📄 Document gate: no docs, sent upload message")
+                            continue
 
                     # Topic filter
                     if not config.is_topic_related(user_text):
@@ -451,6 +472,8 @@ async def voice_endpoint(ws: WebSocket):
                         continue
 
                     conversation_history.append({"role": "user", "content": user_text})
+                    # Update system prompt with current workflow context
+                    conversation_history[0] = {"role": "system", "content": config.get_system_prompt(assistant_key, active_workflow)}
 
                     if want_tts:
                         # Parallel LLM + TTS: response is streamed as text AND read aloud
@@ -463,6 +486,20 @@ async def voice_endpoint(ws: WebSocket):
                         text_messages = list(conversation_history)
                         loop = asyncio.get_event_loop()
                         rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, user_text)
+
+                        # ── RAG-only mode: if docs exist but no relevant context found ──
+                        if assistant_key in config.ASSISTANT_ROLES and not rag_context:
+                            has_docs = await loop.run_in_executor(_rag_executor, rag.has_documents, session_id)
+                            if has_docs:
+                                no_match_msg = "I couldn't find information about that in your uploaded documents. Please try rephrasing your question, or upload additional relevant documents."
+                                await ws.send_json({"type": "llm_delta", "text": no_match_msg})
+                                await ws.send_json({"type": "llm_done"})
+                                conversation_history.append({"role": "assistant", "content": no_match_msg})
+                                if len(conversation_history) > 21:
+                                    del conversation_history[1:-20]
+                                print(f"📄 RAG-only: docs exist but no context match")
+                                continue
+
                         if rag_context:
                             text_messages[0] = {"role": "system", "content": text_messages[0]["content"] + rag_context}
 
@@ -590,6 +627,20 @@ async def voice_endpoint(ws: WebSocket):
 
                     print(f"🎤 [{time.perf_counter()-t0:.2f}s] User ({detected_lang}): {transcript}")
 
+                    # ── Document-required gate for voice ──
+                    if assistant_key in config.ASSISTANT_ROLES:
+                        has_docs = await loop.run_in_executor(_rag_executor, rag.has_documents, session_id)
+                        if not has_docs:
+                            upload_msg = config.get_upload_message(assistant_key)
+                            await ws.send_json({"type": "user_transcript", "text": transcript})
+                            await ws.send_json({"type": "llm_start"})
+                            await ws.send_json({"type": "llm_delta", "text": upload_msg})
+                            await ws.send_json({"type": "llm_done"})
+                            await _send_tts(ws, upload_msg)
+                            await ws.send_json({"type": "tts_done"})
+                            print(f"📄 Voice document gate: no docs, sent upload message")
+                            return  # return from _debounced_audio, not the WS handler
+
                     # Topic filter
                     if not config.is_topic_related(transcript):
                         await ws.send_json({"type": "user_transcript", "text": transcript})
@@ -602,6 +653,8 @@ async def voice_endpoint(ws: WebSocket):
 
                     await ws.send_json({"type": "user_transcript", "text": transcript})
                     conversation_history.append({"role": "user", "content": transcript})
+                    # Update system prompt with current workflow context
+                    conversation_history[0] = {"role": "system", "content": config.get_system_prompt(assistant_key, active_workflow)}
 
                     pipeline_task = asyncio.create_task(run_voice_pipeline(transcript, detected_lang))
 

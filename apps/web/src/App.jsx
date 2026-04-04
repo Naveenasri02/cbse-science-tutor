@@ -8,7 +8,7 @@ import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
-import { palette } from './palette'
+import { palette } from '@cbse/shared'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
 
@@ -244,6 +244,8 @@ export default function App() {
     addMsg('user', text.trim())
     updateChatTitle(text.trim())
     const payload = { type: 'text_chat', text: text.trim() }
+    // Send active workflow so backend knows the selected workflow context
+    if (activeChat.workflow) payload.workflow = activeChat.workflow
     ws.current.send(JSON.stringify(payload))
   }
 
@@ -318,7 +320,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
+    <div className="h-dvh flex overflow-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
@@ -339,7 +341,7 @@ export default function App() {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden text-sm transition-colors"
+              className="lg:hidden flex h-11 w-11 items-center justify-center rounded-lg text-lg transition-colors active:bg-white/5"
               style={{ color: palette.textMuted }}
             >
               ☰

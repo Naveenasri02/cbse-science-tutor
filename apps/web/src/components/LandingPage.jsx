@@ -1,5 +1,5 @@
 import { ShieldCheck, ArrowRight, Mail, MapPin } from 'lucide-react'
-import { palette } from '../palette'
+import { palette } from '@cbse/shared'
 
 function MatifyLogo({ className = '' }) {
   return (
@@ -117,7 +117,7 @@ function LandingFooter() {
 export default function LandingPage({ onTryDemo }) {
   return (
     <div className="min-h-screen w-full" style={{ background: palette.bg, color: palette.textPrimary }}>
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 md:px-8 lg:px-10">
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 md:px-8 md:py-6 lg:px-10">
         <BrandHeader />
 
         <main className="flex flex-1 items-center justify-center py-10 md:py-12">
@@ -131,11 +131,11 @@ export default function LandingPage({ onTryDemo }) {
             </div>
 
             <h1
-              className="mx-auto max-w-[1400px] text-5xl font-semibold leading-[1.02] tracking-tight md:text-6xl xl:text-7xl"
+              className="mx-auto max-w-[1400px] text-3xl font-semibold leading-[1.08] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
               style={{ color: palette.textPrimary }}
             >
-              <span className="block whitespace-nowrap">Who owns the AI you are using?</span>
-              <span className="block whitespace-nowrap">and how secure is your data?</span>
+              <span className="block">Who owns the AI you are using?</span>
+              <span className="block">and how secure is your data?</span>
             </h1>
 
             <p
@@ -148,7 +148,7 @@ export default function LandingPage({ onTryDemo }) {
             <div className="mt-8 flex justify-center gap-3">
               <button
                 onClick={onTryDemo}
-                className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-semibold transition-all hover:-translate-y-0.5 active:scale-95 min-h-[48px]"
                 style={{
                   background: palette.primary,
                   color: 'white',

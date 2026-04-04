@@ -382,13 +382,76 @@ ASSISTANT_PROMPTS = {
     ),
 }
 
+# ── Role Boundary (appended to every assistant prompt) ──
+ROLE_BOUNDARY_TEMPLATE = (
+    "\n\nSTRICT ROLE BOUNDARY:\n"
+    "- You are ONLY a {role} Assistant. You must REFUSE to answer any question outside your domain.\n"
+    "- If the user asks about topics unrelated to {domain}, respond ONLY with:\n"
+    "  \"I'm your {role} Assistant and can only help with {domain}-related questions. "
+    "Please ask me something within my area of expertise.\"\n"
+    "- NEVER answer general knowledge, trivia, weather, sports, coding, recipes, or any off-topic question.\n"
+    "- NEVER answer questions that belong to a different assistant's domain.\n"
+    "- This rule overrides all other instructions. Stay in your role at all times.\n"
+)
 
-def get_system_prompt(assistant_key: str) -> str:
-    return ASSISTANT_PROMPTS.get(assistant_key, SYSTEM_PROMPT)
+ASSISTANT_ROLES = {
+    "legal": {"role": "Legal", "domain": "legal, contract, compliance, and policy"},
+    "teaching": {"role": "Teaching", "domain": "curriculum, lesson planning, exam preparation, and academic policy"},
+    "employee": {"role": "Employee", "domain": "HR policy, onboarding, IT helpdesk, and internal processes"},
+    "customer": {"role": "Customer", "domain": "product discovery, troubleshooting, order support, and policy clarification"},
+    "banking": {"role": "Banking & Insurance", "domain": "banking products, insurance, claims, compliance, and internal operations"},
+}
+
+# ── Document-First Upload Messages (used by code-level gate) ──
+ASSISTANT_UPLOAD_MESSAGES = {
+    "legal": (
+        "Please upload the relevant legal, contract, or compliance document(s). "
+        "Once I read them, I can help with due diligence, contract analysis, compliance lookup, and related legal questions. "
+        "After upload, you can ask your questions."
+    ),
+    "teaching": (
+        "Please upload the relevant academic document(s), textbook, lesson material, or policy document(s). "
+        "Once I read them, I can help with curriculum doubt solving, lesson plan creation, exam preparation, and academic policy support. "
+        "After upload, you can ask your questions."
+    ),
+    "employee": (
+        "Please upload the relevant policy, onboarding, IT, or process document(s). "
+        "Once I read them, I can help with HR policy support, onboarding guidance, IT helpdesk questions, and internal process navigation. "
+        "After upload, you can ask your questions."
+    ),
+    "customer": (
+        "Please upload the relevant product, support, service, or policy document(s). "
+        "Once I read them, I can help with product discovery, troubleshooting, order or service support, and policy clarification. "
+        "After upload, you can ask your questions."
+    ),
+    "banking": (
+        "Please upload the relevant banking, insurance, compliance, claims, or internal process document(s). "
+        "Once I read them, I can help with policy and product lookup, claims and service guidance, compliance support, and internal knowledge questions. "
+        "After upload, you can ask your questions."
+    ),
+}
+
+DEFAULT_UPLOAD_MESSAGE = "Please upload a document first. I can only answer questions based on your uploaded documents."
 
 
-def get_voice_system_prompt(assistant_key: str) -> str:
-    return get_system_prompt(assistant_key) + "\n\n" + VOICE_SUFFIX
+def get_system_prompt(assistant_key: str, workflow: str = "") -> str:
+    base = ASSISTANT_PROMPTS.get(assistant_key, SYSTEM_PROMPT)
+    # Append role boundary for known assistants
+    role_info = ASSISTANT_ROLES.get(assistant_key)
+    if role_info:
+        base += ROLE_BOUNDARY_TEMPLATE.format(**role_info)
+    # Append active workflow context if provided
+    if workflow:
+        base += f"\n\nACTIVE WORKFLOW: {workflow}\nThe user selected this workflow. Focus your responses on this specific workflow."
+    return base
+
+
+def get_voice_system_prompt(assistant_key: str, workflow: str = "") -> str:
+    return get_system_prompt(assistant_key, workflow) + "\n\n" + VOICE_SUFFIX
+
+
+def get_upload_message(assistant_key: str) -> str:
+    return ASSISTANT_UPLOAD_MESSAGES.get(assistant_key, DEFAULT_UPLOAD_MESSAGE)
 
 
 # ── STT (NVIDIA Parakeet TDT 0.6B v2 on GPU) ──
@@ -429,8 +492,9 @@ RAG_CONTEXT_PROMPT = (
     "\n\nDOCUMENT CONTEXT (from uploaded files):\n"
     "{context}\n\n"
     "Use the above document context to answer the user's question. "
-    "Base your response on the document content. "
-    "If the answer is not in the documents, say so and use your general knowledge."
+    "Base your response STRICTLY on the document content. "
+    "If the answer is not in the documents, clearly state: "
+    "\"I couldn't find information about that in your uploaded documents.\""
 )
 
 RAG_SUMMARY_PROMPT = (

@@ -1,7 +1,7 @@
 {
-  "name": "frontend",
+  "name": "@cbse/web",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@cbse/shared": "workspace:*",
     "@ricky0123/vad-web": "^0.0.30",
     "@tailwindcss/vite": "^4.2.2",
     "katex": "^0.16.44",

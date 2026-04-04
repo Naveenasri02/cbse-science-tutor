@@ -15,7 +15,7 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
 WORKDIR /app
 
 # Install Python deps
-COPY backend/requirements.txt .
+COPY apps/backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
@@ -23,10 +23,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 RUN pip install --no-cache-dir vllm
 
 # Copy backend code
-COPY backend/ /app/
+COPY apps/backend/ /app/
 
 # Copy React build (built in CI or locally)
-COPY frontend/dist/ /app/static/
+COPY apps/web/dist/ /app/static/
 
 # Download Kokoro TTS model if not present
 RUN mkdir -p /app/voices && \

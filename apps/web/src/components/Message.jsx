@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import { marked } from 'marked'
 import renderMathInElement from 'katex/contrib/auto-render'
 import 'katex/dist/katex.min.css'
-import { palette } from '../palette'
+import { palette } from '@cbse/shared'
 
 marked.setOptions({ breaks: true, gfm: true })
 
@@ -91,7 +91,7 @@ export default function Message({ role, text, streaming }) {
     return (
       <div className="flex justify-end animate-msg">
         <div
-          className="max-w-[80%] rounded-[20px] px-4 py-2.5 text-[15px] leading-[1.6]"
+          className="max-w-[88%] md:max-w-[80%] rounded-[20px] px-4 py-2.5 text-base md:text-[15px] leading-[1.6]"
           style={{ background: palette.primary, color: 'white' }}
         >
           {text}
@@ -103,7 +103,7 @@ export default function Message({ role, text, streaming }) {
   return (
     <div className="flex justify-start animate-msg">
       <div
-        className="max-w-[80%] rounded-[20px] px-4 py-2.5 text-[15px] leading-[1.6]"
+        className="max-w-[88%] md:max-w-[80%] rounded-[20px] px-4 py-2.5 text-base md:text-[15px] leading-[1.6]"
         style={{ background: palette.panelAlt, color: palette.textSecondary, border: `1px solid ${palette.border}` }}
       >
         <div

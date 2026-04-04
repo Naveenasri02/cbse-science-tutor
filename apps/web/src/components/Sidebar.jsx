@@ -1,5 +1,5 @@
 import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Landmark, MessageSquareText, FileSearch, FileText, ShieldCheck, BookOpen, PenLine, ClipboardList, Users, UserPlus, Monitor, Package, Wrench, Info, ClipboardCheck } from 'lucide-react'
-import { palette } from '../palette'
+import { palette } from '@cbse/shared'
 
 export const ASSISTANTS = [
   {
@@ -78,7 +78,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
 
       <aside
         className={`
-          fixed lg:relative z-50 top-0 bottom-0 left-0 w-[310px]
+          fixed lg:relative z-50 top-0 bottom-0 left-0 w-[85vw] max-w-[310px]
           flex flex-col border-r
           transition-transform duration-200
           ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -113,7 +113,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
                 <button
                   key={assistant.key}
                   onClick={() => onSelectAssistant(assistant.key)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors"
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-[14px] transition-colors min-h-[44px]"
                   style={{
                     background: isActive ? palette.panelAlt : 'transparent',
                     color: palette.textPrimary,
@@ -179,7 +179,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
                 {chats.length > 1 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
-                    className="opacity-0 group-hover:opacity-100 transition p-1 rounded-md hover:bg-white/5"
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition p-2 rounded-md hover:bg-white/5 active:bg-white/10 min-h-[36px] min-w-[36px] flex items-center justify-center"
                     style={{ color: palette.textMuted }}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -191,7 +191,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
         </div>
 
         {/* Footer */}
-        <div className="mt-auto border-t px-4 py-3" style={{ borderColor: palette.border }}>
+        <div className="mt-auto border-t px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" style={{ borderColor: palette.border }}>
           <button
             onClick={onBackToLanding}
             className="mb-2 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors hover:opacity-90"

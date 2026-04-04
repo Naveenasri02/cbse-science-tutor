@@ -15,6 +15,9 @@
   ::-webkit-scrollbar-thumb { background: #323232; border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #444; }
   textarea, input { font-family: inherit; }
+  @supports (padding: env(safe-area-inset-bottom)) {
+    body { padding-bottom: env(safe-area-inset-bottom); }
+  }
 }
 
 /* Markdown rendered content */
@@ -28,7 +31,7 @@
 .msg-md code { background:#1E1E1E; padding:1px 5px; border-radius:4px; font-size:.8rem; color:#1D9BF0; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
 .msg-md pre { background:#141414; border:1px solid #2A2A2A; border-radius:8px; padding:10px 12px; overflow-x:auto; margin:6px 0; }
 .msg-md pre code { background:transparent; padding:0; color:#C8D0D8; font-size:.8rem; }
-.msg-md table { border-collapse:collapse; margin:6px 0; width:100%; }
+.msg-md table { border-collapse:collapse; margin:6px 0; width:100%; display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .msg-md th,.msg-md td { border:1px solid #2A2A2A; padding:5px 8px; text-align:left; font-size:.8rem; }
 .msg-md th { background:#1E1E1E; font-weight:600; color:#F2F2F2; }
 .msg-md hr { border:none; border-top:1px solid #2A2A2A; margin:10px 0; }
@@ -61,6 +64,11 @@
 .scrollbar-thin::-webkit-scrollbar { width: 4px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 2px; }
 
+@media (hover: none) and (pointer: coarse) {
+  .scrollbar-thin::-webkit-scrollbar { display: none; }
+  .scrollbar-thin { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
 /* ── Voice Overlay ── */
 .voice-overlay-bg {
   background: radial-gradient(ellipse at center, #141428 0%, #080810 70%);
@@ -78,7 +86,14 @@
 .voice-ring.ring-mid   { width: 260px; height: 260px; opacity: 0.12; }
 .voice-ring.ring-outer { width: 320px; height: 320px; opacity: 0.06; }
 
-.voice-ring.listening                                { animation: ringPulse 2.5s ease-in-out infinite; }
+@media (max-width: 480px) {
+  .voice-ring.ring-inner { width: 140px; height: 140px; }
+  .voice-ring.ring-mid   { width: 180px; height: 180px; }
+  .voice-ring.ring-outer { width: 220px; height: 220px; }
+  .voice-orb { width: 90px; height: 90px; }
+}
+
+.voice-ring.listening{ animation: ringPulse 2.5s ease-in-out infinite; }
 .voice-ring.ring-mid.listening                       { animation-delay: .3s; }
 .voice-ring.ring-outer.listening                     { animation-delay: .6s; }
 

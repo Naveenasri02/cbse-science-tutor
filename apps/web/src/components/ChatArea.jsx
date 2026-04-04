@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import Message from './Message'
 import { MatifyLogo } from './LandingPage'
-import { palette } from '../palette'
+import { palette } from '@cbse/shared'
 
 export default function ChatArea({ messages, isBotResponding, mode, assistantConfig, onTryClick, workflow }) {
   const bottomRef = useRef(null)
@@ -16,7 +16,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {showWelcome ? (
-        <div className="flex flex-1 items-center justify-center px-6 py-8">
+        <div className="flex flex-1 items-center justify-center px-4 py-6 md:px-6 md:py-8">
           <div className="text-center max-w-lg">
             <div
               className="mx-auto flex h-14 w-14 items-center justify-center rounded-[16px] border p-1.5"
@@ -39,8 +39,8 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                   Try a workflow
                 </p>
                 <div
-                  className="grid gap-3 mx-auto"
-                  style={{ gridTemplateColumns: `repeat(${Math.min(assistantConfig.tryOptions.length, 4)}, minmax(0, 1fr))`, maxWidth: assistantConfig.tryOptions.length <= 3 ? '480px' : '640px' }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mx-auto"
+                  style={{ maxWidth: assistantConfig.tryOptions.length <= 3 ? '480px' : '640px' }}
                 >
                   {assistantConfig.tryOptions.map((opt) => {
                     const Icon = opt.icon
@@ -79,7 +79,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto px-4 pb-32 pt-5 md:px-6 lg:px-8 scrollbar-thin">
+        <div className="flex-1 overflow-auto px-3 pb-24 pt-5 md:px-6 md:pb-32 lg:px-8 scrollbar-thin">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
             {messages.map((msg, idx) => (
               <Message
@@ -93,7 +93,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
             {isBotResponding && messages.length > 0 && messages[messages.length - 1]?.text === '' && (
               <div className="flex justify-start">
                 <div
-                  className="max-w-[80%] rounded-[20px] px-4 py-2.5 text-[15px] leading-[1.6] flex gap-1.5 items-center"
+                  className="max-w-[88%] md:max-w-[80%] rounded-[20px] px-4 py-2.5 text-base md:text-[15px] leading-[1.6] flex gap-1.5 items-center"
                   style={{ background: palette.panelAlt, border: `1px solid ${palette.border}` }}
                 >
                   <span className="typing-dot"></span>

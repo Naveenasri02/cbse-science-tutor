@@ -1,4 +1,4 @@
-import { palette } from '../palette'
+import { palette } from '@cbse/shared'
 
 export default function NewChatModal({ onSelect, onClose }) {
   return (

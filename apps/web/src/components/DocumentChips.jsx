@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { palette } from '../palette'
+import { palette } from '@cbse/shared'
 
 function getFileIcon(filename) {
   const ext = filename?.split('.').pop()?.toLowerCase()
@@ -45,12 +45,12 @@ export default function DocumentChips({ documents, onDelete, uploading, uploadPr
         >
           <span className="text-sm">{getFileIcon(doc.filename)}</span>
           <div className="flex flex-col min-w-0">
-            <span className="font-medium truncate max-w-[120px]" style={{ color: palette.textPrimary }}>{doc.filename}</span>
+            <span className="font-medium truncate max-w-[160px] md:max-w-[120px]" style={{ color: palette.textPrimary }}>{doc.filename}</span>
             <span className="text-[9px]" style={{ color: palette.textMuted }}>{doc.chunks} chunks</span>
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(doc.doc_id) }}
-            className="ml-0.5 p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all"
+            className="ml-0.5 p-1.5 md:p-0.5 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all min-h-[32px] min-w-[32px] flex items-center justify-center"
             style={{ color: palette.textMuted }}
             title="Remove"
           >

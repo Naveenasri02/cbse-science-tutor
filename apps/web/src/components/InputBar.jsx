@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Mic, SendHorizontal, Square, Paperclip } from 'lucide-react'
 import DocumentChips from './DocumentChips'
-import { palette } from '../palette'
+import { palette } from '@cbse/shared'
 
 const VOICE_COLORS = {
   listening: '#1D9BF0',
@@ -45,7 +45,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
   const statusColor = voiceActive ? (VOICE_COLORS[voiceStatus?.cls] || VOICE_COLORS.listening) : null
 
   return (
-    <div className="absolute inset-x-0 bottom-0 px-4 pb-4 md:px-6 md:pb-5">
+    <div className="sticky bottom-0 z-10 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5" style={{ background: `linear-gradient(transparent, ${palette.bg} 12px)` }}>
       <div className="mx-auto max-w-3xl">
         {/* Inline voice status pill */}
         {voiceActive && voiceStatus?.text && (
@@ -94,7 +94,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || uploading}
-              className="flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-40"
+              className="flex h-10 w-10 md:h-8 md:w-8 items-center justify-center rounded-full transition-colors disabled:opacity-40"
               style={{ background: 'transparent', color: palette.textMuted }}
               title="Upload file"
             >
@@ -109,7 +109,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             onKeyDown={handleKey}
             disabled={disabled || voiceActive}
             placeholder={voiceActive ? 'Listening — speak or tap mic to stop' : 'Send a message...'}
-            className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-[15px] outline-none placeholder:opacity-50"
+            className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-base md:text-[15px] outline-none placeholder:opacity-50"
             style={{ color: palette.textPrimary }}
           />
 
@@ -118,7 +118,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             <button
               onClick={onToggleVoice}
               disabled={disabled}
-              className={`flex h-8 w-8 items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40
+              className={`flex h-11 w-11 md:h-8 md:w-8 items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40
                 ${voiceActive ? 'animate-pulse-mic' : ''}`}
               style={{
                 background: voiceActive ? palette.primary : 'transparent',
@@ -136,7 +136,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             <button
               onClick={handleSend}
               disabled={disabled || !text.trim()}
-              className="flex h-8 w-8 items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40"
+              className="flex h-11 w-11 md:h-8 md:w-8 items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40"
               style={{
                 background: text.trim() ? palette.primary : 'rgba(255,255,255,0.08)',
                 color: text.trim() ? 'white' : palette.textMuted,

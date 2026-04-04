@@ -6,8 +6,11 @@ __pycache__/
 venv/
 
 # Build output
-frontend/dist/
-backend/static/
+apps/web/dist/
+apps/backend/static/
+
+# Turborepo
+.turbo/
 
 # Environment
 .env
