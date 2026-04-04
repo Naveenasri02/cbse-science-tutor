@@ -120,43 +120,50 @@ export default function LandingPage({ onTryDemo }) {
       <div className="mx-auto flex min-h-full max-w-7xl flex-col px-4 py-3 sm:px-6 sm:py-4 md:px-8 md:py-6 lg:px-10">
         <BrandHeader />
 
-        <main className="flex flex-1 items-center justify-center py-6 sm:py-10 md:py-12">
+        <main className="flex flex-1 items-center justify-center py-8 sm:py-10 md:py-12">
           <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
             <div
-              className="mb-3 sm:mb-5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em]"
+              className="mb-4 sm:mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs sm:text-sm font-semibold uppercase tracking-[0.18em]"
               style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.primary }}
             >
-              <ShieldCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Own Your AI
             </div>
 
             <h1
-              className="mx-auto max-w-[600px] font-semibold tracking-tight sm:max-w-[720px] md:max-w-[1400px]"
+              className="mx-auto font-bold tracking-tight"
               style={{
                 color: palette.textPrimary,
-                fontSize: 'clamp(1.5rem, 5.5vw, 4.5rem)',
-                lineHeight: 1.15,
+                fontSize: 'clamp(2rem, 8vw, 4.5rem)',
+                lineHeight: 1.1,
               }}
             >
               Who owns the AI
-              <br className="sm:hidden" />
-              {' '}you are using?
-              <br className="hidden sm:block" />
-              <span className="sm:hidden"> </span>
+              <br />
+              you are using?
+            </h1>
+            <h1
+              className="mx-auto mt-1 font-bold tracking-tight"
+              style={{
+                color: palette.primary,
+                fontSize: 'clamp(1.75rem, 7vw, 4rem)',
+                lineHeight: 1.1,
+              }}
+            >
               And how secure is your data?
             </h1>
 
             <p
-              className="mx-auto mt-3 max-w-sm text-[0.85rem] leading-relaxed sm:mt-5 sm:max-w-2xl sm:text-base md:text-lg md:leading-7"
+              className="mx-auto mt-4 max-w-xs text-[0.95rem] leading-relaxed sm:mt-5 sm:max-w-2xl sm:text-base md:text-lg md:leading-7"
               style={{ color: palette.textSecondary }}
             >
               We build GPT for your business using your data, deploy it on your server, and keep your data inside your premise.
             </p>
 
-            <div className="mt-5 sm:mt-8 flex justify-center">
+            <div className="mt-6 sm:mt-8 flex justify-center">
               <button
                 onClick={onTryDemo}
-                className="inline-flex items-center gap-2 rounded-2xl px-7 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 active:scale-95 min-h-[48px]"
+                className="inline-flex items-center gap-2 rounded-2xl px-8 py-3.5 text-base font-semibold transition-all hover:-translate-y-0.5 active:scale-95 min-h-[52px]"
                 style={{
                   background: palette.primary,
                   color: 'white',
@@ -164,7 +171,7 @@ export default function LandingPage({ onTryDemo }) {
                 }}
               >
                 Try the Demo
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-5 w-5" />
               </button>
             </div>
           </section>
