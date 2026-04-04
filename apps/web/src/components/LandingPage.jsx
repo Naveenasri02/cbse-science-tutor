@@ -116,7 +116,7 @@ function LandingFooter() {
 
 export default function LandingPage({ onTryDemo }) {
   return (
-    <div className="min-h-screen w-full" style={{ background: palette.bg, color: palette.textPrimary }}>
+    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 md:px-8 md:py-6 lg:px-10">
         <BrandHeader />
 
@@ -131,11 +131,10 @@ export default function LandingPage({ onTryDemo }) {
             </div>
 
             <h1
-              className="mx-auto max-w-[1400px] text-3xl font-semibold leading-[1.08] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
-              style={{ color: palette.textPrimary }}
+              className="mx-auto max-w-[1400px] text-[1.65rem] font-semibold leading-snug tracking-tight sm:text-[2rem] md:text-5xl lg:text-6xl xl:text-7xl md:leading-[1.08]"
+              style={{ color: palette.textPrimary, wordBreak: 'break-word', overflowWrap: 'break-word' }}
             >
-              <span className="block">Who owns the AI you are using?</span>
-              <span className="block">and how secure is your data?</span>
+              Who owns the AI you are using? and how secure is your data?
             </h1>
 
             <p
