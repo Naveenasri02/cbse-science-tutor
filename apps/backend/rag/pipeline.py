@@ -100,9 +100,13 @@ class RAGPipeline:
             print(f"  📖 RAG: full-doc retrieval for summary ({len(results)} chunks, {total_doc_tokens} tokens)")
         else:
             # Specific question on large doc: semantic search
-            query_vec = self.embedder.embed(query)
-            results = self.store.query(session_id, query_vec, top_k=config.RAG_TOP_K)
-            print(f"  🔍 RAG: semantic search ({len(results)} chunks, scores={[round(r.get('score',0),2) for r in results[:3]]})")
+            try:
+                query_vec = self.embedder.embed(query)
+                results = self.store.query(session_id, query_vec, top_k=config.RAG_TOP_K)
+                print(f"  🔍 RAG: semantic search ({len(results)} chunks, scores={[round(r.get('score',0),2) for r in results[:3]]})")
+            except Exception as e:
+                print(f"  ❌ RAG embedding/search failed: {e}")
+                results = []
 
         if not results:
             return ""

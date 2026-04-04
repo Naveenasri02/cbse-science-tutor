@@ -282,9 +282,13 @@ async def voice_endpoint(ws: WebSocket):
 
         # Inject RAG context if documents are uploaded
         loop = asyncio.get_event_loop()
-        rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, transcript)
-        if rag_context:
-            voice_messages[0]["content"] += rag_context
+        try:
+            rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, transcript)
+            if rag_context:
+                voice_messages[0]["content"] += rag_context
+                print(f"  📄 Voice RAG: injected context for '{transcript[:40]}'")
+        except Exception as e:
+            print(f"⚠️ Voice RAG retrieval failed (continuing without docs): {e}")
 
         prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=6000)
 
@@ -579,10 +583,11 @@ async def voice_endpoint(ws: WebSocket):
                             await ws.send_json({"type": "error", "text": f"STT error: {e}"})
                             return
                     else:
-                        # Raw Float32 PCM — pass numpy directly
-                        audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
-                        if len(audio_f32) < 1600:
+                        # Raw PCM from VAD — frontend sends int16, normalize to float32
+                        audio_i16 = np.frombuffer(audio_bytes, dtype=np.int16)
+                        if len(audio_i16) < 1600:
                             return
+                        audio_f32 = audio_i16.astype(np.float32) / 32768.0
 
                         stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
                         await cancel_pipeline()
