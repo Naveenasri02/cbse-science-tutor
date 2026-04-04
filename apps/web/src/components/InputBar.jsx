@@ -51,7 +51,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
         {voiceActive && voiceStatus?.text && (
           <div className="flex items-center justify-center mb-2 animate-fade-in">
             <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[13px] font-medium"
               style={{ backgroundColor: statusColor + '18', color: statusColor, border: `1px solid ${statusColor}30` }}
             >
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: statusColor }} />

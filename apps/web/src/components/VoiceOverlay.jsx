@@ -12,9 +12,10 @@ export default function VoiceOverlay({ status, onClose }) {
   const cfg = STATUS_MAP[status.cls] || STATUS_MAP.listening
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center voice-overlay-bg animate-overlay-in">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center voice-overlay-bg animate-overlay-in"
+         style={{ padding: 'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)' }}>
       {/* Animated rings */}
-      <div className="relative flex items-center justify-center w-60 h-60 sm:w-80 sm:h-80">
+      <div className="relative flex items-center justify-center" style={{ width: 'min(75vw, 320px)', height: 'min(75vw, 320px)' }}>
         <div className={`voice-ring ring-outer ${status.cls}`} style={{ borderColor: cfg.color }} />
         <div className={`voice-ring ring-mid ${status.cls}`} style={{ borderColor: cfg.color }} />
         <div className={`voice-ring ring-inner ${status.cls}`} style={{ borderColor: cfg.color }} />
@@ -32,21 +33,21 @@ export default function VoiceOverlay({ status, onClose }) {
       </div>
 
       {/* Status label */}
-      <p className="mt-8 text-xl font-medium tracking-wide" style={{ color: cfg.color }}>
+      <p className="mt-6 sm:mt-8 text-lg sm:text-xl font-medium tracking-wide" style={{ color: cfg.color }}>
         {cfg.label}
       </p>
-      {cfg.hint && <p className="mt-2 text-sm text-[#555]">{cfg.hint}</p>}
+      {cfg.hint && <p className="mt-2 text-sm text-[#666]">{cfg.hint}</p>}
 
       {/* End button */}
       <button
         onClick={onClose}
-        className="mt-8 sm:mt-14 w-14 h-14 rounded-full bg-[#ef4444]/15 hover:bg-[#ef4444]/30
+        className="mt-6 sm:mt-14 w-14 h-14 rounded-full bg-[#ef4444]/15 hover:bg-[#ef4444]/30
                    border border-[#ef4444]/30 flex items-center justify-center
-                   transition-all duration-200 group"
+                   transition-all duration-200 group active:scale-90"
       >
         <X className="w-6 h-6 text-red-400 group-hover:text-red-300" />
       </button>
-      <p className="mt-2 text-xs text-[#555]">End voice</p>
+      <p className="mt-2 text-xs text-[#666]">End voice</p>
     </div>
   )
 }

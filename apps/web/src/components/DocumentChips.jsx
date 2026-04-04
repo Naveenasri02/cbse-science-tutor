@@ -46,11 +46,11 @@ export default function DocumentChips({ documents, onDelete, uploading, uploadPr
           <span className="text-sm">{getFileIcon(doc.filename)}</span>
           <div className="flex flex-col min-w-0">
             <span className="font-medium truncate max-w-[160px] md:max-w-[120px]" style={{ color: palette.textPrimary }}>{doc.filename}</span>
-            <span className="text-[9px]" style={{ color: palette.textMuted }}>{doc.chunks} chunks</span>
+            <span className="text-[11px]" style={{ color: palette.textMuted }}>{doc.chunks} chunks</span>
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(doc.doc_id) }}
-            className="ml-0.5 p-1.5 md:p-0.5 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all min-h-[32px] min-w-[32px] flex items-center justify-center"
+            className="ml-0.5 p-1.5 md:p-0.5 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all min-h-[44px] min-w-[44px] md:min-h-[32px] md:min-w-[32px] flex items-center justify-center active:bg-white/10"
             style={{ color: palette.textMuted }}
             title="Remove"
           >
@@ -63,7 +63,7 @@ export default function DocumentChips({ documents, onDelete, uploading, uploadPr
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] border"
              style={{ background: palette.panelAlt, borderColor: 'rgba(29,155,240,0.3)' }}>
           <div className="relative flex items-center justify-center">
-            <ProgressRing progress={pct} />
+            <ProgressRing progress={pct} size={32} />
             <span className="absolute text-[8px] font-bold" style={{ color: '#1D9BF0' }}>
               {pct}%
             </span>

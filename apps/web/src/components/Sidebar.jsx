@@ -171,7 +171,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[14px] truncate">{chat.title}</div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[12px]" style={{ color: palette.textMuted }}>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[13px]" style={{ color: palette.textMuted }}>
                     <MessageSquareText className="h-3 w-3" />
                     {assistantCfg.label}
                   </div>
@@ -179,7 +179,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
                 {chats.length > 1 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
-                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition p-2 rounded-md hover:bg-white/5 active:bg-white/10 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition p-2 rounded-md hover:bg-white/5 active:bg-white/10 min-h-[44px] min-w-[44px] flex items-center justify-center"
                     style={{ color: palette.textMuted }}
                   >
                     <Trash2 className="h-3 w-3" />
