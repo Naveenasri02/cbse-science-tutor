@@ -14,9 +14,9 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
   const showWelcome = !workflow && messages.length === 0
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="relative flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
       {showWelcome ? (
-        <div className="flex flex-1 flex-col items-center justify-start overflow-auto px-4 pt-8 pb-4 sm:justify-center sm:pt-4 md:px-6 md:py-8">
+        <div className="flex h-full flex-col items-center justify-start overflow-auto px-4 pt-6 pb-4 sm:justify-center sm:pt-4 md:px-6 md:py-8">
           <div className="text-center max-w-lg w-full">
             <div
               className="mx-auto flex h-16 w-16 md:h-14 md:w-14 items-center justify-center rounded-[18px] border-2 p-2"
@@ -78,7 +78,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto px-3 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 scrollbar-thin">
+        <div className="h-full overflow-auto px-3 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 scrollbar-thin">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
             {messages.map((msg, idx) => (
               <Message

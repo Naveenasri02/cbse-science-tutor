@@ -338,10 +338,10 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
         onBackToLanding={() => setPageMode('landing')}
       />
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative min-w-0 flex-1 overflow-hidden" style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', height: '100%' }}>
         {/* Header */}
         <header
-          className="flex items-center justify-between border-b px-3 py-2 md:px-5 md:py-3 shrink-0"
+          className="flex items-center justify-between border-b px-3 py-2 md:px-5 md:py-3"
           style={{ borderColor: palette.border, background: palette.bg }}
         >
           <div className="flex items-center gap-2.5">
