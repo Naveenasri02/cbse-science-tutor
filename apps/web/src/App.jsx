@@ -115,7 +115,7 @@ export default function App() {
 
       case 'tts_start':
         if (!interruptedRef.current) {
-          setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
+          setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking... 🎤' })
           ttsPlayingSinceRef.current = Date.now()
         }
         break
@@ -138,6 +138,7 @@ export default function App() {
         break
 
       case 'vad_no_speech':
+        interruptedRef.current = false
         if (voiceActive) setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         break
 

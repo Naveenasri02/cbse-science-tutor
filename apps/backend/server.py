@@ -658,11 +658,10 @@ async def voice_endpoint(ws: WebSocket):
                             await ws.send_json({"type": "error", "text": f"STT error: {e}"})
                             return
                     else:
-                        # Raw PCM from VAD — frontend sends int16, normalize to float32
-                        audio_i16 = np.frombuffer(audio_bytes, dtype=np.int16)
-                        if len(audio_i16) < 1600:
+                        # Raw PCM from VAD — frontend sends float32 bytes (4 bytes/sample)
+                        audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
+                        if len(audio_f32) < 800:
                             return
-                        audio_f32 = audio_i16.astype(np.float32) / 32768.0
 
                         stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
                         try:
