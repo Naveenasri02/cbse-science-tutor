@@ -4,29 +4,15 @@ import { MicVAD } from '@ricky0123/vad-web'
 export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef }) {
   const vadRef = useRef(null)
   const activeRef = useRef(false)
+  const bargeinCountRef = useRef(0)
   const notifiedRef = useRef(false)
   const initPromiseRef = useRef(null)
-  const notifiedTimerRef = useRef(null)
 
+  // Stable callback refs to avoid re-creating VAD
   const onSpeechDetectedRef = useRef(onSpeechDetected)
   const onSpeechEndRef = useRef(onSpeechEnd)
   onSpeechDetectedRef.current = onSpeechDetected
   onSpeechEndRef.current = onSpeechEnd
-
-  // Safety: auto-reset notifiedRef if stuck for >5s (prevents dead mic after echo)
-  const startNotifiedTimer = useCallback(() => {
-    clearTimeout(notifiedTimerRef.current)
-    notifiedTimerRef.current = setTimeout(() => {
-      if (notifiedRef.current) {
-        console.warn('VAD: notifiedRef stuck for 5s, resetting')
-        notifiedRef.current = false
-      }
-    }, 5000)
-  }, [])
-
-  const clearNotifiedTimer = useCallback(() => {
-    clearTimeout(notifiedTimerRef.current)
-  }, [])
 
   const initVAD = useCallback(async () => {
     if (vadRef.current) return vadRef.current
@@ -38,51 +24,49 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: 0.4,
-        negativeSpeechThreshold: 0.2,
-        minSpeechMs: 150,
-        preSpeechPadMs: 300,
-        redemptionMs: 400,
+        positiveSpeechThreshold: 0.5,
+        negativeSpeechThreshold: 0.35,
+        minSpeechMs: 250,
+        preSpeechPadMs: 400,
+        redemptionMs: 800,
 
-        additionalAudioConstraints: {
-          echoCancellation: true,
-          noiseSuppression: false,
-          autoGainControl: false,
+        onFrameProcessed: (probabilities) => {
+          if (!activeRef.current) return
+          const { isSpeech } = probabilities
+          if (isSpeech > 0.85) {
+            bargeinCountRef.current++
+            const botActive = isBotRespondingRef?.current || isPlayingRef?.current
+            if (botActive && !notifiedRef.current && bargeinCountRef.current >= 2) {
+              notifiedRef.current = true
+              onSpeechDetectedRef.current()
+            }
+          } else {
+            bargeinCountRef.current = 0
+          }
         },
 
         onSpeechStart: () => {
-          try {
-            if (!activeRef.current) return
-            if (!notifiedRef.current) {
-              notifiedRef.current = true
-              startNotifiedTimer()
-              console.log('VAD: speech detected — triggering callback')
-              onSpeechDetectedRef.current()
-            }
-          } catch (err) {
-            console.error('VAD onSpeechStart error:', err)
-            notifiedRef.current = false
+          if (!activeRef.current) return
+          if (!notifiedRef.current) {
+            notifiedRef.current = true
+            onSpeechDetectedRef.current()
           }
         },
 
         onSpeechEnd: (audio) => {
-          try {
-            if (!activeRef.current) return
-            notifiedRef.current = false
-            clearNotifiedTimer()
-            if (audio.length < 1600) return
-            const bytes = new Uint8Array(audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength))
-            if (bytes.length === 0) return
-            onSpeechEndRef.current(bytes)
-          } catch (err) {
-            console.error('VAD onSpeechEnd error:', err)
-            notifiedRef.current = false
-          }
+          if (!activeRef.current) return
+          notifiedRef.current = false
+          bargeinCountRef.current = 0
+          if (audio.length < 1600) return
+          const bytes = new Uint8Array(
+            audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength)
+          )
+          onSpeechEndRef.current(bytes)
         },
 
         onVADMisfire: () => {
           notifiedRef.current = false
-          clearNotifiedTimer()
+          bargeinCountRef.current = 0
         },
       })
 
@@ -91,49 +75,31 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     })()
 
     return initPromiseRef.current
-  }, [startNotifiedTimer, clearNotifiedTimer])
+  }, [isPlayingRef, isBotRespondingRef])
 
   const startVoice = useCallback(async () => {
     try {
       const vad = await initVAD()
       vad.start()
       activeRef.current = true
-      notifiedRef.current = false
       return true
     } catch (err) {
       console.error('VAD init error:', err)
-      vadRef.current = null
-      initPromiseRef.current = null
       return false
     }
   }, [initVAD])
 
-  // Reset VAD state — call after bot finishes speaking to ensure mic is fresh
-  const resetVoice = useCallback(() => {
-    notifiedRef.current = false
-    clearNotifiedTimer()
-    if (vadRef.current && activeRef.current) {
-      try {
-        vadRef.current.pause()
-        vadRef.current.start()
-      } catch (err) {
-        console.error('VAD reset error:', err)
-      }
-    }
-  }, [clearNotifiedTimer])
-
   const stopVoice = useCallback(() => {
     activeRef.current = false
+    bargeinCountRef.current = 0
     notifiedRef.current = false
-    clearNotifiedTimer()
     if (vadRef.current) {
       vadRef.current.pause()
     }
-  }, [clearNotifiedTimer])
+  }, [])
 
   useEffect(() => {
     return () => {
-      clearTimeout(notifiedTimerRef.current)
       if (vadRef.current) {
         vadRef.current.destroy()
         vadRef.current = null
@@ -141,5 +107,5 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     }
   }, [])
 
-  return { startVoice, stopVoice, resetVoice }
+  return { startVoice, stopVoice }
 }
