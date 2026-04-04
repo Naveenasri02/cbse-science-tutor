@@ -6,6 +6,7 @@ export default function useAudioPlayer() {
   const activeSourcesRef = useRef([])
   const ctxRef = useRef(null)
   const gainRef = useRef(null)
+  const audioElRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const pipelineIdRef = useRef(0)
   const nextStartTimeRef = useRef(0)
@@ -15,7 +16,14 @@ export default function useAudioPlayer() {
       ctxRef.current = new AudioContext({ sampleRate: 24000 })
       gainRef.current = ctxRef.current.createGain()
       gainRef.current.gain.value = 1.0
-      gainRef.current.connect(ctxRef.current.destination)
+
+      // Route through <audio> element so browser AEC gets a proper echo reference
+      const dest = ctxRef.current.createMediaStreamDestination()
+      gainRef.current.connect(dest)
+      const el = new Audio()
+      el.srcObject = dest.stream
+      el.play().catch(() => {})
+      audioElRef.current = el
     }
     return ctxRef.current
   }, [])

@@ -38,16 +38,16 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: 0.6,
-        negativeSpeechThreshold: 0.35,
-        minSpeechMs: 250,
-        preSpeechPadMs: 400,
-        redemptionMs: 700,
+        positiveSpeechThreshold: 0.35,
+        negativeSpeechThreshold: 0.15,
+        minSpeechMs: 150,
+        preSpeechPadMs: 300,
+        redemptionMs: 400,
 
         additionalAudioConstraints: {
           echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          noiseSuppression: false,
+          autoGainControl: false,
         },
 
         onSpeechStart: () => {
@@ -56,6 +56,7 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
             if (!notifiedRef.current) {
               notifiedRef.current = true
               startNotifiedTimer()
+              console.log('VAD: speech detected — triggering callback')
               onSpeechDetectedRef.current()
             }
           } catch (err) {
