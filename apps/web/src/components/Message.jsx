@@ -6,6 +6,28 @@ import { palette } from '@cbse/shared'
 
 marked.setOptions({ breaks: true, gfm: true })
 
+// Protect LaTeX blocks from markdown parsing by replacing them with placeholders
+function protectLatex(md) {
+  const placeholders = []
+  // Protect display math $$...$$ and \[...\]
+  let result = md.replace(/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]/g, (match) => {
+    placeholders.push(match)
+    return `%%LATEX_${placeholders.length - 1}%%`
+  })
+  // Protect inline math $...$ and \(...\)
+  result = result.replace(/\$[^$\n]+?\$|\\\(.*?\\\)/g, (match) => {
+    placeholders.push(match)
+    return `%%LATEX_${placeholders.length - 1}%%`
+  })
+  return { result, placeholders }
+}
+
+function restoreLatex(html, placeholders) {
+  return html.replace(/%%LATEX_(\d+)%%/g, (_, idx) => {
+    return placeholders[parseInt(idx)] || ''
+  })
+}
+
 export default function Message({ role, text, streaming }) {
   const contentRef = useRef(null)
   const renderTimer = useRef(null)
@@ -43,6 +65,13 @@ export default function Message({ role, text, streaming }) {
     .replace(/([^\n])(#{1,4}\s)/g, '$1\n$2')
     .replace(/([^\n])(\n?- \*\*)/g, '$1\n$2')
 
+  const parseWithLatex = (md) => {
+    const fixed = fixMarkdown(md)
+    const { result, placeholders } = protectLatex(fixed)
+    const html = marked.parse(result)
+    return restoreLatex(html, placeholders)
+  }
+
   const [renderedHtml, setRenderedHtml] = useState('')
 
   useEffect(() => {
@@ -51,13 +80,13 @@ export default function Message({ role, text, streaming }) {
       return
     }
     if (!streaming) {
-      setRenderedHtml(marked.parse(fixMarkdown(displayText)))
+      setRenderedHtml(parseWithLatex(displayText))
       return
     }
     if (!renderTimer.current) {
       renderTimer.current = setTimeout(() => {
         renderTimer.current = null
-        setRenderedHtml(marked.parse(fixMarkdown(displayTextRef.current)))
+        setRenderedHtml(parseWithLatex(displayTextRef.current))
       }, 50)
     }
   }, [displayText, streaming, role])
@@ -71,8 +100,9 @@ export default function Message({ role, text, streaming }) {
     }
   }, [])
 
+  // Render KaTeX — both during streaming and after
   useEffect(() => {
-    if (role === 'bot' && contentRef.current && text && !streaming) {
+    if (role === 'bot' && contentRef.current && renderedHtml) {
       try {
         renderMathInElement(contentRef.current, {
           delimiters: [
@@ -85,7 +115,7 @@ export default function Message({ role, text, streaming }) {
         })
       } catch {}
     }
-  }, [role, streaming, renderedHtml])
+  }, [role, renderedHtml])
 
   if (role === 'user') {
     return (
