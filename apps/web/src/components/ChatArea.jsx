@@ -12,6 +12,11 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
 
   // Phase 1: No workflow selected — show welcome + Try buttons
   const showWelcome = !workflow && messages.length === 0
+  // Phase 2: Workflow selected but no messages yet — show workflow welcome
+  const showWorkflowWelcome = workflow && messages.length === 0
+  const activeWorkflow = showWorkflowWelcome
+    ? assistantConfig?.tryOptions?.find(opt => opt.message === workflow)
+    : null
 
   return (
     <div className="relative flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
@@ -75,6 +80,28 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      ) : showWorkflowWelcome ? (
+        <div className="flex h-full flex-col items-center justify-center overflow-auto px-4 py-6 md:px-6 md:py-8">
+          <div className="text-center max-w-md w-full">
+            {activeWorkflow?.icon && (
+              <div
+                className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl"
+                style={{ background: 'rgba(29,155,240,0.1)' }}
+              >
+                <activeWorkflow.icon size={28} style={{ color: palette.primary }} />
+              </div>
+            )}
+            <h2 className="mt-4 text-xl font-semibold tracking-tight md:text-2xl" style={{ color: palette.textPrimary }}>
+              {activeWorkflow?.label || workflow}
+            </h2>
+            <p className="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed md:text-[15px]" style={{ color: palette.textMuted }}>
+              {assistantConfig?.welcomeMessage || 'How can I help you today?'}
+            </p>
+            <p className="mt-4 text-[13px]" style={{ color: palette.textSecondary }}>
+              Type your question below or use voice to get started.
+            </p>
           </div>
         </div>
       ) : (
