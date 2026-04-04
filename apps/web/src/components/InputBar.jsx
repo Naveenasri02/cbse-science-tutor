@@ -45,7 +45,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
   const statusColor = voiceActive ? (VOICE_COLORS[voiceStatus?.cls] || VOICE_COLORS.listening) : null
 
   return (
-    <div className="sticky bottom-0 z-10 shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:px-6 md:pb-5 md:pt-2" style={{ background: palette.bg }}>
+    <div className="z-10 shrink-0 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 md:px-6 md:pb-4 md:pt-2" style={{ background: palette.bg }}>
       <div className="mx-auto max-w-3xl">
         {/* Inline voice status pill */}
         {voiceActive && voiceStatus?.text && (
@@ -71,7 +71,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
         )}
 
         <div
-          className="flex items-center gap-2 rounded-[24px] border px-3 py-2"
+          className="flex items-center gap-1.5 rounded-[20px] border px-2.5 py-1.5 sm:gap-2 sm:rounded-[24px] sm:px-3 sm:py-2"
           style={{
             borderColor: voiceActive ? palette.primary : palette.borderStrong,
             background: 'rgba(43,43,43,0.92)',
@@ -146,7 +146,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
             </button>
           )}
         </div>
-        <div className="mt-1.5 text-center text-[11px] md:text-[12px] md:mt-2" style={{ color: palette.textMuted }}>
+        <div className="hidden sm:block mt-1.5 text-center text-[11px] md:text-[12px] md:mt-2" style={{ color: palette.textMuted }}>
           AI-powered answers · Voice & Text
         </div>
       </div>
