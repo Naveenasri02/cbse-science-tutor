@@ -477,31 +477,74 @@ LANG_VOICE_MAP = {
 }
 TTS_SUPPORTED_LANGS = set(LANG_VOICE_MAP.keys())
 
-# ── RAG (Document Q&A) ──
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+# ── RAG (Document Q&A) — Production Pipeline ──
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/workspace/vector_db")
-RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
-RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "2000"))
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "300"))       # tokens per chunk
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "30"))   # overlap between chunks
+
+# Retrieval
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "15"))
+RAG_RERANK_TOP_K = int(os.getenv("RAG_RERANK_TOP_K", "6"))
+RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "4000"))
+RERANKER_SCORE_THRESHOLD = float(os.getenv("RERANKER_SCORE_THRESHOLD", "0.15"))
+
+# Chunking
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "64"))
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(50 * 1024 * 1024)))  # 50 MB
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/workspace/uploads")
 
+# Hybrid search weights (Reciprocal Rank Fusion)
+BM25_WEIGHT = float(os.getenv("BM25_WEIGHT", "0.4"))
+DENSE_WEIGHT = float(os.getenv("DENSE_WEIGHT", "0.6"))
+
+# Contextual embedding (prepend LLM-generated context to chunks before embedding)
+CONTEXTUAL_EMBEDDING = os.getenv("CONTEXTUAL_EMBEDDING", "true").lower() == "true"
+
 RAG_CONTEXT_PROMPT = (
-    "\n\nDOCUMENT CONTEXT (from uploaded files):\n"
+    "\n\nDOCUMENT CONTEXT (retrieved from uploaded files):\n"
     "{context}\n\n"
-    "Use the above document context to answer the user's question. "
-    "Base your response STRICTLY on the document content. "
-    "If the answer is not in the documents, clearly state: "
-    "\"I couldn't find information about that in your uploaded documents.\""
+    "ANSWER RULES:\n"
+    "1. Answer ONLY using the DOCUMENT CONTEXT above.\n"
+    "2. For each claim, cite the source in brackets: [Source: filename, Page N].\n"
+    "3. If the answer is NOT in the context, say exactly: "
+    "\"I couldn't find information about that in your uploaded documents.\"\n"
+    "4. If documents contradict each other, present BOTH versions with their sources.\n"
+    "5. NEVER make up facts, numbers, dates, or names not present in the context.\n"
+    "6. If the question is ambiguous (e.g., multiple possible referents), ask for clarification.\n"
 )
 
 RAG_SUMMARY_PROMPT = (
     "\n\nFULL DOCUMENT CONTENT (from uploaded files):\n"
     "{context}\n\n"
-    "The user wants a summary or overview of the above document. "
     "Provide a comprehensive summary covering ALL main sections, key details, and important information. "
-    "Do not skip any section. Be thorough."
+    "Cite section and page numbers where relevant. Do not skip any section. Be thorough."
+)
+
+RAG_CONTEXT_PROMPT_TEMPLATE = "[Source: {filename}, Page {page}, Section: {section}]\n{text}"
+
+QUERY_ANALYSIS_PROMPT = (
+    "Analyze this user query in the context of uploaded documents.\n\n"
+    "Uploaded document topics/filenames: {doc_topics}\n\n"
+    "User query: \"{query}\"\n\n"
+    "Classify as exactly ONE of:\n"
+    "- answerable — the query can likely be answered from the documents\n"
+    "- out_of_scope — the query has nothing to do with the document topics "
+    "(e.g., sports, entertainment, weather, general trivia)\n"
+    "- ambiguous — the query references something that could have multiple "
+    "interpretations and needs clarification\n"
+    "- summary — the user wants an overview/summary of the document(s)\n\n"
+    "Respond with ONLY the classification word. Nothing else."
+)
+
+CONTEXTUAL_CHUNK_PROMPT = (
+    "Document: \"{filename}\"\n"
+    "Document overview (first ~1500 chars):\n{doc_preview}\n\n"
+    "Here is a chunk from this document (page {page}):\n"
+    "---\n{chunk_text}\n---\n\n"
+    "Write a 2-3 sentence context that situates this chunk within the document. "
+    "Mention the document topic, which section this is from, and key entities. "
+    "Be concise. Do NOT repeat the chunk content."
 )
 
 # ── Server ──
