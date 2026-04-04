@@ -6,11 +6,27 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
   const activeRef = useRef(false)
   const notifiedRef = useRef(false)
   const initPromiseRef = useRef(null)
+  const notifiedTimerRef = useRef(null)
 
   const onSpeechDetectedRef = useRef(onSpeechDetected)
   const onSpeechEndRef = useRef(onSpeechEnd)
   onSpeechDetectedRef.current = onSpeechDetected
   onSpeechEndRef.current = onSpeechEnd
+
+  // Safety: auto-reset notifiedRef if stuck for >5s (prevents dead mic after echo)
+  const startNotifiedTimer = useCallback(() => {
+    clearTimeout(notifiedTimerRef.current)
+    notifiedTimerRef.current = setTimeout(() => {
+      if (notifiedRef.current) {
+        console.warn('VAD: notifiedRef stuck for 5s, resetting')
+        notifiedRef.current = false
+      }
+    }, 5000)
+  }, [])
+
+  const clearNotifiedTimer = useCallback(() => {
+    clearTimeout(notifiedTimerRef.current)
+  }, [])
 
   const initVAD = useCallback(async () => {
     if (vadRef.current) return vadRef.current
@@ -35,25 +51,37 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         },
 
         onSpeechStart: () => {
-          if (!activeRef.current) return
-          if (!notifiedRef.current) {
-            notifiedRef.current = true
-            onSpeechDetectedRef.current()
+          try {
+            if (!activeRef.current) return
+            if (!notifiedRef.current) {
+              notifiedRef.current = true
+              startNotifiedTimer()
+              onSpeechDetectedRef.current()
+            }
+          } catch (err) {
+            console.error('VAD onSpeechStart error:', err)
+            notifiedRef.current = false
           }
         },
 
         onSpeechEnd: (audio) => {
-          if (!activeRef.current) return
-          notifiedRef.current = false
-          if (audio.length < 1600) return
-          // Copy audio correctly — avoid buffer offset corruption
-          const bytes = new Uint8Array(audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength))
-          if (bytes.length === 0) return
-          onSpeechEndRef.current(bytes)
+          try {
+            if (!activeRef.current) return
+            notifiedRef.current = false
+            clearNotifiedTimer()
+            if (audio.length < 1600) return
+            const bytes = new Uint8Array(audio.buffer.slice(audio.byteOffset, audio.byteOffset + audio.byteLength))
+            if (bytes.length === 0) return
+            onSpeechEndRef.current(bytes)
+          } catch (err) {
+            console.error('VAD onSpeechEnd error:', err)
+            notifiedRef.current = false
+          }
         },
 
         onVADMisfire: () => {
           notifiedRef.current = false
+          clearNotifiedTimer()
         },
       })
 
@@ -62,13 +90,14 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     })()
 
     return initPromiseRef.current
-  }, [])
+  }, [startNotifiedTimer, clearNotifiedTimer])
 
   const startVoice = useCallback(async () => {
     try {
       const vad = await initVAD()
       vad.start()
       activeRef.current = true
+      notifiedRef.current = false
       return true
     } catch (err) {
       console.error('VAD init error:', err)
@@ -78,16 +107,32 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     }
   }, [initVAD])
 
+  // Reset VAD state — call after bot finishes speaking to ensure mic is fresh
+  const resetVoice = useCallback(() => {
+    notifiedRef.current = false
+    clearNotifiedTimer()
+    if (vadRef.current && activeRef.current) {
+      try {
+        vadRef.current.pause()
+        vadRef.current.start()
+      } catch (err) {
+        console.error('VAD reset error:', err)
+      }
+    }
+  }, [clearNotifiedTimer])
+
   const stopVoice = useCallback(() => {
     activeRef.current = false
     notifiedRef.current = false
+    clearNotifiedTimer()
     if (vadRef.current) {
       vadRef.current.pause()
     }
-  }, [])
+  }, [clearNotifiedTimer])
 
   useEffect(() => {
     return () => {
+      clearTimeout(notifiedTimerRef.current)
       if (vadRef.current) {
         vadRef.current.destroy()
         vadRef.current = null
@@ -95,5 +140,5 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
     }
   }, [])
 
-  return { startVoice, stopVoice }
+  return { startVoice, stopVoice, resetVoice }
 }

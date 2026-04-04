@@ -69,6 +69,7 @@ export default function App() {
 
   // Refs for instant barge-in (avoid stale React state in callbacks)
   const isBotRespondingRef = useRef(false)
+  const resetVoiceRef = useRef(() => {})
 
   // WebSocket handler
   const onMessage = useCallback((msg, binary) => {
@@ -124,6 +125,7 @@ export default function App() {
         isBotRespondingRef.current = false
         ttsPlayingSinceRef.current = 0
         if (voiceActive) {
+          resetVoiceRef.current()
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         } else {
           setVoiceStatus({ visible: false, cls: '', text: '' })
@@ -186,7 +188,8 @@ export default function App() {
     }
   }, [stopPlayback, ws])
 
-  const { startVoice, stopVoice } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
+  const { startVoice, stopVoice, resetVoice } = useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, isBotRespondingRef })
+  resetVoiceRef.current = resetVoice
 
   const toggleVoice = async () => {
     if (voiceActive) {
