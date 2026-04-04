@@ -295,20 +295,29 @@ async def voice_endpoint(ws: WebSocket):
             tts_voice = config.TTS_VOICE
             lang_instruction = " Respond in English only — the student's language is not supported for voice output."
 
-        voice_messages = [
-            {"role": "system", "content": config.get_voice_system_prompt(assistant_key, active_workflow) + lang_instruction},
-            *conversation_history[1:],
-        ]
-
         # Inject RAG context if documents are uploaded
         loop = asyncio.get_event_loop()
         try:
             rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, transcript)
-            if rag_context:
-                voice_messages[0]["content"] += rag_context
-                print(f"  📄 Voice RAG: injected context for '{transcript[:40]}'")
         except Exception as e:
             print(f"⚠️ Voice RAG retrieval failed (continuing without docs): {e}")
+            rag_context = ""
+
+        # When documents are uploaded, use the SAME detailed prompt as text chat
+        # so voice responses match text quality. TTS strip_md_for_tts() handles speech formatting.
+        # Without documents, use voice-optimized prompt for natural conversation.
+        if rag_context:
+            voice_messages = [
+                {"role": "system", "content": config.get_system_prompt(assistant_key, active_workflow) + lang_instruction},
+                *conversation_history[1:],
+            ]
+            voice_messages[0]["content"] += rag_context
+            print(f"  📄 Voice RAG: injected context for '{transcript[:40]}' (using text-style prompt)")
+        else:
+            voice_messages = [
+                {"role": "system", "content": config.get_voice_system_prompt(assistant_key, active_workflow) + lang_instruction},
+                *conversation_history[1:],
+            ]
 
         prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n")
 
