@@ -68,9 +68,9 @@ class RAGPipeline:
         parts = []
         tokens_used = 0
         for r in results:
-            chunk_tokens = len(r["text"]) // 4 + 5  # rough estimate + header
+            chunk_tokens = int(len(r["text"]) / 2.8) + 5  # conservative estimate + header
             if tokens_used + chunk_tokens > budget:
-                remaining_chars = (budget - tokens_used) * 4
+                remaining_chars = int((budget - tokens_used) * 2.8)
                 if remaining_chars > 100:
                     parts.append(f"[{r['filename']}] {r['text'][:remaining_chars]}...")
                 break
@@ -88,7 +88,7 @@ class RAGPipeline:
 
         # Estimate total doc size in tokens
         all_chunks = self.store.get_all_chunks_ordered(session_id)
-        total_doc_tokens = sum(len(c["text"]) // 4 + 5 for c in all_chunks)
+        total_doc_tokens = sum(int(len(c["text"]) / 2.8) + 5 for c in all_chunks)
 
         if total_doc_tokens <= config.RAG_MAX_CONTEXT_TOKENS:
             # Small doc: inject FULL document (like ChatGPT does)

@@ -35,7 +35,7 @@ nohup vllm serve invergent/Qwen3-30B-A3B-AWQ \
   --host 0.0.0.0 \
   --port 8002 \
   --gpu-memory-utilization 0.55 \
-  --max-model-len 8192 \
+  --max-model-len 16384 \
   --api-key cbse-sk-local \
   --dtype auto \
   --quantization awq_marlin \

@@ -49,7 +49,7 @@ llm_client = AsyncOpenAI(
 import httpx
 _llm_http = httpx.AsyncClient(
     base_url=config.VLLM_BASE_URL.rstrip("/v1"),
-    timeout=30.0,
+    timeout=httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0),
     headers={"Authorization": f"Bearer {config.VLLM_API_KEY}"},
 )
 print("  ✓ LLM ready")
@@ -64,11 +64,11 @@ _rag_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="rag")
 
 
 def _estimate_tokens(text: str) -> int:
-    """Rough token estimate: ~3.5 chars per token for English."""
-    return max(1, len(text) // 4)
+    """Token estimate: ~2.8 chars per token (conservative for technical text)."""
+    return max(1, int(len(text) / 2.8))
 
 
-def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 6000) -> str:
+def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 12000) -> str:
     """Build a ChatML prompt string with optional assistant pre-fill.
     Trims older messages (keeping system prompt) to stay within max_ctx tokens."""
     # Always keep system prompt (first message) and prefill overhead
@@ -290,7 +290,7 @@ async def voice_endpoint(ws: WebSocket):
         except Exception as e:
             print(f"⚠️ Voice RAG retrieval failed (continuing without docs): {e}")
 
-        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n", max_ctx=6000)
+        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n")
 
         # Async queue: LLM feeds sentences → TTS worker consumes them
         tts_q: asyncio.Queue = asyncio.Queue()
@@ -350,6 +350,9 @@ async def voice_endpoint(ws: WebSocket):
                         continue
                     chunk = json.loads(line[6:])
                     delta = chunk["choices"][0].get("text", "")
+                    finish = chunk["choices"][0].get("finish_reason")
+                    if finish and finish == "length":
+                        print(f"⚠️ Voice LLM hit token limit (finish_reason=length) after {len(full_reply)} chars")
                     if not delta:
                         continue
                     # Track LLM first token time
@@ -504,6 +507,9 @@ async def voice_endpoint(ws: WebSocket):
                                         continue
                                     chunk = json.loads(line[6:])
                                     delta = chunk["choices"][0].get("text", "")
+                                    finish = chunk["choices"][0].get("finish_reason")
+                                    if finish and finish == "length":
+                                        print(f"⚠️ Text LLM hit token limit (finish_reason=length) after {len(full_reply)} chars")
                                     if delta:
                                         full_reply += delta
                                         await ws.send_json({"type": "llm_delta", "text": delta})
