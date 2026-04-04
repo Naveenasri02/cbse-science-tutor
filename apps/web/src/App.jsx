@@ -125,8 +125,13 @@ export default function App() {
         isBotRespondingRef.current = false
         ttsPlayingSinceRef.current = 0
         if (voiceActive) {
-          resetVoiceRef.current()
-          setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+          if (!interruptedRef.current) {
+            // Normal completion: reset VAD for fresh listening
+            resetVoiceRef.current()
+            setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+          }
+          // If interrupted: don't reset VAD — user is still speaking,
+          // let onSpeechEnd fire naturally to capture their audio
         } else {
           setVoiceStatus({ visible: false, cls: '', text: '' })
         }
