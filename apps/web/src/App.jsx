@@ -151,11 +151,9 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — instant barge-in on speech start
+  // Voice mode — instant barge-in (Gemini Live style: no grace period)
   const onSpeechDetected = useCallback(() => {
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      // Grace period: suppress during first 3.5s of TTS — AEC convergence needs time
-      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 3500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
@@ -169,10 +167,8 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
-    // If bot is responding/playing, check for barge-in
+    // If bot is still responding/playing, trigger barge-in first
     if (isBotRespondingRef.current || isPlayingRef.current) {
-      // Grace period: suppress during first 3.5s of TTS — AEC convergence needs time
-      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 3500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)

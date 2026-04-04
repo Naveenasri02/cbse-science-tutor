@@ -249,6 +249,7 @@ async def voice_endpoint(ws: WebSocket):
         {"role": "system", "content": config.get_system_prompt(assistant_key)}
     ]
     pipeline_task = None
+    _active_tts_task = None  # Track TTS task for explicit cancellation
     # Debounce: wait briefly after receiving audio to catch rapid-fire VAD splits
     _audio_debounce_task = None
     _audio_generation = 0  # monotonic counter to identify latest audio
@@ -265,7 +266,15 @@ async def voice_endpoint(ws: WebSocket):
     ping_task = asyncio.create_task(keep_alive())
 
     async def cancel_pipeline(notify=True):
-        nonlocal pipeline_task
+        nonlocal pipeline_task, _active_tts_task
+        # Cancel TTS task first — stops audio output immediately
+        if _active_tts_task and not _active_tts_task.done():
+            _active_tts_task.cancel()
+            try:
+                await _active_tts_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            _active_tts_task = None
         if pipeline_task and not pipeline_task.done():
             pipeline_task.cancel()
             try:
@@ -282,6 +291,7 @@ async def voice_endpoint(ws: WebSocket):
 
     async def run_voice_pipeline(transcript: str, detected_lang: str = "en"):
         """Stream LLM → TTS concurrently with aggressive first-chunk splitting."""
+        nonlocal _active_tts_task
         full_reply = ""
         chunk_buffer = ""
         chunks_sent = 0
@@ -329,38 +339,45 @@ async def voice_endpoint(ws: WebSocket):
             first_audio = True
             chunk_count = 0
             loop = asyncio.get_event_loop()
-            while True:
-                text = await tts_q.get()
-                if text is None:
-                    break
-                clean = strip_md_for_tts(text)
-                if not clean or len(clean.strip()) < 2:
-                    continue
-                try:
-                    t1 = time.perf_counter()
-                    pcm = await loop.run_in_executor(None, tts.to_pcm_bytes, clean, tts_voice)
-                    tts_ms = (time.perf_counter() - t1) * 1000
-                    samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
-                    peak = np.max(np.abs(samples))
-                    if peak > 0:
-                        samples = samples * (0.95 * 32767 / peak)
-                    norm_pcm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
+            try:
+                while True:
+                    text = await tts_q.get()
+                    if text is None:
+                        break
+                    clean = strip_md_for_tts(text)
+                    if not clean or len(clean.strip()) < 2:
+                        continue
+                    try:
+                        t1 = time.perf_counter()
+                        pcm = await loop.run_in_executor(None, tts.to_pcm_bytes, clean, tts_voice)
+                        tts_ms = (time.perf_counter() - t1) * 1000
+                        samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+                        peak = np.max(np.abs(samples))
+                        if peak > 0:
+                            samples = samples * (0.95 * 32767 / peak)
+                        norm_pcm = np.clip(samples, -32767, 32767).astype(np.int16).tobytes()
 
-                    wav = _pcm_to_wav(norm_pcm, sr=tts.sr)
+                        wav = _pcm_to_wav(norm_pcm, sr=tts.sr)
 
-                    if first_audio:
-                        await ws.send_json({"type": "tts_start"})
-                        print(f"🔊 First audio [{time.perf_counter()-t0:.3f}s] tts={tts_ms:.0f}ms \"{clean[:40]}\"")
-                        first_audio = False
-                    await ws.send_bytes(wav)
-                    chunk_count += 1
-                except Exception as e:
-                    print(f"❌ TTS chunk error: {e}")
+                        if first_audio:
+                            await ws.send_json({"type": "tts_start"})
+                            print(f"🔊 First audio [{time.perf_counter()-t0:.3f}s] tts={tts_ms:.0f}ms \"{clean[:40]}\"")
+                            first_audio = False
+                        await ws.send_bytes(wav)
+                        chunk_count += 1
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        print(f"❌ TTS chunk error: {e}")
+            except asyncio.CancelledError:
+                print(f"⚡ TTS worker cancelled ({chunk_count} chunks sent)")
+                return
             print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] ({chunk_count} chunks)")
 
         try:
             await ws.send_json({"type": "llm_start"})
             tts_task = asyncio.create_task(tts_worker())
+            _active_tts_task = tts_task
 
             # Stream LLM tokens — aggressive first-chunk for fast TTS start
             async with _llm_http.stream(
@@ -434,6 +451,7 @@ async def voice_endpoint(ws: WebSocket):
             await tts_q.put(None)  # Signal TTS worker to finish
             await ws.send_json({"type": "llm_done"})
             await tts_task  # Wait for all TTS audio to send
+            _active_tts_task = None
             await ws.send_json({"type": "tts_done"})
 
             if full_reply:
@@ -445,7 +463,14 @@ async def voice_endpoint(ws: WebSocket):
 
         except asyncio.CancelledError:
             print(f"⚡ Voice pipeline cancelled: {full_reply[:40]}...")
-            tts_q.put_nowait(None)  # Stop TTS worker
+            # Explicitly cancel TTS task to stop audio immediately
+            if tts_task and not tts_task.done():
+                tts_task.cancel()
+                try:
+                    await tts_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+            _active_tts_task = None
             if full_reply:
                 clean = re.sub(r'<think>.*?</think>\s*', '', full_reply, flags=re.DOTALL).strip()
                 if clean:
@@ -626,7 +651,6 @@ async def voice_endpoint(ws: WebSocket):
                             return
 
                         stt_future = loop.run_in_executor(_stt_executor, stt.transcribe, wav_bytes)
-                        await cancel_pipeline()
                         try:
                             transcript, detected_lang = await stt_future
                         except Exception as e:
@@ -641,7 +665,6 @@ async def voice_endpoint(ws: WebSocket):
                         audio_f32 = audio_i16.astype(np.float32) / 32768.0
 
                         stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
-                        await cancel_pipeline()
                         try:
                             transcript, detected_lang = await stt_future
                         except Exception as e:
@@ -656,6 +679,10 @@ async def voice_endpoint(ws: WebSocket):
                     if not transcript or len(transcript.strip()) < 2:
                         await ws.send_json({"type": "vad_no_speech"})
                         return
+
+                    # Only cancel pipeline AFTER confirming real speech via STT
+                    # Echo/noise → empty transcript → pipeline continues undisturbed
+                    await cancel_pipeline()
 
                     print(f"🎤 [{time.perf_counter()-t0:.2f}s] User ({detected_lang}): {transcript}")
 
