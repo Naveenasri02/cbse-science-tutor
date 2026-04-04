@@ -254,6 +254,27 @@ async def voice_endpoint(ws: WebSocket):
     _audio_debounce_task = None
     _audio_generation = 0  # monotonic counter to identify latest audio
 
+    # Track connection state for safe sends
+    _ws_closed = False
+
+    async def safe_send_json(data):
+        """Send JSON, silently skip if connection is closed."""
+        if _ws_closed:
+            return
+        try:
+            await ws.send_json(data)
+        except Exception:
+            pass
+
+    async def safe_send_bytes(data):
+        """Send bytes, silently skip if connection is closed."""
+        if _ws_closed:
+            return
+        try:
+            await ws.send_bytes(data)
+        except Exception:
+            pass
+
     # Keep-alive: ping every 20s to prevent proxy timeouts
     async def keep_alive():
         try:
@@ -283,8 +304,8 @@ async def voice_endpoint(ws: WebSocket):
                 pass
             if notify:
                 try:
-                    await ws.send_json({"type": "llm_done", "interrupted": True})
-                    await ws.send_json({"type": "tts_done"})
+                    await safe_send_json({"type": "llm_done", "interrupted": True})
+                    await safe_send_json({"type": "tts_done"})
                 except Exception:
                     pass
         pipeline_task = None
@@ -360,10 +381,10 @@ async def voice_endpoint(ws: WebSocket):
                         wav = _pcm_to_wav(norm_pcm, sr=tts.sr)
 
                         if first_audio:
-                            await ws.send_json({"type": "tts_start"})
+                            await safe_send_json({"type": "tts_start"})
                             print(f"🔊 First audio [{time.perf_counter()-t0:.3f}s] tts={tts_ms:.0f}ms \"{clean[:40]}\"")
                             first_audio = False
-                        await ws.send_bytes(wav)
+                        await safe_send_bytes(wav)
                         chunk_count += 1
                     except asyncio.CancelledError:
                         raise
@@ -375,7 +396,7 @@ async def voice_endpoint(ws: WebSocket):
             print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] ({chunk_count} chunks)")
 
         try:
-            await ws.send_json({"type": "llm_start"})
+            await safe_send_json({"type": "llm_start"})
             tts_task = asyncio.create_task(tts_worker())
             _active_tts_task = tts_task
 
@@ -409,7 +430,7 @@ async def voice_endpoint(ws: WebSocket):
                         print(f"⚡ LLM first token [{time.perf_counter()-t0:.3f}s]")
                     full_reply += delta
                     chunk_buffer += delta
-                    await ws.send_json({"type": "llm_delta", "text": delta})
+                    await safe_send_json({"type": "llm_delta", "text": delta})
 
                     # Chunk extraction — split at sentence boundaries for fluent TTS
                     while True:
@@ -449,10 +470,10 @@ async def voice_endpoint(ws: WebSocket):
                 await tts_q.put(chunk_buffer.strip())
 
             await tts_q.put(None)  # Signal TTS worker to finish
-            await ws.send_json({"type": "llm_done"})
+            await safe_send_json({"type": "llm_done"})
             await tts_task  # Wait for all TTS audio to send
             _active_tts_task = None
-            await ws.send_json({"type": "tts_done"})
+            await safe_send_json({"type": "tts_done"})
 
             if full_reply:
                 conversation_history.append({"role": "assistant", "content": full_reply.strip()})
@@ -479,12 +500,13 @@ async def voice_endpoint(ws: WebSocket):
                         del conversation_history[1:-20]
             raise
         except Exception as e:
-            print(f"❌ Pipeline error: {e}")
+            print(f"❌ Pipeline error: {type(e).__name__}: {e}")
+            import traceback; traceback.print_exc()
             tts_q.put_nowait(None)
             try:
-                await ws.send_json({"type": "error", "text": str(e)})
-                await ws.send_json({"type": "llm_done"})
-                await ws.send_json({"type": "tts_done"})
+                await safe_send_json({"type": "error", "text": str(e) or type(e).__name__})
+                await safe_send_json({"type": "llm_done"})
+                await safe_send_json({"type": "tts_done"})
             except Exception:
                 pass
 
@@ -518,9 +540,9 @@ async def voice_endpoint(ws: WebSocket):
 
                     # Topic filter
                     if not config.is_topic_related(user_text):
-                        await ws.send_json({"type": "llm_start"})
-                        await ws.send_json({"type": "llm_delta", "text": config.REJECT_MSG})
-                        await ws.send_json({"type": "llm_done"})
+                        await safe_send_json({"type": "llm_start"})
+                        await safe_send_json({"type": "llm_delta", "text": config.REJECT_MSG})
+                        await safe_send_json({"type": "llm_done"})
                         continue
 
                     conversation_history.append({"role": "user", "content": user_text})
@@ -532,12 +554,16 @@ async def voice_endpoint(ws: WebSocket):
                         await cancel_pipeline()
                         pipeline_task = asyncio.create_task(run_voice_pipeline(user_text))
                     else:
-                        await ws.send_json({"type": "llm_start"})
+                        await safe_send_json({"type": "llm_start"})
 
                         # Inject RAG context if documents are uploaded
                         text_messages = list(conversation_history)
                         loop = asyncio.get_event_loop()
-                        rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, user_text)
+                        try:
+                            rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, user_text)
+                        except Exception as e:
+                            print(f"⚠️ Text RAG retrieval failed (continuing without docs): {e}")
+                            rag_context = ""
 
                         # If documents uploaded, inject RAG context; otherwise AI answers from knowledge
                         if rag_context:
@@ -572,13 +598,13 @@ async def voice_endpoint(ws: WebSocket):
                                         print(f"⚠️ Text LLM hit token limit (finish_reason=length) after {len(full_reply)} chars")
                                     if delta:
                                         full_reply += delta
-                                        await ws.send_json({"type": "llm_delta", "text": delta})
+                                        await safe_send_json({"type": "llm_delta", "text": delta})
                         except Exception as e:
                             print(f"❌ Text LLM error: {e}")
                             import traceback; traceback.print_exc()
                             try:
-                                await ws.send_json({"type": "error", "text": str(e)})
-                                await ws.send_json({"type": "llm_done"})
+                                await safe_send_json({"type": "error", "text": str(e)})
+                                await safe_send_json({"type": "llm_done"})
                             except Exception:
                                 pass
                             # Save partial reply if any
@@ -588,7 +614,7 @@ async def voice_endpoint(ws: WebSocket):
                                     del conversation_history[1:-20]
                             continue
 
-                        await ws.send_json({"type": "llm_done"})
+                        await safe_send_json({"type": "llm_done"})
                         print(f"✅ [{time.perf_counter()-t0:.2f}s] Text reply: {full_reply[:60]}...")
 
                         if full_reply:
@@ -638,16 +664,19 @@ async def voice_endpoint(ws: WebSocket):
                             proc = await loop.run_in_executor(None, _decode_webm, audio_bytes)
                             if proc.returncode != 0:
                                 print(f"❌ ffmpeg error: {proc.stderr.decode()[:100]}")
+                                await safe_send_json({"type": "vad_no_speech"})
                                 return
                             wav_bytes = proc.stdout
                         except FileNotFoundError:
                             print("⚠️ ffmpeg not found, trying raw float32 decode")
                             audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
                             if len(audio_f32) < 1600:
+                                await safe_send_json({"type": "vad_no_speech"})
                                 return
                             wav_bytes = float32_to_wav(audio_f32, sr=16000)
                         except Exception as e:
                             print(f"❌ Audio decode error: {e}")
+                            await safe_send_json({"type": "vad_no_speech"})
                             return
 
                         stt_future = loop.run_in_executor(_stt_executor, stt.transcribe, wav_bytes)
@@ -655,12 +684,13 @@ async def voice_endpoint(ws: WebSocket):
                             transcript, detected_lang = await stt_future
                         except Exception as e:
                             print(f"❌ STT error: {e}")
-                            await ws.send_json({"type": "error", "text": f"STT error: {e}"})
+                            await safe_send_json({"type": "error", "text": f"STT error: {e}"})
                             return
                     else:
                         # Raw PCM from VAD — frontend sends float32 bytes (4 bytes/sample)
                         audio_f32 = np.frombuffer(audio_bytes, dtype=np.float32)
                         if len(audio_f32) < 800:
+                            await safe_send_json({"type": "vad_no_speech"})
                             return
 
                         stt_future = loop.run_in_executor(_stt_executor, stt.transcribe_raw, audio_f32)
@@ -668,7 +698,7 @@ async def voice_endpoint(ws: WebSocket):
                             transcript, detected_lang = await stt_future
                         except Exception as e:
                             print(f"❌ STT error: {e}")
-                            await ws.send_json({"type": "error", "text": f"STT error: {e}"})
+                            await safe_send_json({"type": "error", "text": f"STT error: {e}"})
                             return
 
                     # Check again — newer audio may have arrived during STT
@@ -676,7 +706,7 @@ async def voice_endpoint(ws: WebSocket):
                         return
 
                     if not transcript or len(transcript.strip()) < 2:
-                        await ws.send_json({"type": "vad_no_speech"})
+                        await safe_send_json({"type": "vad_no_speech"})
                         return
 
                     # Only cancel pipeline AFTER confirming real speech via STT
@@ -689,15 +719,15 @@ async def voice_endpoint(ws: WebSocket):
 
                     # Topic filter
                     if not config.is_topic_related(transcript):
-                        await ws.send_json({"type": "user_transcript", "text": transcript})
-                        await ws.send_json({"type": "llm_start"})
-                        await ws.send_json({"type": "llm_delta", "text": config.REJECT_MSG})
-                        await ws.send_json({"type": "llm_done"})
+                        await safe_send_json({"type": "user_transcript", "text": transcript})
+                        await safe_send_json({"type": "llm_start"})
+                        await safe_send_json({"type": "llm_delta", "text": config.REJECT_MSG})
+                        await safe_send_json({"type": "llm_done"})
                         await _send_tts(ws, config.REJECT_MSG)
-                        await ws.send_json({"type": "tts_done"})
+                        await safe_send_json({"type": "tts_done"})
                         return
 
-                    await ws.send_json({"type": "user_transcript", "text": transcript})
+                    await safe_send_json({"type": "user_transcript", "text": transcript})
                     conversation_history.append({"role": "user", "content": transcript})
                     # Update system prompt with current workflow context
                     conversation_history[0] = {"role": "system", "content": config.get_system_prompt(assistant_key, active_workflow)}
@@ -707,12 +737,14 @@ async def voice_endpoint(ws: WebSocket):
                 _audio_debounce_task = asyncio.create_task(_debounced_audio(raw_bytes, my_gen))
 
     except (WebSocketDisconnect, RuntimeError):
+        _ws_closed = True
         ping_task.cancel()
         if _audio_debounce_task and not _audio_debounce_task.done():
             _audio_debounce_task.cancel()
         await cancel_pipeline(notify=False)
         print("🔌 Client disconnected")
     except Exception as e:
+        _ws_closed = True
         ping_task.cancel()
         if _audio_debounce_task and not _audio_debounce_task.done():
             _audio_debounce_task.cancel()
@@ -786,11 +818,11 @@ async def _send_tts(ws: WebSocket, text: str, voice: str = None):
 
             wav = _pcm_to_wav(pcm, sr=tts.sr)
             if first_audio:
-                await ws.send_json({"type": "tts_start"})
+                await safe_send_json({"type": "tts_start"})
                 print(f"🔊 TTS first audio [{time.perf_counter()-t0:.3f}s]")
                 first_audio = False
 
-            await ws.send_bytes(wav)
+            await safe_send_bytes(wav)
             chunk_count += 1
 
         print(f"🔊 TTS done [{time.perf_counter()-t0:.3f}s] {len(clean)} chars ({chunk_count} chunks)")
@@ -802,8 +834,8 @@ async def _send_tts(ws: WebSocket, text: str, voice: str = None):
             t0 = time.perf_counter()
             wav_bytes = await loop.run_in_executor(None, tts.to_wav_bytes, clean)
             wav_bytes = _normalize_wav(wav_bytes, target_peak=0.95)
-            await ws.send_json({"type": "tts_start"})
-            await ws.send_bytes(wav_bytes)
+            await safe_send_json({"type": "tts_start"})
+            await safe_send_bytes(wav_bytes)
             print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (fallback)")
         except Exception as e2:
             print(f"❌ TTS fallback error: {e2}")

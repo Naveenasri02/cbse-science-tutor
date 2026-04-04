@@ -29,6 +29,7 @@ export default function App() {
   const chatIdCounter = useRef(2)
   const interruptedRef = useRef(false)
   const ttsPlayingSinceRef = useRef(0)
+  const processingTimerRef = useRef(null)
   const sessionIdRef = useRef(generateSessionId())
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
@@ -78,6 +79,12 @@ export default function App() {
       if (interruptedRef.current) return
       playAudio(msg)
       return
+    }
+
+    // Any server response clears the processing timeout
+    if (processingTimerRef.current) {
+      clearTimeout(processingTimerRef.current)
+      processingTimerRef.current = null
     }
 
     switch (msg.type) {
@@ -202,6 +209,17 @@ export default function App() {
     if (!inGracePeriod) {
       setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
     }
+
+    // Safety timeout: if backend silently fails, auto-recover to Listening after 15s
+    if (processingTimerRef.current) clearTimeout(processingTimerRef.current)
+    processingTimerRef.current = setTimeout(() => {
+      processingTimerRef.current = null
+      // Only recover if we're still stuck (no response came)
+      if (!isBotRespondingRef.current && !isPlayingRef.current) {
+        setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+        interruptedRef.current = false
+      }
+    }, 15000)
 
     // ALWAYS send audio — never drop user speech
     if (ws.current?.readyState === WebSocket.OPEN) {
