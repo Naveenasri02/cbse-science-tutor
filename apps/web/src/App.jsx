@@ -156,9 +156,11 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — instant barge-in (Gemini Live style: no grace period)
+  // Voice mode — barge-in with short AEC grace period
+  // 1.5s lets browser echo cancellation converge, then instant interrupt
   const onSpeechDetected = useCallback(() => {
     if (isBotRespondingRef.current || isPlayingRef.current) {
+      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 1500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
@@ -172,8 +174,8 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
-    // If bot is still responding/playing, trigger barge-in first
     if (isBotRespondingRef.current || isPlayingRef.current) {
+      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 1500) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
