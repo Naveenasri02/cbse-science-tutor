@@ -96,6 +96,10 @@
 .voice-ring.ring-mid.listening                       { animation-delay: .3s; }
 .voice-ring.ring-outer.listening                     { animation-delay: .6s; }
 
+.voice-ring.recording                                { animation: ringRecord 1s ease-in-out infinite; }
+.voice-ring.ring-mid.recording                       { animation-delay: .12s; }
+.voice-ring.ring-outer.recording                     { animation-delay: .24s; }
+
 .voice-ring.thinking, .voice-ring.processing         { animation: ringPulse 1.2s ease-in-out infinite; }
 .voice-ring.ring-mid.thinking, .voice-ring.ring-mid.processing     { animation-delay: .15s; }
 .voice-ring.ring-outer.thinking, .voice-ring.ring-outer.processing { animation-delay: .3s; }
@@ -107,6 +111,10 @@
 @keyframes ringPulse {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.08); }
+}
+@keyframes ringRecord {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50%      { transform: scale(1.14); opacity: 0.6; }
 }
 @keyframes ringBreath {
   0%, 100% { transform: scale(1); }
@@ -121,12 +129,17 @@
   transition: all .5s ease;
 }
 .voice-orb.listening                          { animation: orbGlow 2.5s ease-in-out infinite; }
+.voice-orb.recording                          { animation: orbRecord 0.8s ease-in-out infinite; }
 .voice-orb.thinking, .voice-orb.processing    { animation: orbGlow 1.2s ease-in-out infinite; }
 .voice-orb.speaking                           { animation: orbSpeak 1.8s ease-in-out infinite; }
 
 @keyframes orbGlow {
   0%, 100% { transform: scale(1); filter: brightness(1); }
   50%      { transform: scale(1.06); filter: brightness(1.2); }
+}
+@keyframes orbRecord {
+  0%, 100% { transform: scale(1);   filter: brightness(1); }
+  50%      { transform: scale(1.12); filter: brightness(1.35); }
 }
 @keyframes orbSpeak {
   0%, 100% { transform: scale(1);    filter: brightness(1); }

@@ -8,6 +8,7 @@ import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
+import VoiceOverlay from './components/VoiceOverlay'
 import { palette } from '@cbse/shared'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
@@ -168,14 +169,14 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — barge-in with AEC grace period
+  // Voice mode — barge-in with AEC grace period (Gemini Live-style)
   // ttsPlayingSinceRef > 0 catches the gap after llm_done where isPlayingRef
   // can briefly go false between audio chunks but TTS hasn't finished yet
   const onSpeechDetected = useCallback(() => {
     const botActive = isBotRespondingRef.current || isPlayingRef.current || ttsPlayingSinceRef.current > 0
     if (botActive) {
-      // 1.5s grace lets browser echo cancellation converge
-      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 1500) return
+      // 600ms grace lets browser AEC converge (vs 1.5s before)
+      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 600) return
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
@@ -185,12 +186,12 @@ export default function App() {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
     }
-    setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Recording...' })
+    setVoiceStatus({ visible: true, cls: 'recording', text: '🎤 Recording...' })
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
     const botActive = isBotRespondingRef.current || isPlayingRef.current || ttsPlayingSinceRef.current > 0
-    const inGracePeriod = botActive && ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 1500
+    const inGracePeriod = botActive && ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 600
 
     if (botActive && !inGracePeriod) {
       // Past grace period — interrupt immediately on client side
@@ -439,6 +440,10 @@ export default function App() {
         )}
       </div>
 
+      {/* Gemini Live-style full-screen voice overlay */}
+      {voiceActive && (
+        <VoiceOverlay status={voiceStatus} onClose={toggleVoice} />
+      )}
     </div>
   )
 }

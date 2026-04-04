@@ -5,6 +5,7 @@ import { palette } from '@cbse/shared'
 
 const VOICE_COLORS = {
   listening: '#1D9BF0',
+  recording: '#10b981',
   thinking: '#f59e0b',
   processing: '#f59e0b',
   speaking: '#8b5cf6',

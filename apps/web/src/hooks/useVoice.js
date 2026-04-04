@@ -38,11 +38,12 @@ export default function useVoice({ onSpeechDetected, onSpeechEnd, isPlayingRef, 
         baseAssetPath: '/',
         onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
 
-        positiveSpeechThreshold: 0.6,
-        negativeSpeechThreshold: 0.45,
-        minSpeechMs: 300,
-        preSpeechPadMs: 500,
-        redemptionMs: 1000,
+        // Silero VAD v5 — tuned for Gemini Live-style responsiveness
+        positiveSpeechThreshold: 0.5,
+        negativeSpeechThreshold: 0.35,
+        minSpeechMs: 200,
+        preSpeechPadMs: 300,
+        redemptionMs: 500,
 
         additionalAudioConstraints: {
           echoCancellation: true,
