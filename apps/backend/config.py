@@ -486,7 +486,7 @@ CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/workspace/vector_db")
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "15"))
 RAG_RERANK_TOP_K = int(os.getenv("RAG_RERANK_TOP_K", "6"))
 RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "4000"))
-RERANKER_SCORE_THRESHOLD = float(os.getenv("RERANKER_SCORE_THRESHOLD", "0.15"))
+RERANKER_SCORE_THRESHOLD = float(os.getenv("RERANKER_SCORE_THRESHOLD", "0.01"))
 
 # Chunking
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))

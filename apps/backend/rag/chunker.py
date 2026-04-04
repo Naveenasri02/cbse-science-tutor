@@ -74,6 +74,10 @@ def _recursive_split(text: str, chunk_size: int, chunk_overlap: int) -> list[str
         if chunk and _estimate_tokens(chunk) >= 10:
             chunks.append(chunk)
 
+        # Reached the end — done
+        if end >= text_len:
+            break
+
         # Move forward with overlap
         start = max(start + 1, end - char_overlap)
 
