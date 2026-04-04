@@ -90,6 +90,7 @@ export default function App() {
 
       case 'llm_start':
         interruptedRef.current = false
+        stopPlayback()
         setIsBotResponding(true)
         isBotRespondingRef.current = true
         botBufferRef.current = ''
@@ -139,7 +140,10 @@ export default function App() {
 
       case 'vad_no_speech':
         interruptedRef.current = false
-        if (voiceActive) setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+        // Only show Listening if bot isn't actively speaking (grace period echo)
+        if (voiceActive && !isPlayingRef.current && ttsPlayingSinceRef.current === 0) {
+          setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+        }
         break
 
       case 'ping':
@@ -153,14 +157,17 @@ export default function App() {
         }, 3000)
         break
     }
-  }, [voiceActive, addMsg, updateLastBotMsg, updateChatTitle, playAudio])
+  }, [voiceActive, addMsg, updateLastBotMsg, updateChatTitle, playAudio, stopPlayback])
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — barge-in with short AEC grace period
-  // 1.5s lets browser echo cancellation converge, then instant interrupt
+  // Voice mode — barge-in with AEC grace period
+  // ttsPlayingSinceRef > 0 catches the gap after llm_done where isPlayingRef
+  // can briefly go false between audio chunks but TTS hasn't finished yet
   const onSpeechDetected = useCallback(() => {
-    if (isBotRespondingRef.current || isPlayingRef.current) {
+    const botActive = isBotRespondingRef.current || isPlayingRef.current || ttsPlayingSinceRef.current > 0
+    if (botActive) {
+      // 1.5s grace lets browser echo cancellation converge
       if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 1500) return
       interruptedRef.current = true
       stopPlayback()
@@ -175,8 +182,11 @@ export default function App() {
   }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
-    if (isBotRespondingRef.current || isPlayingRef.current) {
-      if (ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 1500) return
+    const botActive = isBotRespondingRef.current || isPlayingRef.current || ttsPlayingSinceRef.current > 0
+    const inGracePeriod = botActive && ttsPlayingSinceRef.current > 0 && Date.now() - ttsPlayingSinceRef.current < 1500
+
+    if (botActive && !inGracePeriod) {
+      // Past grace period — interrupt immediately on client side
       interruptedRef.current = true
       stopPlayback()
       setIsBotResponding(false)
@@ -186,7 +196,14 @@ export default function App() {
         ws.current.send(JSON.stringify({ type: 'interrupt' }))
       }
     }
-    setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
+    // During grace period: no client-side interrupt, but still send audio.
+    // Backend STT-first approach filters echo vs real speech server-side.
+
+    if (!inGracePeriod) {
+      setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
+    }
+
+    // ALWAYS send audio — never drop user speech
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(audio.buffer)
     }
