@@ -117,13 +117,13 @@ function LandingFooter() {
 export default function LandingPage({ onTryDemo }) {
   return (
     <div className="min-h-screen w-full overflow-x-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 md:px-8 md:py-6 lg:px-10">
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-4 sm:px-6 md:px-8 md:py-6 lg:px-10">
         <BrandHeader />
 
-        <main className="flex flex-1 items-center justify-center py-10 md:py-12">
+        <main className="flex flex-1 items-center justify-center py-8 sm:py-10 md:py-12">
           <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
             <div
-              className="mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em]"
+              className="mb-4 sm:mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.18em]"
               style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.primary }}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -131,20 +131,27 @@ export default function LandingPage({ onTryDemo }) {
             </div>
 
             <h1
-              className="mx-auto max-w-[1400px] text-[1.65rem] font-semibold leading-snug tracking-tight sm:text-[2rem] md:text-5xl lg:text-6xl xl:text-7xl md:leading-[1.08]"
-              style={{ color: palette.textPrimary, wordBreak: 'break-word', overflowWrap: 'break-word' }}
+              className="mx-auto max-w-[720px] font-semibold tracking-tight md:max-w-[1400px]"
+              style={{
+                color: palette.textPrimary,
+                fontSize: 'clamp(1.35rem, 5vw, 4.5rem)',
+                lineHeight: 1.2,
+              }}
             >
-              Who owns the AI you are using? and how secure is your data?
+              Who owns the AI you are using?
+              <br className="hidden sm:block" />
+              <span className="sm:hidden"> </span>
+              And how secure is your data?
             </h1>
 
             <p
-              className="mx-auto mt-5 max-w-2xl text-base leading-7 md:text-lg"
+              className="mx-auto mt-4 max-w-md text-[0.9rem] leading-relaxed sm:mt-5 sm:max-w-2xl sm:text-base md:text-lg md:leading-7"
               style={{ color: palette.textSecondary }}
             >
               We build GPT for your business using your data, deploy it on your server, and keep your data inside your premise.
             </p>
 
-            <div className="mt-8 flex justify-center gap-3">
+            <div className="mt-6 sm:mt-8 flex justify-center gap-3">
               <button
                 onClick={onTryDemo}
                 className="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-semibold transition-all hover:-translate-y-0.5 active:scale-95 min-h-[48px]"
