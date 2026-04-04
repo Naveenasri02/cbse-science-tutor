@@ -2,14 +2,5 @@
   "buildCommand": "pnpm --filter @cbse/web run build",
   "outputDirectory": "apps/web/dist",
   "installCommand": "pnpm install",
-  "framework": "vite",
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-        { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" }
-      ]
-    }
-  ]
+  "framework": "vite"
 }
