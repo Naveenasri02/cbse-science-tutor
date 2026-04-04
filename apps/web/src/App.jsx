@@ -74,6 +74,8 @@ export default function App() {
   // WebSocket handler
   const onMessage = useCallback((msg, binary) => {
     if (binary) {
+      // Drop stale audio if user interrupted
+      if (interruptedRef.current) return
       playAudio(msg)
       return
     }
@@ -93,6 +95,8 @@ export default function App() {
         break
 
       case 'llm_start':
+        interruptedRef.current = false
+        stopPlayback()
         setIsBotResponding(true)
         isBotRespondingRef.current = true
         botBufferRef.current = ''
@@ -101,6 +105,7 @@ export default function App() {
         break
 
       case 'llm_delta': {
+        if (interruptedRef.current) break
         botBufferRef.current += msg.text
         updateLastBotMsg(botBufferRef.current)
         break
@@ -109,25 +114,34 @@ export default function App() {
       case 'llm_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
+        if (msg.interrupted && botBufferRef.current) {
+          updateLastBotMsg(botBufferRef.current + ' …')
+        }
         botBufferRef.current = ''
         break
 
       case 'tts_start':
-        setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
+        if (!interruptedRef.current) {
+          setVoiceStatus({ visible: true, cls: 'speaking', text: '🔊 Speaking...' })
+        }
         break
 
       case 'tts_done':
         setIsBotResponding(false)
         isBotRespondingRef.current = false
         if (voiceActive) {
-          resetVoiceRef.current()
-          setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+          if (!interruptedRef.current) {
+            resetVoiceRef.current()
+            setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+          }
+          // If interrupted: VAD is still capturing user speech, don't reset
         } else {
           setVoiceStatus({ visible: false, cls: '', text: '' })
         }
         break
 
       case 'vad_no_speech':
+        interruptedRef.current = false
         if (voiceActive) {
           setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
         }
@@ -148,10 +162,21 @@ export default function App() {
 
   const { ws, connected, reconnect } = useWebSocket(wsUrl, onMessage)
 
-  // Voice mode — simple: speak → send → wait for response → listen again
+  // Voice mode — barge-in: if bot is speaking and user talks, stop bot and process new input
   const onSpeechDetected = useCallback(() => {
+    const botSpeaking = isPlayingRef.current || isBotRespondingRef.current
+    if (botSpeaking) {
+      // Barge-in: stop bot, send interrupt to backend
+      interruptedRef.current = true
+      stopPlayback()
+      setIsBotResponding(false)
+      isBotRespondingRef.current = false
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify({ type: 'interrupt' }))
+      }
+    }
     setVoiceStatus({ visible: true, cls: 'recording', text: '🎤 Recording...' })
-  }, [])
+  }, [stopPlayback, ws])
 
   const onSpeechEnd = useCallback((audio) => {
     setVoiceStatus({ visible: true, cls: 'processing', text: '⏳ Processing...' })
@@ -162,10 +187,11 @@ export default function App() {
       processingTimerRef.current = null
       if (!isBotRespondingRef.current && !isPlayingRef.current) {
         setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+        interruptedRef.current = false
       }
     }, 15000)
 
-    // Send audio to backend
+    // Always send audio — backend STT filters echo vs real speech
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(audio.buffer)
     }
@@ -176,7 +202,19 @@ export default function App() {
 
   const toggleVoice = async () => {
     if (voiceActive) {
-      // Turn off voice mode
+      // If bot is speaking, tap = interrupt (stop audio, keep listening)
+      if (isPlayingRef.current || isBotRespondingRef.current) {
+        interruptedRef.current = true
+        stopPlayback()
+        setIsBotResponding(false)
+        isBotRespondingRef.current = false
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          ws.current.send(JSON.stringify({ type: 'interrupt' }))
+        }
+        setVoiceStatus({ visible: true, cls: 'listening', text: '🎤 Listening...' })
+        return
+      }
+      // Otherwise, turn off voice mode
       stopVoice()
       stopPlayback()
       setVoiceActive(false)
