@@ -68,25 +68,141 @@ def _estimate_tokens(text: str) -> int:
     return max(1, int(len(text) / 2.8))
 
 
-def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 12000) -> str:
+def _strip_think_blocks(text: str) -> str:
+    """Strip <think>...</think> reasoning traces from LLM output.
+    Qwen3 best practice: NEVER store think traces in conversation history —
+    they cause context pollution, bloat, and off-topic drift."""
+    return re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL).strip()
+
+
+# ── Conversation Summarization (Qwen3 hybrid sliding window) ────────────
+# When history grows beyond SUMMARIZE_THRESHOLD messages, the oldest messages
+# (beyond the recent SLIDING_WINDOW_SIZE) are condensed into a single summary.
+# This gives the LLM long-term memory without consuming the full context window.
+SLIDING_WINDOW_SIZE = 30      # Keep this many recent messages verbatim
+SUMMARIZE_THRESHOLD = 40      # Trigger summarization when history exceeds this
+SUMMARY_ROLE = "system"       # Inject summary as a system message
+
+_SUMMARIZE_PROMPT = """Summarize the following conversation between a user and an AI assistant.
+Capture the KEY information: what documents were discussed, what questions were asked,
+what answers were given, and any important facts or decisions.
+Be concise but preserve all factual content. Use 150 words or fewer.
+
+Conversation to summarize:
+{conversation}"""
+
+
+async def _summarize_old_messages(old_messages: list) -> str:
+    """Use the LLM to summarize old conversation messages into a condensed memory."""
+    conv_text = "\n".join(
+        f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content'][:300]}"
+        for m in old_messages
+    )
+    prompt = (
+        "<|im_start|>system\nYou are a conversation summarizer. Be concise and factual.<|im_end|>\n"
+        f"<|im_start|>user\n{_SUMMARIZE_PROMPT.format(conversation=conv_text)}<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+    try:
+        resp = await _llm_http.post("/v1/completions", json={
+            "prompt": prompt,
+            "max_tokens": 256,
+            "temperature": 0.1,
+            "stop": ["<|im_end|>"],
+        })
+        if resp.status_code == 200:
+            data = resp.json()
+            summary = data["choices"][0].get("text", "").strip()
+            summary = _strip_think_blocks(summary)
+            print(f"📝 Summarized {len(old_messages)} old messages → {len(summary)} chars")
+            return summary
+    except Exception as e:
+        print(f"⚠️ Summarization failed: {e}")
+    # Fallback: simple extractive summary
+    return " | ".join(m["content"][:80] for m in old_messages[:10]) + " ..."
+
+
+async def _maybe_summarize_history(conversation_history: list) -> None:
+    """If conversation exceeds threshold, summarize old messages and compact.
+    Keeps: [system_prompt, ?existing_summary, ...recent SLIDING_WINDOW_SIZE messages]"""
+    if len(conversation_history) <= SUMMARIZE_THRESHOLD:
+        return
+
+    # Find where the summary slot is (index 1 if exists, otherwise we create it)
+    has_summary = (
+        len(conversation_history) > 1
+        and conversation_history[1].get("role") == SUMMARY_ROLE
+        and conversation_history[1].get("content", "").startswith("[Conversation Memory]")
+    )
+
+    start_idx = 2 if has_summary else 1
+    recent_start = len(conversation_history) - SLIDING_WINDOW_SIZE
+    if recent_start <= start_idx:
+        return  # Not enough old messages to summarize
+
+    old_messages = conversation_history[start_idx:recent_start]
+    old_summary = conversation_history[1]["content"] if has_summary else ""
+
+    # Build context for summarization (include previous summary if any)
+    messages_to_summarize = old_messages
+    if old_summary:
+        messages_to_summarize = [{"role": "system", "content": old_summary}] + old_messages
+
+    new_summary = await _summarize_old_messages(messages_to_summarize)
+    summary_msg = {
+        "role": SUMMARY_ROLE,
+        "content": f"[Conversation Memory] {new_summary}"
+    }
+
+    # Compact: [system, summary, ...recent messages]
+    recent_messages = conversation_history[recent_start:]
+    conversation_history.clear()
+    conversation_history.append({"role": "system", "content": ""})  # placeholder, gets overwritten
+    conversation_history.append(summary_msg)
+    conversation_history.extend(recent_messages)
+    # Restore system prompt from first element saved before clear
+    # (it gets overwritten each turn anyway in the main loop)
+
+    print(f"🗜️ History compacted: {start_idx + len(old_messages) + len(recent_messages)} → {len(conversation_history)} messages")
+
+
+def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 30000) -> str:
     """Build a ChatML prompt string with optional assistant pre-fill.
-    Trims older messages (keeping system prompt) to stay within max_ctx tokens."""
+    Trims older messages (keeping system prompt + summary) to stay within max_ctx tokens.
+    Architecture: [system_prompt] + [?conversation_summary] + [recent_messages] + [prefill]"""
     # Always keep system prompt (first message) and prefill overhead
-    overhead = _estimate_tokens(prefill) + 50  # assistant header + prefill + stop tokens
+    overhead = _estimate_tokens(prefill) + 50
     system_cost = _estimate_tokens(messages[0]["content"]) + 10 if messages else 0
     budget = max_ctx - overhead - system_cost
 
-    # Walk from newest to oldest (skip system at index 0), accumulate until budget exhausted
+    # Check if message[1] is a conversation summary — always keep it
+    summary_cost = 0
+    has_summary = (
+        len(messages) > 1
+        and messages[1].get("role") == SUMMARY_ROLE
+        and messages[1].get("content", "").startswith("[Conversation Memory]")
+    )
+    if has_summary:
+        summary_cost = _estimate_tokens(messages[1]["content"]) + 10
+        budget -= summary_cost
+
+    # Walk from newest to oldest (skip system + optional summary), accumulate until budget exhausted
+    skip = 2 if has_summary else 1
     kept = []
-    for m in reversed(messages[1:]):
-        cost = _estimate_tokens(m["content"]) + 10  # header tokens
+    for m in reversed(messages[skip:]):
+        cost = _estimate_tokens(m["content"]) + 10
         if budget - cost < 0:
             break
         budget -= cost
         kept.append(m)
     kept.reverse()
 
-    final = [messages[0]] + kept if messages else kept
+    # Assemble: system + [summary] + kept messages
+    final = [messages[0]]
+    if has_summary:
+        final.append(messages[1])
+    final.extend(kept)
+
     parts = []
     for m in final:
         parts.append(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>")
@@ -129,6 +245,8 @@ async def warmup_llm():
 async def upload_document(
     file: UploadFile = File(...),
     session_id: str = Query(...),
+    assistant: str = Query(default="general"),
+    workflow: str = Query(default=""),
 ):
     """Upload a document for RAG-powered Q&A."""
     from rag.chunker import SUPPORTED_EXTENSIONS
@@ -145,6 +263,44 @@ async def upload_document(
     try:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(_rag_executor, rag.ingest, session_id, file_bytes, filename)
+
+        # Auto-generate summary + suggested questions after ingestion
+        try:
+            summary_data = await _generate_doc_summary(session_id, filename)
+            result["summary"] = summary_data.get("summary", "")
+            result["suggested_questions"] = summary_data.get("suggested_questions", [])
+            result["doc_type"] = summary_data.get("doc_type", "")
+            result["themes"] = summary_data.get("themes", [])
+            result["entities"] = summary_data.get("entities", [])
+            result["key_findings"] = summary_data.get("key_findings", [])
+            result["terms"] = summary_data.get("terms", [])
+            result["toc"] = summary_data.get("toc", [])
+        except Exception as e:
+            print(f"⚠️ Auto-summary generation failed (upload still successful): {e}")
+            result["summary"] = ""
+            result["suggested_questions"] = []
+            result["doc_type"] = ""
+            result["themes"] = []
+            result["entities"] = []
+            result["key_findings"] = []
+            result["terms"] = []
+            result["toc"] = []
+
+        # Document-assistant relevance check
+        try:
+            relevance = config.check_document_relevance(
+                doc_type=result.get("doc_type", ""),
+                themes=result.get("themes", []),
+                summary=result.get("summary", ""),
+                assistant_key=assistant,
+                workflow=workflow,
+            )
+            if not relevance["relevant"]:
+                result["relevance_warning"] = relevance["warning"]
+                print(f"⚠️ Document relevance warning for '{filename}': {relevance['warning'][:100]}")
+        except Exception as e:
+            print(f"⚠️ Document relevance check failed: {e}")
+
         return JSONResponse(content=result)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
@@ -152,6 +308,164 @@ async def upload_document(
         print(f"❌ Upload error: {e}")
         import traceback; traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": f"Processing failed: {str(e)}"})
+
+
+async def _generate_doc_summary(session_id: str, filename: str) -> dict:
+    """Generate a rich NotebookLM-style document overview with structured sections."""
+    loop = asyncio.get_event_loop()
+    all_chunks = await loop.run_in_executor(_rag_executor, rag.store.get_all_chunks_ordered, session_id)
+    if not all_chunks:
+        return {"summary": "", "suggested_questions": []}
+
+    # Use up to ~16000 chars from the document for thorough coverage
+    total_chars = sum(len(c["text"]) for c in all_chunks)
+    if total_chars <= 16000:
+        doc_content = "\n\n".join(c["text"] for c in all_chunks)
+    else:
+        # First 10000 chars + last 6000 chars for comprehensive coverage
+        front_parts = []
+        chars = 0
+        for c in all_chunks:
+            front_parts.append(c["text"])
+            chars += len(c["text"])
+            if chars > 10000:
+                break
+        back_parts = []
+        chars = 0
+        for c in reversed(all_chunks):
+            back_parts.insert(0, c["text"])
+            chars += len(c["text"])
+            if chars > 6000:
+                break
+        doc_content = "\n\n".join(front_parts) + "\n\n[...]\n\n" + "\n\n".join(back_parts)
+
+    # Extract section names with page numbers for structure overview
+    sections_with_pages = []
+    for c in all_chunks:
+        sec = c.get("section", "")
+        page = c.get("page", 0)
+        if sec and not any(s[0] == sec for s in sections_with_pages):
+            sections_with_pages.append((sec, page))
+    section_list = "; ".join(f"{s} (p.{p})" if p else s for s, p in sections_with_pages[:20]) if sections_with_pages else "No clear section headings detected"
+
+    prompt = (
+        f"You are analyzing the document \"{filename}\".\n"
+        f"Document sections: {section_list}\n"
+        f"Total length: ~{total_chars} characters ({len(all_chunks)} chunks)\n\n"
+        f"Document content:\n{doc_content[:16000]}\n\n"
+        "Provide a comprehensive NotebookLM-style document overview in this EXACT format:\n\n"
+        "DOCTYPE: <one of: Legal Document, Research Paper, Business Report, Policy Document, "
+        "Technical Manual, Educational Material, Financial Document, HR Document, General Document>\n"
+        "SUMMARY_START\n"
+        "Write a detailed multi-paragraph executive summary (3-4 paragraphs). "
+        "Paragraph 1: What this document is, its purpose, and the parties/entities involved. "
+        "Paragraph 2: The main content — key arguments, findings, obligations, terms, or requirements covered. Be specific with names, dates, amounts, and clauses. "
+        "Paragraph 3: Important details, conditions, exceptions, risks, or nuances that a reader must know. "
+        "Paragraph 4 (if applicable): Conclusions, implications, next steps, or recommendations. "
+        "Use specific details from the document — avoid generic statements. Each paragraph should be 3-5 sentences.\n"
+        "SUMMARY_END\n"
+        "THEMES: <comma-separated list of 4-8 key themes or topics covered>\n"
+        "ENTITIES: <comma-separated list of key people, organizations, dates, or amounts mentioned>\n"
+        "KEYFINDINGS: <numbered list of 3-5 most important findings, conclusions, or takeaways, "
+        "each on its own line as F1: ..., F2: ..., etc.>\n"
+        "TERMS: <3-5 important domain-specific terms with brief definitions, "
+        "each on its own line as T1: term — definition, T2: term — definition, etc.>\n"
+        "TOC: <document structure as numbered entries with page numbers, "
+        "each on its own line as S1: section_name|page_number, S2: section_name|page_number, etc. "
+        "Use the sections provided above or infer from content.>\n"
+        "Q1: <specific question about the document's main purpose or findings>\n"
+        "Q2: <specific question about a key detail, obligation, or requirement>\n"
+        "Q3: <specific question about a specific section, clause, or topic>\n"
+        "Q4: <specific question comparing or contrasting elements in the document>\n"
+        "Q5: <specific question about implications, risks, or next steps>\n"
+        "/no_think"
+    )
+
+    import re as _re
+    async with httpx.AsyncClient(
+        base_url=config.VLLM_BASE_URL,
+        headers={"Authorization": f"Bearer {config.VLLM_API_KEY}"},
+        timeout=60,
+    ) as client:
+        resp = await client.post("/chat/completions", json={
+            "model": config.VLLM_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 3000,
+            "temperature": 0.3,
+        })
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"].strip()
+        text = _re.sub(r'<think>.*?</think>', '', text, flags=_re.DOTALL).strip()
+
+    # Parse response — handle multi-paragraph SUMMARY_START/SUMMARY_END block
+    summary = ""
+    doc_type = ""
+    themes = []
+    entities = []
+    questions = []
+    key_findings = []
+    terms = []
+    toc = []
+
+    # Extract multi-paragraph summary between markers
+    summary_match = _re.search(r'SUMMARY_START\s*\n(.*?)\nSUMMARY_END', text, _re.DOTALL)
+    if summary_match:
+        summary = summary_match.group(1).strip()
+    
+    for line in text.split("\n"):
+        line = line.strip()
+        if line.upper().startswith("DOCTYPE:"):
+            doc_type = line[8:].strip()
+        elif line.upper().startswith("SUMMARY:") and not summary:
+            # Fallback: single-line summary if markers not used
+            summary = line[8:].strip()
+        elif line.upper().startswith("THEMES:"):
+            themes = [t.strip() for t in line[7:].split(",") if t.strip()]
+        elif line.upper().startswith("ENTITIES:"):
+            entities = [e.strip() for e in line[9:].split(",") if e.strip()]
+        elif line.upper().startswith("KEYFINDINGS:"):
+            # Might be on same line or next lines
+            rest = line[12:].strip()
+            if rest:
+                key_findings.append(rest)
+        elif _re.match(r'^F\d:', line):
+            f = line[3:].strip()
+            if f:
+                key_findings.append(f)
+        elif _re.match(r'^T\d:', line):
+            t = line[3:].strip()
+            if t:
+                terms.append(t)
+        elif _re.match(r'^S\d:', line):
+            s = line[3:].strip()
+            if s:
+                # Parse "section_name|page_number"
+                parts = s.split("|")
+                toc_entry = {"title": parts[0].strip()}
+                if len(parts) > 1:
+                    try:
+                        toc_entry["page"] = int(parts[1].strip())
+                    except ValueError:
+                        pass
+                toc.append(toc_entry)
+        elif _re.match(r'^Q\d:', line):
+            q = line[3:].strip()
+            if q:
+                questions.append(q)
+
+    print(f"📋 Auto-summary generated for \"{filename}\": type={doc_type}, {len(summary)} chars, "
+          f"{len(themes)} themes, {len(entities)} entities, {len(questions)} questions, "
+          f"{len(key_findings)} findings, {len(terms)} terms, {len(toc)} toc entries")
+    return {
+        "summary": summary,
+        "doc_type": doc_type,
+        "themes": themes[:8],
+        "entities": entities[:10],
+        "suggested_questions": questions[:5],
+        "key_findings": key_findings[:5],
+        "terms": terms[:5],
+        "toc": toc[:15],
+    }
 
 
 @app.get("/api/documents")
@@ -167,6 +481,11 @@ async def delete_document(doc_id: str, session_id: str = Query(...)):
     deleted = rag.delete_document(session_id, doc_id)
     return JSONResponse(content={"deleted": deleted, "doc_id": doc_id})
 
+
+# ── Health check (must be above SPA catch-all) ──────────────
+@app.get("/health")
+async def health():
+    return {"status": "ok", "model": config.VLLM_MODEL}
 
 # Serve React build if available
 _static = Path(__file__).parent / "static"
@@ -329,7 +648,10 @@ async def voice_endpoint(ws: WebSocket):
         # Inject RAG context if documents are uploaded
         loop = asyncio.get_event_loop()
         try:
-            rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, transcript)
+            rag_context = await loop.run_in_executor(
+                _rag_executor, rag.retrieve_context,
+                session_id, transcript, list(conversation_history), active_workflow
+            )
         except Exception as e:
             print(f"⚠️ Voice RAG retrieval failed (continuing without docs): {e}")
             rag_context = ""
@@ -476,9 +798,10 @@ async def voice_endpoint(ws: WebSocket):
             await safe_send_json({"type": "tts_done"})
 
             if full_reply:
-                conversation_history.append({"role": "assistant", "content": full_reply.strip()})
-                if len(conversation_history) > 21:
-                    del conversation_history[1:-20]
+                clean_reply = _strip_think_blocks(full_reply)
+                if clean_reply:
+                    conversation_history.append({"role": "assistant", "content": clean_reply})
+                    await _maybe_summarize_history(conversation_history)
 
             print(f"✅ [{time.perf_counter()-t0:.2f}s] Voice reply: {full_reply[:60]}...")
 
@@ -493,11 +816,12 @@ async def voice_endpoint(ws: WebSocket):
                     pass
             _active_tts_task = None
             if full_reply:
-                clean = re.sub(r'<think>.*?</think>\s*', '', full_reply, flags=re.DOTALL).strip()
+                clean = _strip_think_blocks(full_reply)
                 if clean:
                     conversation_history.append({"role": "assistant", "content": clean})
-                    if len(conversation_history) > 21:
-                        del conversation_history[1:-20]
+                    # Don't await summarize during cancel — just cap if needed
+                    if len(conversation_history) > 201:
+                        del conversation_history[1:-200]
             raise
         except Exception as e:
             print(f"❌ Pipeline error: {type(e).__name__}: {e}")
@@ -534,14 +858,22 @@ async def voice_endpoint(ws: WebSocket):
                         continue
                     print(f"💬 Text chat: {user_text[:60]} (workflow={active_workflow[:30]})")
 
-                    # ── Document gate removed — AI prompt handles doc-first guidance ──
-                    # The system prompt already instructs the AI to ask for documents when needed.
-                    # No code-level blocking — lets the AI respond naturally for demos.
-
-                    # Topic filter
-                    if not config.is_topic_related(user_text):
+                    # ── Hard Document Gate — require document upload before answering ──
+                    # Applies when a workflow is selected OR for direct-doc assistants (no workflows)
+                    _direct_doc_assistants = {"general"}
+                    has_docs = rag.has_documents(session_id)
+                    if not has_docs and (active_workflow or assistant_key in _direct_doc_assistants):
                         await safe_send_json({"type": "llm_start"})
-                        await safe_send_json({"type": "llm_delta", "text": config.REJECT_MSG})
+                        upload_msg = config.get_upload_message(assistant_key, active_workflow)
+                        await safe_send_json({"type": "llm_delta", "text": upload_msg})
+                        await safe_send_json({"type": "llm_done"})
+                        continue
+
+                    # Topic filter (workflow-aware)
+                    if not config.is_topic_related(user_text, active_workflow):
+                        await safe_send_json({"type": "llm_start"})
+                        reject_msg = config.get_workflow_reject_message(active_workflow)
+                        await safe_send_json({"type": "llm_delta", "text": reject_msg})
                         await safe_send_json({"type": "llm_done"})
                         continue
 
@@ -559,11 +891,23 @@ async def voice_endpoint(ws: WebSocket):
                         # Inject RAG context if documents are uploaded
                         text_messages = list(conversation_history)
                         loop = asyncio.get_event_loop()
+                        rag_context = ""
+                        rag_sources = []
                         try:
-                            rag_context = await loop.run_in_executor(_rag_executor, rag.retrieve_context, session_id, user_text)
+                            rag_result = await loop.run_in_executor(
+                                _rag_executor, rag.retrieve_context_with_sources,
+                                session_id, user_text, list(conversation_history), active_workflow
+                            )
+                            rag_context = rag_result.get("context", "")
+                            rag_sources = rag_result.get("sources", [])
                         except Exception as e:
                             print(f"⚠️ Text RAG retrieval failed (continuing without docs): {e}")
-                            rag_context = ""
+
+                        print(f"📎 RAG lookup: session={session_id}, has_context={bool(rag_context)}, context_len={len(rag_context)}, sources={len(rag_sources)}")
+
+                        # Send source preview cards to frontend before LLM starts
+                        if rag_sources:
+                            await safe_send_json({"type": "rag_sources", "sources": rag_sources})
 
                         # If documents uploaded, inject RAG context; otherwise AI answers from knowledge
                         if rag_context:
@@ -578,7 +922,7 @@ async def voice_endpoint(ws: WebSocket):
                                 "POST", "/v1/completions",
                                 json={
                                     "prompt": prompt,
-                                    "max_tokens": 1536,
+                                    "max_tokens": 2048,
                                     "temperature": 0.3,
                                     "stop": ["<|im_end|>"],
                                     "stream": True,
@@ -609,18 +953,21 @@ async def voice_endpoint(ws: WebSocket):
                                 pass
                             # Save partial reply if any
                             if full_reply:
-                                conversation_history.append({"role": "assistant", "content": full_reply.strip()})
-                                if len(conversation_history) > 21:
-                                    del conversation_history[1:-20]
+                                clean_reply = _strip_think_blocks(full_reply)
+                                if clean_reply:
+                                    conversation_history.append({"role": "assistant", "content": clean_reply})
+                                    if len(conversation_history) > 201:
+                                        del conversation_history[1:-200]
                             continue
 
                         await safe_send_json({"type": "llm_done"})
                         print(f"✅ [{time.perf_counter()-t0:.2f}s] Text reply: {full_reply[:60]}...")
 
                         if full_reply:
-                            conversation_history.append({"role": "assistant", "content": full_reply.strip()})
-                            if len(conversation_history) > 21:
-                                del conversation_history[1:-20]
+                            clean_reply = _strip_think_blocks(full_reply)
+                            if clean_reply:
+                                conversation_history.append({"role": "assistant", "content": clean_reply})
+                                await _maybe_summarize_history(conversation_history)
 
                 continue
 
@@ -715,15 +1062,25 @@ async def voice_endpoint(ws: WebSocket):
 
                     print(f"🎤 [{time.perf_counter()-t0:.2f}s] User ({detected_lang}): {transcript}")
 
-                    # Document gate removed — AI prompt handles doc-first guidance naturally
-
-                    # Topic filter
-                    if not config.is_topic_related(transcript):
+                    # Hard document gate for voice — require docs first
+                    if not rag.has_documents(session_id):
+                        upload_msg = config.get_upload_message(assistant_key, active_workflow)
                         await safe_send_json({"type": "user_transcript", "text": transcript})
                         await safe_send_json({"type": "llm_start"})
-                        await safe_send_json({"type": "llm_delta", "text": config.REJECT_MSG})
+                        await safe_send_json({"type": "llm_delta", "text": upload_msg})
                         await safe_send_json({"type": "llm_done"})
-                        await _send_tts(ws, config.REJECT_MSG)
+                        await _send_tts(ws, upload_msg)
+                        await safe_send_json({"type": "tts_done"})
+                        return
+
+                    # Topic filter (workflow-aware)
+                    if not config.is_topic_related(transcript, active_workflow):
+                        reject_msg = config.get_workflow_reject_message(active_workflow)
+                        await safe_send_json({"type": "user_transcript", "text": transcript})
+                        await safe_send_json({"type": "llm_start"})
+                        await safe_send_json({"type": "llm_delta", "text": reject_msg})
+                        await safe_send_json({"type": "llm_done"})
+                        await _send_tts(ws, reject_msg)
                         await safe_send_json({"type": "tts_done"})
                         return
 
@@ -787,6 +1144,18 @@ def _normalize_wav(wav_bytes: bytes, target_peak: float = 0.85) -> bytes:
 async def _send_tts(ws: WebSocket, text: str, voice: str = None):
     """Stream TTS sentence-by-sentence for low latency.
     First sentence audio arrives in ~0.3s while rest generates in background."""
+    async def safe_send_json(data):
+        try:
+            await ws.send_json(data)
+        except Exception:
+            pass
+
+    async def safe_send_bytes(data):
+        try:
+            await ws.send_bytes(data)
+        except Exception:
+            pass
+
     clean = strip_md_for_tts(text)
     if not clean:
         return
@@ -839,13 +1208,6 @@ async def _send_tts(ws: WebSocket, text: str, voice: str = None):
             print(f"🔊 TTS [{time.perf_counter()-t0:.3f}s] {len(clean)} chars (fallback)")
         except Exception as e2:
             print(f"❌ TTS fallback error: {e2}")
-
-
-# ── Health check ────────────────────────────────────────────
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "model": config.VLLM_MODEL}
 
 
 # ── Run ─────────────────────────────────────────────────────
