@@ -22,7 +22,7 @@ function Section({ icon: Icon, title, children, defaultOpen = true }) {
 }
 
 export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, onOpenPdf }) {
-  const doc = [...documents].reverse().find(d => d.summary)
+  const doc = [...documents].reverse().find(d => d.summary || d.relevanceWarning)
   if (!doc) return null
 
   // Irrelevant document — show compact rejection, hide summary entirely

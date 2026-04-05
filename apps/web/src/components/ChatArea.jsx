@@ -16,8 +16,9 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
 
   // Original 2-screen logic
   const hasTryOptions = assistantConfig?.tryOptions?.length > 0
+  const hasAnyDocs = documents?.length > 0
   const showWelcome = !workflow && messages.length === 0 && hasTryOptions
-  const showUploadZone = !hasDocuments && messages.length === 0 && (workflow || !hasTryOptions)
+  const showUploadZone = !hasDocuments && !hasAnyDocs && messages.length === 0 && (workflow || !hasTryOptions)
   const activeWorkflow = showUploadZone
     ? assistantConfig?.tryOptions?.find(opt => opt.message === workflow)
     : null
@@ -185,7 +186,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
         <div className="h-full overflow-auto px-3 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 scrollbar-thin">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
             {/* Document Summary Card — shown at top of chat after upload */}
-            {documents?.some(d => d.summary && !dismissedSummaries?.has(d.doc_id)) && (
+            {documents?.some(d => (d.summary || d.relevanceWarning) && !dismissedSummaries?.has(d.doc_id)) && (
               <DocSummaryCard
                 documents={documents.filter(d => !dismissedSummaries?.has(d.doc_id))}
                 onQuestionClick={onQuestionClick}
