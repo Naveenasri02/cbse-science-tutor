@@ -43,6 +43,52 @@
 .msg-md hr { border:none; border-top:1px solid #2A2A2A; margin:10px 0; }
 .msg-md blockquote { border-left:3px solid #1D9BF0; padding-left:12px; color:#8A8F98; margin:6px 0; font-size:.85rem; }
 
+/* Citation chips — inline [1], [2] references (clickable, scroll to source) */
+.citation-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(29,155,240,0.15);
+  color: #1D9BF0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0px 4px;
+  border-radius: 4px;
+  margin: 0 1px;
+  cursor: pointer;
+  vertical-align: super;
+  line-height: 1;
+  border: 1px solid rgba(29,155,240,0.25);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.citation-chip:hover {
+  background: rgba(29,155,240,0.35);
+  border-color: rgba(29,155,240,0.6);
+  transform: scale(1.1);
+}
+.citation-chip:active {
+  transform: scale(0.95);
+}
+
+/* Source entry in the Sources footer */
+.source-entry {
+  font-weight: 700;
+  color: #1D9BF0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+/* Highlight animation when a citation is clicked */
+@keyframes sourceFlash {
+  0% { background: rgba(29,155,240,0.3); box-shadow: 0 0 8px rgba(29,155,240,0.4); }
+  100% { background: transparent; box-shadow: none; }
+}
+.source-highlight {
+  animation: sourceFlash 2s ease-out;
+}
+
 /* KaTeX */
 .katex { font-size: 1em !important; }
 
@@ -55,6 +101,14 @@
 .animate-pulse-mic { animation: pulse 1.5s ease-in-out infinite; }
 .animate-fade-in { animation: fadeIn .2s ease-out; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+/* Source Panel slide-in from right */
+.animate-slide-in-right { animation: slideInRight .25s ease-out; }
+@keyframes slideInRight { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+
+/* Source Popup slide up */
+.animate-slide-up { animation: slideUp .2s ease-out; }
+@keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
 
 .typing-dot {
   display: inline-block;
@@ -157,4 +211,30 @@
   margin-left: 2px;
   vertical-align: text-bottom;
   animation: cursorBlink 1s step-end infinite;
+}
+
+/* ── PDF Viewer ── */
+.pdf-scroll::-webkit-scrollbar { width: 6px; }
+.pdf-scroll::-webkit-scrollbar-track { background: transparent; }
+.pdf-scroll::-webkit-scrollbar-thumb { background: #323232; border-radius: 3px; }
+
+.react-pdf__Page__textContent { opacity: 0.3; }
+.react-pdf__Page__textContent::selection { background: rgba(29,155,240,0.4); }
+
+/* PDF text highlight — persistent until next citation click */
+.pdf-highlight {
+  background: rgba(29,155,240,0.45) !important;
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(29,155,240,0.4);
+  transition: background 0.3s ease;
+}
+
+/* Split panel resize handle */
+.panel-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  transition: background 0.2s;
+}
+.panel-resize-handle:hover {
+  background: rgba(29,155,240,0.4) !important;
 }

@@ -1,4 +1,4 @@
-import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Landmark, MessageSquareText, FileSearch, FileText, ShieldCheck, BookOpen, PenLine, ClipboardList, Users, UserPlus, Monitor, Package, Wrench, Info, ClipboardCheck } from 'lucide-react'
+import { Trash2, X, ChevronLeft, Scale, GraduationCap, Briefcase, Headset, Landmark, Bot, MessageSquareText, FileSearch, FileText, ShieldCheck, BookOpen, PenLine, ClipboardList, Users, UserPlus, Monitor, Package, Wrench, Info, ClipboardCheck, FileUp } from 'lucide-react'
 import { palette } from '@cbse/shared'
 
 export const ASSISTANTS = [
@@ -66,6 +66,15 @@ export const ASSISTANTS = [
       { label: 'Claims guidance', icon: ClipboardCheck, message: 'I want help with claims and service guidance' },
       { label: 'Compliance support', icon: ShieldCheck, message: 'I want help with compliance and regulatory support' },
     ],
+  },
+  {
+    key: 'general',
+    label: 'General Assistant',
+    icon: Bot,
+    mode: 'doc',
+    voice: true,
+    welcomeMessage: 'Private, enterprise-grade General Document Assistant running on our local server. Upload any document and ask questions. I will analyze the content and provide accurate answers based on your uploaded material.',
+    tryOptions: [],
   },
 ]
 

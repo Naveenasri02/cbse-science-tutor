@@ -138,10 +138,23 @@ class RAGPipeline:
 
     # ── RETRIEVAL ──
 
-    def retrieve_context(self, session_id: str, query: str) -> str:
-        """Full retrieval pipeline: analyze → hybrid search → rerank → format with sources."""
+    def retrieve_context(self, session_id: str, query: str, conversation_history: list[dict] = None, workflow: str = "") -> str:
+        """Full retrieval pipeline: rewrite → analyze → hybrid search → rerank → format with sources."""
+        result = self.retrieve_context_with_sources(session_id, query, conversation_history, workflow)
+        return result["context"]
+
+    def retrieve_context_with_sources(self, session_id: str, query: str, conversation_history: list[dict] = None, workflow: str = "") -> dict:
+        """Full retrieval pipeline returning context string + source metadata for streaming preview.
+
+        Returns: {"context": str, "sources": [{"ref": int, "filename": str, "page": int, "section": str, "score": float}]}
+        """
         if not self.store.has_documents(session_id):
-            return ""
+            return {"context": "", "sources": []}
+
+        # Rewrite query using conversation context for follow-up resolution
+        search_query = self._rewrite_query(query, conversation_history)
+        if search_query != query:
+            print(f"  🔄 RAG: query rewritten: '{query[:50]}' → '{search_query[:50]}'")
 
         total_chunks = self.store.get_chunk_count(session_id)
         all_chunks = self.store.get_all_chunks_ordered(session_id)
@@ -150,54 +163,212 @@ class RAGPipeline:
         # Small doc: inject everything
         if total_doc_tokens <= config.RAG_MAX_CONTEXT_TOKENS:
             print(f"  📄 RAG: full-doc injection ({len(all_chunks)} chunks, ~{total_doc_tokens} tokens)")
-            return self._format_context_with_sources(all_chunks, is_summary=False)
+            context = self._format_context_with_sources(all_chunks, is_summary=False, workflow=workflow)
+            sources = self._extract_source_metadata(all_chunks)
+            return {"context": context, "sources": sources}
 
         # Query analysis: classify intent
-        query_type = self._analyze_query(session_id, query)
+        query_type = self._analyze_query(session_id, search_query, workflow)
         print(f"  🧠 RAG: query classified as '{query_type}'")
 
         if query_type == "out_of_scope":
-            return (
-                "\n\n[RAG NOTE: The user's question appears unrelated to the uploaded documents. "
-                "Politely inform them that you can only answer questions about their uploaded documents.]\n"
-            )
+            return {
+                "context": (
+                    "\n\n[RAG NOTE: The user's question appears unrelated to the uploaded documents. "
+                    "Politely inform them that you can only answer questions about their uploaded documents.]\n"
+                ),
+                "sources": [],
+            }
 
         if query_type == "ambiguous":
-            return (
-                "\n\n[RAG NOTE: The user's question is ambiguous. "
-                "Ask them to clarify what specifically they're referring to in the documents.]\n"
-            )
+            return {
+                "context": (
+                    "\n\n[RAG NOTE: The user's question is ambiguous. "
+                    "Ask them to clarify what specifically they're referring to in the documents.]\n"
+                ),
+                "sources": [],
+            }
 
-        is_summary = query_type == "summary" or self._is_summary_query(query)
+        is_summary = query_type == "summary" or self._is_summary_query(search_query)
 
         if is_summary:
             print(f"  📖 RAG: summary mode ({len(all_chunks)} chunks)")
-            context = self._build_context_with_sources(all_chunks)
-            return config.RAG_SUMMARY_PROMPT.format(context=context)
+            context_body = self._build_context_with_sources(all_chunks)
+            context = config.RAG_SUMMARY_PROMPT.format(context=context_body)
+            sources = self._extract_source_metadata(all_chunks)
+            return {"context": context, "sources": sources}
 
-        # Hybrid retrieval: dense + BM25 + RRF
-        results = self._hybrid_retrieve(session_id, query, all_chunks)
+        # Decompose complex queries into sub-queries for broader retrieval
+        sub_queries = self._decompose_query(search_query)
+
+        if len(sub_queries) > 1:
+            print(f"  🔀 RAG: decomposed into {len(sub_queries)} sub-queries: {sub_queries}")
+            all_results = []
+            seen_texts = set()
+            for sq in sub_queries:
+                sq_results = self._hybrid_retrieve(session_id, sq, all_chunks)
+                for r in sq_results:
+                    key = r["text"][:100]
+                    if key not in seen_texts:
+                        seen_texts.add(key)
+                        all_results.append(r)
+            results = all_results
+        else:
+            results = self._hybrid_retrieve(session_id, search_query, all_chunks)
+
         if not results:
-            return ""
+            return {"context": "", "sources": []}
 
-        # Rerank with cross-encoder
-        reranked = self.reranker.rerank(query, results, top_k=config.RAG_RERANK_TOP_K)
+        # Rerank all results together with the original query
+        reranked = self.reranker.rerank(search_query, results, top_k=config.RAG_RERANK_TOP_K)
+
+        # Deduplicate near-identical chunks (>85% text overlap)
+        reranked = self._deduplicate_chunks(reranked)
+
         scores_str = [f"{r['rerank_score']:.3f}" for r in reranked[:3]]
         print(f"  🎯 RAG: reranked {len(results)}→{len(reranked)} chunks (top scores: {scores_str})")
 
         if not reranked:
-            return (
-                "\n\n[RAG NOTE: No sufficiently relevant information was found in the uploaded documents "
-                "for this query. Let the user know their question doesn't seem to be covered in the documents.]\n"
+            return {
+                "context": (
+                    "\n\n[RAG NOTE: No sufficiently relevant information was found in the uploaded documents "
+                    "for this query. Let the user know their question doesn't seem to be covered in the documents.]\n"
+                ),
+                "sources": [],
+            }
+
+        context = self._format_context_with_sources(reranked, is_summary=False, workflow=workflow)
+        sources = self._extract_source_metadata(reranked)
+        return {"context": context, "sources": sources}
+
+    @staticmethod
+    def _extract_source_metadata(chunks: list[dict]) -> list[dict]:
+        """Extract source metadata for streaming preview cards."""
+        sources = []
+        for i, c in enumerate(chunks):
+            sources.append({
+                "ref": i + 1,
+                "filename": c.get("filename", "unknown"),
+                "page": c.get("page", 0),
+                "section": c.get("section", ""),
+                "score": round(c.get("rerank_score", c.get("rrf_score", c.get("score", 0))), 3),
+                "text": c["text"].strip(),
+                "snippet": c["text"][:150].strip(),
+            })
+        return sources
+
+    @staticmethod
+    def _deduplicate_chunks(chunks: list[dict], threshold: float = 0.85) -> list[dict]:
+        """Remove near-duplicate chunks based on character-level Jaccard similarity."""
+        if len(chunks) <= 1:
+            return chunks
+
+        deduped = [chunks[0]]
+        for candidate in chunks[1:]:
+            is_dup = False
+            cand_words = set(candidate["text"].lower().split())
+            for kept in deduped:
+                kept_words = set(kept["text"].lower().split())
+                if not cand_words or not kept_words:
+                    continue
+                intersection = len(cand_words & kept_words)
+                union = len(cand_words | kept_words)
+                if union > 0 and intersection / union >= threshold:
+                    is_dup = True
+                    break
+            if not is_dup:
+                deduped.append(candidate)
+        return deduped
+
+    def _rewrite_query(self, query: str, conversation_history: list[dict] = None) -> str:
+        """Rewrite a follow-up query into a self-contained search query using conversation context."""
+        if not conversation_history or len(conversation_history) < 3:
+            return query
+
+        # Check if the query looks like a follow-up (short, uses pronouns, or lacks context)
+        follow_up_indicators = [
+            len(query.split()) < 8,
+            any(w in query.lower().split() for w in ["it", "this", "that", "they", "them", "its", "those", "these", "he", "she"]),
+            query.lower().startswith(("what about", "how about", "and ", "also ", "tell me more", "explain")),
+        ]
+        if not any(follow_up_indicators):
+            return query
+
+        # Build context from last 2-3 turns (skip system prompt at index 0)
+        recent = conversation_history[-4:]  # last 2 user + 2 assistant turns
+        turns_text = ""
+        for msg in recent:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role in ("user", "assistant") and content:
+                # Truncate long assistant replies
+                preview = content[:300] + "..." if len(content) > 300 else content
+                turns_text += f"{role.upper()}: {preview}\n"
+
+        try:
+            prompt = (
+                "Rewrite the user's follow-up question into a fully self-contained search query.\n"
+                "Use the conversation context to resolve pronouns, references, and implicit topics.\n\n"
+                f"Recent conversation:\n{turns_text}\n"
+                f"Follow-up question: {query}\n\n"
+                "Rewritten search query (one line, no explanation):\n"
+                "/no_think"
             )
+            rewritten = _llm_generate_sync(prompt, max_tokens=80)
+            rewritten = re.sub(r'<think>.*?</think>', '', rewritten, flags=re.DOTALL).strip()
+            # Clean up: remove quotes, prefixes
+            rewritten = rewritten.strip('"\'').strip()
+            if rewritten and len(rewritten) > 5:
+                return rewritten
+        except Exception as e:
+            print(f"  ⚠️ Query rewriting failed: {e}")
 
-        return self._format_context_with_sources(reranked, is_summary=False)
+        return query
 
-    def _analyze_query(self, session_id: str, query: str) -> str:
+    def _decompose_query(self, query: str) -> list[str]:
+        """Decompose complex queries into sub-queries for broader retrieval coverage."""
+        # Only decompose if query looks complex (comparisons, multiple topics, conjunctions)
+        complexity_indicators = [
+            any(w in query.lower() for w in ["compare", "contrast", "difference between", "versus", "vs"]),
+            " and " in query.lower() and len(query.split()) > 10,
+            any(w in query.lower() for w in ["both", "each", "respectively", "as well as"]),
+            query.lower().count("section") > 1 or query.lower().count("chapter") > 1,
+        ]
+        if not any(complexity_indicators):
+            return [query]
+
+        try:
+            prompt = (
+                "Break this complex question into 2-3 simpler, independent search queries.\n"
+                "Each sub-query should target a specific piece of information.\n"
+                "If the question is already simple, return just the original.\n\n"
+                f"Question: {query}\n\n"
+                "Output each sub-query on a separate line, numbered:\n"
+                "1. <sub-query>\n"
+                "2. <sub-query>\n"
+                "/no_think"
+            )
+            result = _llm_generate_sync(prompt, max_tokens=150)
+            result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL).strip()
+
+            sub_queries = []
+            for line in result.split("\n"):
+                line = line.strip()
+                # Remove numbering like "1. " or "1) "
+                cleaned = re.sub(r'^\d+[\.\)]\s*', '', line).strip()
+                if cleaned and len(cleaned) > 5:
+                    sub_queries.append(cleaned)
+
+            return sub_queries if len(sub_queries) >= 2 else [query]
+        except Exception as e:
+            print(f"  ⚠️ Query decomposition failed: {e}")
+            return [query]
+
+    def _analyze_query(self, session_id: str, query: str, workflow: str = "") -> str:
         """Use LLM to classify query: answerable / out_of_scope / ambiguous / summary."""
         try:
             doc_topics = self.store.get_document_topics(session_id)
-            prompt = config.QUERY_ANALYSIS_PROMPT.format(doc_topics=doc_topics, query=query)
+            prompt = config.QUERY_ANALYSIS_PROMPT.format(doc_topics=doc_topics, query=query, workflow=workflow or "General")
             result = _llm_generate_sync(prompt, max_tokens=20)
             # Clean up response — extract just the classification word
             result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL).strip()
@@ -266,12 +437,14 @@ class RAGPipeline:
 
     @staticmethod
     def _build_context_with_sources(chunks: list[dict], max_tokens: int = None) -> str:
-        """Format chunks with source attribution, respecting token budget."""
+        """Format chunks with numbered source attribution [1], [2], etc., respecting token budget."""
         budget = max_tokens or config.RAG_MAX_CONTEXT_TOKENS
         parts = []
         tokens_used = 0
-        for c in chunks:
+        for i, c in enumerate(chunks):
+            ref_num = i + 1
             source_tag = config.RAG_CONTEXT_PROMPT_TEMPLATE.format(
+                ref_num=ref_num,
                 filename=c.get("filename", "unknown"),
                 page=c.get("page", "?"),
                 section=c.get("section", ""),
@@ -287,12 +460,12 @@ class RAGPipeline:
             tokens_used += chunk_tokens
         return "\n---\n".join(parts)
 
-    def _format_context_with_sources(self, chunks: list[dict], is_summary: bool) -> str:
+    def _format_context_with_sources(self, chunks: list[dict], is_summary: bool, workflow: str = "") -> str:
         """Build final context string with source citations and RAG prompt."""
         context = self._build_context_with_sources(chunks)
         if is_summary:
             return config.RAG_SUMMARY_PROMPT.format(context=context)
-        return config.RAG_CONTEXT_PROMPT.format(context=context)
+        return config.get_rag_context_prompt(workflow).format(context=context)
 
     # ── DOCUMENT MANAGEMENT ──
 

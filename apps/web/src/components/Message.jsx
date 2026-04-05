@@ -28,7 +28,23 @@ function restoreLatex(html, placeholders) {
   })
 }
 
-export default function Message({ role, text, streaming }) {
+// Convert inline citation references like [1], [2] into styled clickable citation chips
+function renderCitations(html) {
+  // Match [N] patterns (but not inside href or src attributes, and not [Source:...])
+  return html.replace(/\[(\d{1,2})\]/g, (match, num) => {
+    return `<span class="citation-chip" data-ref="${num}" title="Jump to Source [${num}]" role="button" tabindex="0">[${num}]</span>`
+  })
+}
+
+// Add id attributes to source entries in the Sources footer so citations can scroll to them
+function addSourceIds(html) {
+  // Match patterns like "[1] filename" in the Sources section
+  return html.replace(/\[(\d{1,2})\]\s/g, (match, num) => {
+    return `<span id="source-ref-${num}" class="source-entry">[${num}] </span>`
+  })
+}
+
+export default function Message({ role, text, streaming, onCitationClick }) {
   const contentRef = useRef(null)
   const renderTimer = useRef(null)
   const textRef = useRef(text || '')
@@ -57,7 +73,10 @@ export default function Message({ role, text, streaming }) {
     return () => clearInterval(timer)
   }, [streaming, role])
 
-  const displayText = (role === 'bot') ? (text || '').slice(0, displayLen) : (text || '')
+  // Strip "Sources:" footer block from bot responses (e.g., "---\nSources:\n[1] ...")
+  const stripSourcesFooter = (md) => md.replace(/\n*-{2,}\s*\n\s*\*{0,2}Sources:?\*{0,2}\s*\n[\s\S]*$/i, '').replace(/\n\s*\*{0,2}Sources:?\*{0,2}\s*\n\s*\[[\s\S]*$/i, '')
+
+  const displayText = (role === 'bot') ? stripSourcesFooter((text || '').slice(0, displayLen)) : (text || '')
   displayTextRef.current = displayText
 
   // Ensure markdown headers/lists have preceding newlines for proper parsing
@@ -68,8 +87,10 @@ export default function Message({ role, text, streaming }) {
   const parseWithLatex = (md) => {
     const fixed = fixMarkdown(md)
     const { result, placeholders } = protectLatex(fixed)
-    const html = marked.parse(result)
-    return restoreLatex(html, placeholders)
+    let html = marked.parse(result)
+    html = restoreLatex(html, placeholders)
+    html = renderCitations(html)
+    return html
   }
 
   const [renderedHtml, setRenderedHtml] = useState('')
@@ -101,6 +122,9 @@ export default function Message({ role, text, streaming }) {
   }, [])
 
   // Render KaTeX — both during streaming and after
+  const onCitationClickRef = useRef(onCitationClick)
+  useEffect(() => { onCitationClickRef.current = onCitationClick }, [onCitationClick])
+
   useEffect(() => {
     if (role === 'bot' && contentRef.current && renderedHtml) {
       try {
@@ -114,6 +138,20 @@ export default function Message({ role, text, streaming }) {
           throwOnError: false,
         })
       } catch {}
+
+      // Attach click handlers to citation chips
+      const chips = contentRef.current.querySelectorAll('.citation-chip[data-ref]')
+      chips.forEach(chip => {
+        chip.onclick = (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          const ref = parseInt(chip.getAttribute('data-ref'), 10)
+          if (onCitationClickRef.current) {
+            const rect = chip.getBoundingClientRect()
+            onCitationClickRef.current(ref, { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right })
+          }
+        }
+      })
     }
   }, [role, renderedHtml])
 

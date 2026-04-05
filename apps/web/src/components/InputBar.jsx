@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Mic, SendHorizontal, Square, Paperclip } from 'lucide-react'
-import DocumentChips from './DocumentChips'
+import { Mic, SendHorizontal, Square } from 'lucide-react'
 import { palette } from '@cbse/shared'
 
 const VOICE_COLORS = {
@@ -12,12 +11,10 @@ const VOICE_COLORS = {
   error: '#ef4444',
 }
 
-export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, onUpload, documents, onDeleteDoc, uploading, uploadProgress, mode, voiceEnabled = true, hasWorkflow = true }) {
-  const showUpload = mode === 'doc'
+export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, mode, voiceEnabled = true, hasWorkflow = true }) {
   const showVoice = voiceEnabled
   const [text, setText] = useState('')
   const inputRef = useRef(null)
-  const fileInputRef = useRef(null)
 
   const handleSend = () => {
     if (!text.trim()) return
@@ -29,17 +26,6 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
-    }
-  }
-
-  const handleFileSelect = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    try {
-      await onUpload(file)
-    } catch (err) {
-      alert(err.message || 'Upload failed')
     }
   }
 
@@ -61,15 +47,7 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
           </div>
         )}
 
-        {/* Document chips (doc mode only) */}
-        {showUpload && (
-          <DocumentChips
-            documents={documents || []}
-            onDelete={onDeleteDoc}
-            uploading={uploading}
-            uploadProgress={uploadProgress}
-          />
-        )}
+        {/* Document chips and upload removed — upload handled by workflow upload zone */}
 
         <div
           className="flex items-center gap-1.5 rounded-[20px] border px-2.5 py-1.5 sm:gap-2 sm:rounded-[24px] sm:px-3 sm:py-2"
@@ -81,28 +59,6 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
               : '0 8px 30px rgba(0,0,0,0.28)',
           }}
         >
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.docx,.doc,.txt,.md,.csv,.pptx,.xlsx,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.webp,.gif"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-
-          {/* Upload button (doc mode) */}
-          {showUpload && !voiceActive && (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || uploading}
-              className="flex h-10 w-10 md:h-8 md:w-8 items-center justify-center rounded-full transition-colors disabled:opacity-40"
-              style={{ background: 'transparent', color: palette.textMuted }}
-              title="Upload file"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-          )}
-
           <input
             ref={inputRef}
             value={voiceActive ? '' : text}

@@ -4,11 +4,12 @@ const API_BASE = import.meta.env.VITE_WS_URL
   ? import.meta.env.VITE_WS_URL.replace(/^wss?:/, match => match === 'wss:' ? 'https:' : 'http:').replace(/\/ws\/voice$/, '')
   : ''
 
-export default function useDocuments(sessionIdRef) {
+export default function useDocuments(sessionIdRef, assistantRef, workflowRef) {
   const [documents, setDocuments] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const processingTimer = useRef(null)
+  const xhrRef = useRef(null)
 
   const stopProcessingTimer = useCallback(() => {
     if (processingTimer.current) {
@@ -47,10 +48,11 @@ export default function useDocuments(sessionIdRef) {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const url = `${API_BASE}/api/upload?session_id=${encodeURIComponent(sessionId)}`
+      const url = `${API_BASE}/api/upload?session_id=${encodeURIComponent(sessionId)}&assistant=${encodeURIComponent(assistantRef?.current || 'general')}&workflow=${encodeURIComponent(workflowRef?.current || '')}`
 
       const data = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest()
+        xhrRef.current = xhr
         xhr.open('POST', url)
 
         let uploadDone = false
@@ -84,14 +86,35 @@ export default function useDocuments(sessionIdRef) {
           }
         }
 
-        xhr.onerror = () => { stopProcessingTimer(); reject(new Error('Network error')) }
-        xhr.ontimeout = () => { stopProcessingTimer(); reject(new Error('Upload timed out')) }
-        xhr.timeout = 120000
+        xhr.onerror = () => { stopProcessingTimer(); xhrRef.current = null; reject(new Error('Network error')) }
+        xhr.ontimeout = () => { stopProcessingTimer(); xhrRef.current = null; reject(new Error('Upload timed out')) }
+        xhr.onabort = () => { stopProcessingTimer(); xhrRef.current = null; reject(new Error('Upload cancelled')) }
+        xhr.timeout = 300000 // 5 min for large docs
         xhr.send(formData)
       })
+      xhrRef.current = null
 
+      // Verify session_id hasn't changed during upload (safety net)
+      if (sessionIdRef.current !== sessionId) {
+        console.warn('Session changed during upload — discarding result')
+        setUploadProgress(0)
+        return data
+      }
       const fileUrl = URL.createObjectURL(file)
-      setDocuments(prev => [...prev, { ...data, fileUrl, fileType: file.type }])
+      setDocuments(prev => [...prev, {
+        ...data,
+        fileUrl,
+        fileType: file.type,
+        summary: data.summary || '',
+        doc_type: data.doc_type || '',
+        themes: data.themes || [],
+        entities: data.entities || [],
+        suggestedQuestions: data.suggested_questions || [],
+        keyFindings: data.key_findings || [],
+        terms: data.terms || [],
+        toc: data.toc || [],
+        relevanceWarning: data.relevance_warning || null,
+      }])
       // Show 100% briefly before hiding
       setUploadProgress(100)
       await new Promise(r => setTimeout(r, 800))
@@ -126,5 +149,15 @@ export default function useDocuments(sessionIdRef) {
     setDocuments([])
   }, [documents])
 
-  return { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments }
+  const abortUpload = useCallback(() => {
+    if (xhrRef.current) {
+      xhrRef.current.abort()
+      xhrRef.current = null
+    }
+    stopProcessingTimer()
+    setUploading(false)
+    setUploadProgress(0)
+  }, [stopProcessingTimer])
+
+  return { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments, abortUpload }
 }

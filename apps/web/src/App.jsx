@@ -1,14 +1,17 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import LandingPage from './components/LandingPage'
 import Sidebar, { ASSISTANTS } from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
+import PdfViewer from './components/PdfViewer'
+import SourcePopup from './components/SourcePopup'
 
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
 import { palette } from '@cbse/shared'
+import { FileText, PanelRightClose, PanelRightOpen } from 'lucide-react'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
 
@@ -25,15 +28,68 @@ export default function App() {
   const [voiceStatus, setVoiceStatus] = useState({ visible: false, cls: '', text: '' })
   const [isBotResponding, setIsBotResponding] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [ragSources, setRagSources] = useState([])
   const botBufferRef = useRef('')
   const chatIdCounter = useRef(2)
   const interruptedRef = useRef(false)
   const sessionIdRef = useRef(generateSessionId())
+  const activeAssistantRef = useRef('legal')
+  const activeWorkflowRef = useRef('')
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
+  const [dismissedSummaries, setDismissedSummaries] = useState(new Set())
+
+  // Keep refs in sync for upload hook
+  activeAssistantRef.current = activeAssistant
+  activeWorkflowRef.current = activeChat?.workflow || ''
+
+  // PDF Viewer state
+  const [pdfPanelOpen, setPdfPanelOpen] = useState(false)
+  const [pdfTarget, setPdfTarget] = useState({ page: null, snippet: null })
+  const [popupSource, setPopupSource] = useState(null)
+
+  // Handle citation click — navigate PDF + highlight full source + show popup
+  const handleCitationClick = useCallback((refNum, chipRect) => {
+    console.log('[CitationClick] refNum:', refNum)
+    let allSources = lastRagSourcesRef.current
+    if (!allSources?.length) {
+      const chat = chats.find(c => c.id === activeChatId)
+      const lastBotWithSources = chat?.messages?.findLast(m => m.role === 'bot' && m.sources?.length > 0)
+      if (lastBotWithSources) allSources = lastBotWithSources.sources
+    }
+
+    const source = allSources?.find(s => s.ref === refNum || s.ref === String(refNum))
+    console.log('[CitationClick] found source:', !!source, source?.page)
+    if (!source) return
+
+    // Show popup at bottom of chat
+    setPopupSource(source)
+
+    // Navigate PDF to the correct page + highlight
+    if (source.page) {
+      const snippetText = source.text || source.snippet || ''
+      setPdfTarget({ page: source.page, snippet: snippetText, requestId: Date.now() })
+      setPdfPanelOpen(true)
+    }
+  }, [chats, activeChatId])
+
+  // Store last rag sources for citation lookups (persists after streaming ends)
+  const lastRagSourcesRef = useRef([])
 
   // Documents (RAG) — pass ref so session ID is always current
-  const { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments } = useDocuments(sessionIdRef)
+  const { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments, abortUpload } = useDocuments(sessionIdRef, activeAssistantRef, activeWorkflowRef)
+
+  // Auto-open PDF panel when a PDF is uploaded
+  const prevDocCountRef = useRef(0)
+  useEffect(() => {
+    if (documents.length > prevDocCountRef.current) {
+      const newDoc = documents[documents.length - 1]
+      if (!newDoc?.relevanceWarning && (newDoc?.fileType === 'application/pdf' || newDoc?.filename?.toLowerCase().endsWith('.pdf'))) {
+        setPdfPanelOpen(true)
+      }
+    }
+    prevDocCountRef.current = documents.length
+  }, [documents])
 
   // WebSocket URL with session_id for per-chat RAG scoping + assistant key for system prompt
   const wsUrl = `${WS_URL}?session_id=${sessionIdRef.current}&assistant=${activeAssistant}`
@@ -52,6 +108,16 @@ export default function App() {
       const msgs = [...c.messages]
       const lastBot = msgs.findLastIndex(m => m.role === 'bot')
       if (lastBot >= 0) msgs[lastBot] = { ...msgs[lastBot], text }
+      return { ...c, messages: msgs }
+    }))
+  }, [activeChatId])
+
+  const updateLastBotMsgSources = useCallback((sources) => {
+    setChats(prev => prev.map(c => {
+      if (c.id !== activeChatId) return c
+      const msgs = [...c.messages]
+      const lastBot = msgs.findLastIndex(m => m.role === 'bot')
+      if (lastBot >= 0) msgs[lastBot] = { ...msgs[lastBot], sources }
       return { ...c, messages: msgs }
     }))
   }, [activeChatId])
@@ -95,6 +161,11 @@ export default function App() {
         setVoiceStatus({ visible: true, cls: 'thinking', text: '💭 Thinking...' })
         break
 
+      case 'rag_sources':
+        setRagSources(msg.sources || [])
+        lastRagSourcesRef.current = msg.sources || []
+        break
+
       case 'llm_delta': {
         if (interruptedRef.current) break
         botBufferRef.current += msg.text
@@ -109,6 +180,11 @@ export default function App() {
           updateLastBotMsg(botBufferRef.current + ' …')
         }
         botBufferRef.current = ''
+        // Persist sources on the bot message so SourceCards stay visible
+        if (lastRagSourcesRef.current.length > 0) {
+          updateLastBotMsgSources([...lastRagSourcesRef.current])
+        }
+        setRagSources([])
         break
 
       case 'tts_start':
@@ -235,6 +311,7 @@ export default function App() {
   const selectAssistant = (assistantKey) => {
     const cfg = ASSISTANTS.find(a => a.key === assistantKey)
     if (!cfg) return
+    if (uploading) return // Block switching during upload to prevent session_id mismatch
     stopCurrentResponse()
     setActiveAssistant(assistantKey)
 
@@ -256,6 +333,10 @@ export default function App() {
       }
     }
     clearDocuments()
+    setPdfPanelOpen(false)
+    setPdfTarget({ page: null, snippet: null })
+    setPopupSource(null)
+    lastRagSourcesRef.current = []
     sessionIdRef.current = generateSessionId()
     reconnect()
     setSidebarOpen(false)
@@ -278,22 +359,36 @@ export default function App() {
   }
 
   const switchChat = (id) => {
+    if (uploading) return
     stopCurrentResponse()
     setActiveChatId(id)
     const chat = chats.find(c => c.id === id)
     if (chat?.assistant) setActiveAssistant(chat.assistant)
     setSidebarOpen(false)
     clearDocuments()
+    setPdfPanelOpen(false)
+    setPdfTarget({ page: null, snippet: null })
+    setPopupSource(null)
+    lastRagSourcesRef.current = []
     sessionIdRef.current = generateSessionId()
     reconnect()
   }
 
   const activeAssistantCfg = ASSISTANTS.find(a => a.key === activeAssistant) || ASSISTANTS[0]
 
+  // Auto-open PDF panel when a PDF is uploaded
+  const activePdfDoc = documents.find(d => !d.relevanceWarning && (d.fileType === 'application/pdf' || d.filename?.toLowerCase().endsWith('.pdf')))
+  const hasPdf = !!activePdfDoc
+
   // Landing page
   if (pageMode === 'landing') {
     return <LandingPage onTryDemo={() => setPageMode('demo')} />
   }
+
+  const showPdfPanel = pdfPanelOpen && hasPdf
+
+  // Calculate chat column flex based on PDF panel
+  const chatFlex = showPdfPanel ? '0 0 55%' : '1 1 auto'
 
   return (
     <div className="h-dvh flex overflow-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
@@ -327,6 +422,23 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2.5">
+            {/* PDF panel toggle — only show when PDF is available */}
+            {hasPdf && (
+              <button
+                onClick={() => setPdfPanelOpen(v => !v)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
+                style={{
+                  background: pdfPanelOpen ? 'rgba(29,155,240,0.15)' : 'rgba(29,155,240,0.06)',
+                  color: pdfPanelOpen ? palette.primary : palette.textMuted,
+                  border: `1px solid ${pdfPanelOpen ? 'rgba(29,155,240,0.3)' : 'transparent'}`,
+                }}
+                title={pdfPanelOpen ? 'Hide PDF viewer' : 'Show PDF viewer'}
+              >
+                <FileText size={14} />
+                <span className="hidden sm:inline">PDF</span>
+                {pdfPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+              </button>
+            )}
             <div
               className="rounded-full px-3 py-1.5 text-[13px]"
               style={{ background: palette.panel, color: palette.textSecondary }}
@@ -341,26 +453,64 @@ export default function App() {
           </div>
         </header>
 
-        <ChatArea
-          messages={activeChat.messages}
-          isBotResponding={isBotResponding}
-          mode={activeChat.mode}
-          assistantConfig={activeAssistantCfg}
-          onTryClick={handleTryClick}
-          workflow={activeChat.workflow}
-        />
-        {activeChat.workflow && (
+        {/* Main content: Chat (LEFT) + optional PDF panel (RIGHT) */}
+        <div className="flex min-h-0 overflow-hidden">
+          {/* Chat column */}
+          <div className="flex flex-col min-w-0 relative" style={{ flex: chatFlex }}>
+            <ChatArea
+              messages={activeChat.messages}
+              isBotResponding={isBotResponding}
+              mode={activeChat.mode}
+              assistantConfig={activeAssistantCfg}
+              onTryClick={handleTryClick}
+              workflow={activeChat.workflow}
+              ragSources={ragSources}
+              onUpload={uploadFile}
+              uploading={uploading}
+              uploadProgress={uploadProgress}
+              hasDocuments={documents.some(d => !d.relevanceWarning)}
+              onCitationClick={handleCitationClick}
+              documents={documents}
+              dismissedSummaries={dismissedSummaries}
+              onDismissSummary={(docId) => setDismissedSummaries(prev => new Set([...prev, docId]))}
+              onQuestionClick={(q) => sendText(q)}
+              onOpenPdf={hasPdf ? () => setPdfPanelOpen(true) : undefined}
+            />
+            {/* Source Popup — small tooltip at bottom of chat */}
+            {popupSource && (
+              <SourcePopup
+                source={popupSource}
+                onClose={() => setPopupSource(null)}
+              />
+            )}
+          </div>
+
+          {/* PDF Viewer panel (RIGHT) */}
+          {showPdfPanel && (
+            <>
+              <div className="panel-resize-handle shrink-0" style={{ background: palette.border }} />
+              <div className="min-w-0" style={{ flex: '0 0 45%' }}>
+                <PdfViewer
+                  fileUrl={activePdfDoc.fileUrl}
+                  fileType={activePdfDoc.fileType}
+                  filename={activePdfDoc.filename}
+                  targetPage={pdfTarget.page}
+                  targetSnippet={pdfTarget.snippet}
+                  targetRequestId={pdfTarget.requestId}
+                  onClose={() => setPdfPanelOpen(false)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
           <InputBar
             onSend={sendText}
             onToggleVoice={toggleVoice}
             voiceActive={voiceActive}
             voiceStatus={voiceStatus}
             disabled={!connected}
-            onUpload={uploadFile}
-            documents={documents}
-            onDeleteDoc={deleteDocument}
-            uploading={uploading}
-            uploadProgress={uploadProgress}
             mode={activeChat.mode}
             voiceEnabled={activeAssistantCfg.voice}
           />
