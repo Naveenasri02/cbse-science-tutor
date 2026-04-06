@@ -7,7 +7,7 @@ import { palette } from '@cbse/shared'
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
-const normalize = (s) => s.toLowerCase().replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').replace(/[^\w\s]/g, '').trim()
+const normalize = (s) => s.toLowerCase().replace(/[\r\n\t]+/g, ' ').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim()
 
 export default function PdfViewer({ fileUrl, fileType, filename, targetPage, targetSnippet, targetRequestId, onClose }) {
   const [numPages, setNumPages] = useState(null)

@@ -68,7 +68,8 @@ export default function App() {
 
     // Navigate PDF to the correct page + highlight
     if (source.page) {
-      const snippetText = source.text || source.snippet || ''
+      const fullText = source.text || source.snippet || ''
+      const snippetText = fullText.split(/\s+/).slice(0, 40).join(' ')
       setPdfTarget({ page: source.page, snippet: snippetText, requestId: ++requestIdCounter.current })
       setPdfPanelOpen(true)
     }
