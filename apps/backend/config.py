@@ -1051,7 +1051,7 @@ BM25_WEIGHT = float(os.getenv("BM25_WEIGHT", "0.4"))
 DENSE_WEIGHT = float(os.getenv("DENSE_WEIGHT", "0.6"))
 
 # Contextual embedding (prepend LLM-generated context to chunks before embedding)
-CONTEXTUAL_EMBEDDING = os.getenv("CONTEXTUAL_EMBEDDING", "true").lower() == "true"
+CONTEXTUAL_EMBEDDING = os.getenv("CONTEXTUAL_EMBEDDING", "false").lower() == "true"
 
 RAG_CONTEXT_PROMPT = (
     "\n\nDOCUMENT CONTEXT (retrieved from uploaded files):\n"
