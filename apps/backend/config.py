@@ -1078,6 +1078,8 @@ RAG_CONTEXT_PROMPT = (
     "   - NEVER cite the same source for every sentence. Different facts MUST use the source number where that specific fact appears.\n"
     "   - Before writing [N], verify that source [N] actually contains the fact you are stating. Do NOT default to one source number.\n"
     "   - If fact A is in source [3] and fact B is in source [7], cite [3] and [7] respectively — NOT the same number for both.\n"
+    "   - When consecutive sentences use the SAME source, cite it ONCE at the end of the last sentence in that group.\n"
+    "     Example: \"The sample size was 50. Participants were split equally.\" → cite [1] once after the second sentence, not both.\n"
     "   - When the same topic appears in multiple sources, cite the source with the most specific/detailed passage.\n"
     "3. Include **direct quotes** from the document for key passages:\n"
     "   > \"exact text from the document\" [1]\n"

@@ -131,8 +131,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
         console.log('[Highlight] Strategy 1 (full match) succeeded')
       }
 
-      // Strategy 2: Progressive prefix matching — try longest first
-      // Extra steps (20, 15) handle full RAG chunks (~300 words) gracefully
+      // Strategy 2: Progressive prefix+suffix matching — find start from prefix, extend to suffix
       if (matchStart === -1) {
         const wordCounts = [
           Math.ceil(snippetWords.length * 0.8),
@@ -150,21 +149,60 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
           const idx = fullText.indexOf(searchStr)
           if (idx !== -1) {
             matchStart = idx
-            matchEnd = idx + searchStr.length - 1
+            // Try to extend to the full snippet end using suffix matching
+            let foundEnd = false
             if (snippetWords.length > wc + 3) {
-              for (const endWc of [8, 5, 3].map(n => Math.min(n, snippetWords.length))) {
+              for (const endWc of [
+                Math.min(15, snippetWords.length),
+                Math.min(10, snippetWords.length),
+                Math.min(8, snippetWords.length),
+                Math.min(5, snippetWords.length),
+                Math.min(3, snippetWords.length),
+              ]) {
                 if (endWc < 3) continue
                 const endStr = snippetWords.slice(-endWc).join(' ')
                 const endIdx = fullText.indexOf(endStr, matchStart)
                 if (endIdx !== -1 && endIdx >= matchStart) {
                   const candidateEnd = endIdx + endStr.length - 1
-                  if (candidateEnd - matchStart <= snippetNorm.length * 1.5) {
+                  // Allow up to 2x snippet length to handle formatting differences
+                  if (candidateEnd - matchStart <= snippetNorm.length * 2) {
                     matchEnd = candidateEnd
+                    foundEnd = true
                     break
                   }
                 }
               }
             }
+            // If suffix not found, use the prefix match length but also try to
+            // extend to end of the last sentence on this page that overlaps
+            if (!foundEnd) {
+              // Extend matchEnd to cover as much of the snippet as exists on this page
+              // Try increasingly shorter portions of the snippet from the end
+              const remainingText = fullText.slice(matchStart)
+              const remainingWords = remainingText.split(/\s+/)
+              // Find how many consecutive snippet words match from the start
+              let matched = 0
+              for (let wi = 0; wi < snippetWords.length && wi < remainingWords.length; wi++) {
+                if (remainingWords[wi] === snippetWords[wi]) {
+                  matched = wi + 1
+                } else {
+                  // Allow small gaps (1-2 words) for minor normalization differences
+                  if (wi + 1 < snippetWords.length && wi + 1 < remainingWords.length &&
+                      remainingWords[wi + 1] === snippetWords[wi + 1]) {
+                    matched = wi + 2
+                  } else {
+                    break
+                  }
+                }
+              }
+              if (matched > wc) {
+                const extendedStr = remainingWords.slice(0, matched).join(' ')
+                matchEnd = matchStart + extendedStr.length - 1
+              } else {
+                matchEnd = idx + searchStr.length - 1
+              }
+            }
+            console.log(`[Highlight] Strategy 2: prefix ${wc} words, end=${foundEnd ? 'suffix' : 'extended'}, range=${matchEnd - matchStart + 1} chars`)
             break
           }
         }
@@ -232,7 +270,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
       if (startSpanIdx === undefined || endSpanIdx === undefined) continue
 
       const hlCount = endSpanIdx - startSpanIdx + 1
-      if (hlCount > textSpans.length * 0.6) {
+      if (hlCount > textSpans.length * 0.8) {
         console.log('[Highlight] match too large (' + hlCount + '/' + textSpans.length + '), skipping false positive')
         continue
       }

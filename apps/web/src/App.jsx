@@ -58,17 +58,15 @@ export default function App() {
   ])).current
 
   // Narrow a large chunk to the most relevant paragraph based on the LLM's claim sentence
+  // Only narrow for very large chunks; for normal chunks, highlight the full text
   const narrowToRelevantParagraph = useCallback((chunkText, contextText) => {
-    if (!contextText || chunkText.length < 500) return chunkText
-
-    // Split chunk into paragraphs (by double newline, or single newline for shorter blocks)
+    // For chunks under 800 chars (~2 paragraphs), highlight everything
+    if (!contextText || chunkText.length < 800) return chunkText
+    
+    // For very large chunks (e.g. full-doc injection), narrow to the best 2-3 paragraphs
     let paragraphs = chunkText.split(/\n\n+/).filter(p => p.trim().length > 40)
-    if (paragraphs.length <= 1) {
-      paragraphs = chunkText.split(/\n/).filter(p => p.trim().length > 40)
-    }
-    if (paragraphs.length <= 1) return chunkText
-
-    // Extract meaningful terms from the LLM's sentence around the citation
+    if (paragraphs.length <= 2) return chunkText
+    
     const contextWords = contextText.toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
@@ -76,24 +74,22 @@ export default function App() {
 
     if (contextWords.length < 2) return chunkText
 
-    // Score each paragraph by keyword overlap with the claim
-    let bestPara = null
-    let bestScore = 0
-    for (const para of paragraphs) {
+    // Score each paragraph
+    const scored = paragraphs.map(para => {
       const paraLower = para.toLowerCase()
       const score = contextWords.filter(w => paraLower.includes(w)).length / contextWords.length
-      if (score > bestScore) {
-        bestScore = score
-        bestPara = para
-      }
-    }
+      return { para, score }
+    })
+    scored.sort((a, b) => b.score - a.score)
 
-    // Only narrow if we have decent confidence (≥30% term overlap)
-    if (bestPara && bestScore >= 0.3) {
-      console.log(`[Citation] Narrowed to paragraph: score=${bestScore.toFixed(2)}, "${bestPara.slice(0, 60)}..."`)
-      return bestPara.trim()
-    }
-    return chunkText
+    // Take top 2-3 paragraphs (enough for full context highlighting)
+    const topParas = scored.filter(s => s.score >= 0.2).slice(0, 3)
+    if (topParas.length === 0) return chunkText
+
+    // Return them in original document order
+    const topTexts = new Set(topParas.map(s => s.para))
+    const ordered = paragraphs.filter(p => topTexts.has(p))
+    return ordered.join('\n\n').trim()
   }, [STOP_WORDS])
 
   // Handle citation click — navigate PDF directly + highlight source text
