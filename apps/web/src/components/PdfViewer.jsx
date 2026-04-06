@@ -54,189 +54,166 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
     return () => obs.disconnect()
   }, [numPages, scale])
 
-  // Highlight function — finds and highlights the source text in PDF
-  // Uses full-page substring matching with character-to-span mapping
-  // for accurate highlighting (no more entire-page false positives)
-  const scheduleHighlight = useCallback(() => {
-    if (!targetSnippet) { console.log('[Highlight] no targetSnippet'); return }
-    console.log('[Highlight] scheduling for page:', targetPage, 'snippet:', targetSnippet?.slice(0, 60))
+  // Clear all existing PDF highlights
+  const clearAllHighlights = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    container.querySelectorAll('.pdf-highlight').forEach(el => {
+      el.classList.remove('pdf-highlight')
+    })
+  }, [])
 
-    clearHighlightTimers()
-    const genId = ++highlightGenRef.current
+  // Core highlight logic — finds and highlights the source text in PDF
+  const tryHighlight = useCallback((snippet, page) => {
+    const container = scrollContainerRef.current
+    if (!container) return false
 
-    const tryHighlight = () => {
-      if (highlightGenRef.current !== genId) return false
+    clearAllHighlights()
 
-      const container = scrollContainerRef.current
-      if (!container) return false
+    const snippetNorm = normalize(snippet)
+    const snippetWords = snippetNorm.split(/\s+/).filter(Boolean)
+    if (snippetWords.length === 0) return false
 
-      // Remove ALL previous highlights
-      container.querySelectorAll('.pdf-highlight').forEach(el => {
-        el.classList.remove('pdf-highlight')
-      })
+    // Try target page, then ±1, then ±2
+    const pagesToTry = [page]
+    for (const offset of [1, -1, 2, -2]) {
+      const p = page + offset
+      if (p >= 1 && (!numPages || p <= numPages) && !pagesToTry.includes(p)) {
+        pagesToTry.push(p)
+      }
+    }
 
-      const snippetNorm = normalize(targetSnippet)
-      const snippetWords = snippetNorm.split(/\s+/).filter(Boolean)
-      if (snippetWords.length === 0) return false
+    for (const pageNum of pagesToTry) {
+      const pageEl = pageRefs.current[pageNum]
+      if (!pageEl) continue
 
-      // Try target page, then ±1, then ±2
-      const pagesToTry = [targetPage]
-      for (const offset of [1, -1, 2, -2]) {
-        const p = targetPage + offset
-        if (p >= 1 && (!numPages || p <= numPages) && !pagesToTry.includes(p)) {
-          pagesToTry.push(p)
+      const textSpans = Array.from(
+        pageEl.querySelectorAll('.react-pdf__Page__textContent span')
+      ).filter(s => s.textContent.trim().length > 0)
+
+      if (textSpans.length === 0) continue
+
+      // Build full page text with character→span index mapping
+      const spanNorms = textSpans.map(s => normalize(s.textContent))
+      let fullText = ''
+      const charToSpan = []
+
+      for (let i = 0; i < spanNorms.length; i++) {
+        if (fullText.length > 0 && spanNorms[i].length > 0) {
+          charToSpan.push(i)
+          fullText += ' '
         }
+        for (let c = 0; c < spanNorms[i].length; c++) {
+          charToSpan.push(i)
+        }
+        fullText += spanNorms[i]
       }
 
-      for (const pageNum of pagesToTry) {
-        const pageEl = pageRefs.current[pageNum]
-        if (!pageEl) continue
+      if (fullText.length === 0) continue
 
-        const textSpans = Array.from(
-          pageEl.querySelectorAll('.react-pdf__Page__textContent span')
-        ).filter(s => s.textContent.trim().length > 0)
+      let matchStart = -1
+      let matchEnd = -1
 
-        if (textSpans.length === 0) continue
+      // Strategy 1: Full snippet as substring (most accurate)
+      const fullIdx = fullText.indexOf(snippetNorm)
+      if (fullIdx !== -1) {
+        matchStart = fullIdx
+        matchEnd = fullIdx + snippetNorm.length - 1
+      }
 
-        // Build full page text with character→span index mapping
-        const spanNorms = textSpans.map(s => normalize(s.textContent))
-        let fullText = ''
-        const charToSpan = []
-
-        for (let i = 0; i < spanNorms.length; i++) {
-          if (fullText.length > 0 && spanNorms[i].length > 0) {
-            charToSpan.push(i) // space separator mapped to current span
-            fullText += ' '
-          }
-          for (let c = 0; c < spanNorms[i].length; c++) {
-            charToSpan.push(i)
-          }
-          fullText += spanNorms[i]
-        }
-
-        if (fullText.length === 0) continue
-
-        let matchStart = -1
-        let matchEnd = -1
-
-        // Strategy 1: Full snippet as substring (most accurate)
-        const fullIdx = fullText.indexOf(snippetNorm)
-        if (fullIdx !== -1) {
-          matchStart = fullIdx
-          matchEnd = fullIdx + snippetNorm.length - 1
-        }
-
-        // Strategy 2: Progressive prefix matching — try longest first
-        if (matchStart === -1) {
-          const wordCounts = [
-            Math.ceil(snippetWords.length * 0.8),
-            Math.ceil(snippetWords.length * 0.6),
-            Math.ceil(snippetWords.length * 0.4),
-            Math.min(10, snippetWords.length),
-            Math.min(7, snippetWords.length),
-            Math.min(5, snippetWords.length),
-          ]
-          for (const wc of wordCounts) {
-            if (wc < 3) continue
-            const searchStr = snippetWords.slice(0, wc).join(' ')
-            const idx = fullText.indexOf(searchStr)
-            if (idx !== -1) {
-              matchStart = idx
-              matchEnd = idx + searchStr.length - 1
-              // Try to extend by finding suffix after this position
-              if (snippetWords.length > wc + 3) {
-                for (const endWc of [8, 5, 3].map(n => Math.min(n, snippetWords.length))) {
-                  if (endWc < 3) continue
-                  const endStr = snippetWords.slice(-endWc).join(' ')
-                  const endIdx = fullText.indexOf(endStr, matchStart)
-                  if (endIdx !== -1 && endIdx >= matchStart) {
-                    const candidateEnd = endIdx + endStr.length - 1
-                    // Guard: matched range must not exceed 1.5× snippet length
-                    if (candidateEnd - matchStart <= snippetNorm.length * 1.5) {
-                      matchEnd = candidateEnd
-                      break
-                    }
+      // Strategy 2: Progressive prefix matching — try longest first
+      if (matchStart === -1) {
+        const wordCounts = [
+          Math.ceil(snippetWords.length * 0.8),
+          Math.ceil(snippetWords.length * 0.6),
+          Math.ceil(snippetWords.length * 0.4),
+          Math.min(10, snippetWords.length),
+          Math.min(7, snippetWords.length),
+          Math.min(5, snippetWords.length),
+        ]
+        for (const wc of wordCounts) {
+          if (wc < 3) continue
+          const searchStr = snippetWords.slice(0, wc).join(' ')
+          const idx = fullText.indexOf(searchStr)
+          if (idx !== -1) {
+            matchStart = idx
+            matchEnd = idx + searchStr.length - 1
+            if (snippetWords.length > wc + 3) {
+              for (const endWc of [8, 5, 3].map(n => Math.min(n, snippetWords.length))) {
+                if (endWc < 3) continue
+                const endStr = snippetWords.slice(-endWc).join(' ')
+                const endIdx = fullText.indexOf(endStr, matchStart)
+                if (endIdx !== -1 && endIdx >= matchStart) {
+                  const candidateEnd = endIdx + endStr.length - 1
+                  if (candidateEnd - matchStart <= snippetNorm.length * 1.5) {
+                    matchEnd = candidateEnd
+                    break
                   }
                 }
               }
-              break
             }
+            break
           }
         }
+      }
 
-        // Strategy 3: Suffix matching as last resort
-        if (matchStart === -1) {
-          const wordCounts = [
-            Math.ceil(snippetWords.length * 0.6),
-            Math.ceil(snippetWords.length * 0.4),
-            Math.min(8, snippetWords.length),
-            Math.min(5, snippetWords.length),
-          ]
-          for (const wc of wordCounts) {
-            if (wc < 3) continue
-            const searchStr = snippetWords.slice(-wc).join(' ')
-            const idx = fullText.indexOf(searchStr)
-            if (idx !== -1) {
-              matchStart = idx
-              matchEnd = idx + searchStr.length - 1
-              break
-            }
+      // Strategy 3: Suffix matching as last resort
+      if (matchStart === -1) {
+        const wordCounts = [
+          Math.ceil(snippetWords.length * 0.6),
+          Math.ceil(snippetWords.length * 0.4),
+          Math.min(8, snippetWords.length),
+          Math.min(5, snippetWords.length),
+        ]
+        for (const wc of wordCounts) {
+          if (wc < 3) continue
+          const searchStr = snippetWords.slice(-wc).join(' ')
+          const idx = fullText.indexOf(searchStr)
+          if (idx !== -1) {
+            matchStart = idx
+            matchEnd = idx + searchStr.length - 1
+            break
           }
         }
-
-        if (matchStart === -1 || matchEnd === -1) continue
-
-        // Clamp to valid range
-        matchEnd = Math.min(matchEnd, charToSpan.length - 1)
-        if (matchStart >= charToSpan.length) continue
-
-        const startSpanIdx = charToSpan[matchStart]
-        const endSpanIdx = charToSpan[matchEnd]
-        if (startSpanIdx === undefined || endSpanIdx === undefined) continue
-
-        // Guard: skip if highlighting more than 60% of page (likely false positive)
-        const hlCount = endSpanIdx - startSpanIdx + 1
-        if (hlCount > textSpans.length * 0.6) {
-          console.log('[Highlight] match too large (' + hlCount + '/' + textSpans.length + '), skipping false positive')
-          continue
-        }
-
-        console.log('[Highlight] highlighting spans', startSpanIdx, 'to', endSpanIdx, 'on page', pageNum)
-        for (let k = startSpanIdx; k <= endSpanIdx; k++) {
-          textSpans[k].classList.add('pdf-highlight')
-        }
-        textSpans[startSpanIdx].scrollIntoView({ behavior: 'smooth', block: 'center' })
-        return true
       }
 
-      console.log('[Highlight] no match found on any page')
-      return false
+      if (matchStart === -1 || matchEnd === -1) continue
+
+      matchEnd = Math.min(matchEnd, charToSpan.length - 1)
+      if (matchStart >= charToSpan.length) continue
+
+      const startSpanIdx = charToSpan[matchStart]
+      const endSpanIdx = charToSpan[matchEnd]
+      if (startSpanIdx === undefined || endSpanIdx === undefined) continue
+
+      const hlCount = endSpanIdx - startSpanIdx + 1
+      if (hlCount > textSpans.length * 0.6) {
+        console.log('[Highlight] match too large (' + hlCount + '/' + textSpans.length + '), skipping false positive')
+        continue
+      }
+
+      console.log('[Highlight] highlighting spans', startSpanIdx, 'to', endSpanIdx, 'on page', pageNum)
+      for (let k = startSpanIdx; k <= endSpanIdx; k++) {
+        textSpans[k].classList.add('pdf-highlight')
+      }
+      textSpans[startSpanIdx].scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return true
     }
 
-    // Retry with progressive delays (text layer may still be rendering)
-    let attempt = 0
-    const delays = [300, 600, 1000, 1500, 2500]
-    const run = () => {
-      if (highlightGenRef.current !== genId) return
-      console.log('[Highlight] attempt', attempt)
-      const found = tryHighlight()
-      if (!found && attempt < delays.length - 1) {
-        attempt++
-        const tid = setTimeout(run, delays[attempt])
-        highlightTimersRef.current.push(tid)
-      }
-    }
-    const firstTimer = setTimeout(run, delays[0])
-    highlightTimersRef.current.push(firstTimer)
-  }, [targetSnippet, targetPage, targetRequestId, numPages])
+    console.log('[Highlight] no match found on any page')
+    return false
+  }, [numPages, clearAllHighlights])
 
   // Scroll to target page + highlight when citation clicked
+  // Uses targetRequestId (timestamp) to guarantee re-trigger on every click
   useEffect(() => {
     if (!targetPage || !targetRequestId || !numPages) return
     console.log('[PdfViewer Effect] target page:', targetPage, 'requestId:', targetRequestId, 'snippet:', targetSnippet?.slice(0, 40))
 
-    // Cancel any pending highlight timers from previous clicks
     clearHighlightTimers()
+    clearAllHighlights()
+
+    const genId = ++highlightGenRef.current
 
     const scrollToPage = () => {
       const pageEl = pageRefs.current[targetPage]
@@ -247,20 +224,31 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
       return false
     }
 
-    // Wait for page element to exist, then scroll
-    const scrollTimer = setTimeout(() => {
+    // Retry with progressive delays (text layer may still be rendering)
+    const delays = [200, 400, 800, 1400, 2500]
+    let attempt = 0
+
+    const runHighlight = () => {
+      if (highlightGenRef.current !== genId) return
+      console.log('[Highlight] attempt', attempt, 'for requestId:', targetRequestId)
       scrollToPage()
-      // After scrolling, attempt highlight
       if (targetSnippet) {
-        scheduleHighlight()
+        const found = tryHighlight(targetSnippet, targetPage)
+        if (!found && attempt < delays.length - 1) {
+          attempt++
+          const tid = setTimeout(runHighlight, delays[attempt])
+          highlightTimersRef.current.push(tid)
+        }
       }
-    }, 300)
-    highlightTimersRef.current.push(scrollTimer)
+    }
+
+    const firstTimer = setTimeout(runHighlight, delays[0])
+    highlightTimersRef.current.push(firstTimer)
 
     return () => {
       clearHighlightTimers()
     }
-  }, [targetPage, targetSnippet, targetRequestId, numPages, scheduleHighlight])
+  }, [targetPage, targetSnippet, targetRequestId, numPages, tryHighlight, clearAllHighlights])
 
   const onDocumentLoadSuccess = useCallback(({ numPages: n }) => {
     setNumPages(n)

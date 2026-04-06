@@ -63,14 +63,14 @@ export default function App() {
     console.log('[CitationClick] found source:', !!source, source?.page)
     if (!source) return
 
-    // Show popup at bottom of chat
-    setPopupSource(source)
+    // Always create a new object so React detects the state change (even for same source)
+    setPopupSource({ ...source, _clickId: Date.now() })
 
     // Navigate PDF to the correct page + highlight
     if (source.page) {
       const fullText = source.text || source.snippet || ''
       const snippetText = fullText.split(/\s+/).slice(0, 40).join(' ')
-      setPdfTarget({ page: source.page, snippet: snippetText, requestId: ++requestIdCounter.current })
+      setPdfTarget({ page: source.page, snippet: snippetText, requestId: Date.now() })
       setPdfPanelOpen(true)
     }
   }, [chats, activeChatId])
