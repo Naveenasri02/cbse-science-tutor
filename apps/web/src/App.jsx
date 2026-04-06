@@ -60,14 +60,19 @@ export default function App() {
     }
     if (!allSources?.length) allSources = lastRagSourcesRef.current
 
-    const source = allSources?.find(s => s.ref === refNum || s.ref === String(refNum))
-    if (!source) return
+    // Normalize ref comparison — backend sends int, frontend parses int, but be safe
+    const ref = Number(refNum)
+    const source = allSources?.find(s => Number(s.ref) === ref)
+    if (!source) {
+      console.warn(`[Citation] No source found for ref [${ref}] in ${allSources?.length || 0} sources:`, allSources?.map(s => s.ref))
+      return
+    }
 
     // Always create a new object so React detects the state change (even for same source)
     setPopupSource({ ...source, _clickId: Date.now(), contextText: contextText || '' })
 
     // Navigate PDF to the correct page + highlight
-    // Use actual source chunk text (matches PDF text layer); LLM-generated contextText is paraphrased and rarely matches
+    // Use raw source chunk text (matches PDF text layer); LLM-generated contextText is paraphrased and rarely matches
     if (source.page != null) {
       const pageNum = Number(source.page) || 1
       const pageEnd = source.page_end != null ? Number(source.page_end) : pageNum
@@ -173,11 +178,11 @@ export default function App() {
 
       case 'citation_correction':
         // Backend verified citations — update message text and sources
+        // This may arrive after llm_done, so always update both refs and message
         if (msg.text) updateLastBotMsg(msg.text)
         if (msg.sources) {
           lastRagSourcesRef.current = msg.sources
           updateLastBotMsgSources(msg.sources)
-          setRagSources(msg.sources)
         }
         break
 

@@ -37,7 +37,7 @@ export default function SourcePopup({ source, onClose }) {
 
   if (!source) return null
 
-  const fullText = source.text || source.snippet || ''
+  const fullText = source.snippet || source.text || ''
   const snippet = fullText.slice(0, 400)
   const contextText = source.contextText || ''
 

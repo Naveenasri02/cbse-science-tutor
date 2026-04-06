@@ -647,14 +647,21 @@ async def voice_endpoint(ws: WebSocket):
 
         # Inject RAG context if documents are uploaded
         loop = asyncio.get_event_loop()
+        rag_context = ""
+        rag_sources = []
         try:
-            rag_context = await loop.run_in_executor(
-                _rag_executor, rag.retrieve_context,
+            rag_result = await loop.run_in_executor(
+                _rag_executor, rag.retrieve_context_with_sources,
                 session_id, transcript, list(conversation_history), active_workflow
             )
+            rag_context = rag_result.get("context", "")
+            rag_sources = rag_result.get("sources", [])
         except Exception as e:
             print(f"⚠️ Voice RAG retrieval failed (continuing without docs): {e}")
-            rag_context = ""
+
+        # Send source preview cards to frontend before LLM starts
+        if rag_sources:
+            await safe_send_json({"type": "rag_sources", "sources": rag_sources})
 
         # When documents are uploaded, use the SAME detailed prompt as text chat
         # so voice responses match text quality. TTS strip_md_for_tts() handles speech formatting.
@@ -793,6 +800,19 @@ async def voice_endpoint(ws: WebSocket):
 
             await tts_q.put(None)  # Signal TTS worker to finish
             await safe_send_json({"type": "llm_done"})
+
+            # Citation verification for voice pipeline
+            if full_reply and rag_sources:
+                clean_for_verify = _strip_think_blocks(full_reply)
+                if clean_for_verify:
+                    corrected_text, corrected_sources = verify_citations(clean_for_verify, rag_sources)
+                    if corrected_text != clean_for_verify or len(corrected_sources) != len(rag_sources):
+                        await safe_send_json({
+                            "type": "citation_correction",
+                            "text": corrected_text,
+                            "sources": corrected_sources,
+                        })
+
             await tts_task  # Wait for all TTS audio to send
             _active_tts_task = None
             await safe_send_json({"type": "tts_done"})

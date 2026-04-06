@@ -79,23 +79,21 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
     """Verify and correct citation-to-source mapping in LLM response.
 
     For each [N] citation, checks if the surrounding sentence actually matches source N.
-    If not, reassigns to the best-matching source. Returns corrected text and filtered sources.
+    If not, reassigns to the best-matching source. Returns corrected text and filtered sources
+    with ref fields updated to match the corrected text.
     """
     if not sources or not response_text:
         return response_text, sources
 
-    # Split response into sentences with their citation refs
-    # Pattern: find text segments ending with one or more [N] citations
     citation_pattern = re.compile(r'\[(\d{1,2})\]')
     all_refs_in_text = set(int(m.group(1)) for m in citation_pattern.finditer(response_text))
 
     if not all_refs_in_text:
         return response_text, sources
 
-    # Build source lookup by ref number
     source_by_ref = {s["ref"]: s for s in sources}
 
-    # Split into sentences (rough split on period/newline, keeping citations)
+    # Split into sentences with citations
     sentence_pattern = re.compile(
         r'([^.!?\n]+(?:\[[\d]{1,2}\])+)',
         re.DOTALL,
@@ -105,27 +103,24 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
     # For each sentence with citations, verify the mapping
     remap = {}  # old_ref -> new_ref
     for sentence in sentences:
-        # Find citations in this sentence
         refs_in_sentence = [int(m.group(1)) for m in citation_pattern.finditer(sentence)]
         if not refs_in_sentence:
             continue
 
-        # Extract the claim text (sentence without citation markers)
         claim = citation_pattern.sub('', sentence).strip()
         claim_terms = _extract_key_terms(claim)
         if len(claim_terms) < 3:
-            continue  # Too short to verify reliably
+            continue
 
         for ref in refs_in_sentence:
             if ref in remap:
-                continue  # Already remapped
+                continue
             if ref not in source_by_ref:
-                continue  # Unknown ref
+                continue
 
             cited_source = source_by_ref[ref]
             cited_overlap = _compute_term_overlap(claim_terms, cited_source.get("text", ""))
 
-            # Find best matching source
             best_ref = ref
             best_overlap = cited_overlap
             for s in sources:
@@ -134,27 +129,33 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
                     best_overlap = overlap
                     best_ref = s["ref"]
 
-            # Only remap if significantly better match exists (>20% improvement)
             if best_ref != ref and best_overlap > cited_overlap + 0.2:
                 remap[ref] = best_ref
 
     if not remap:
-        # No remapping needed — just filter to cited-only sources
+        # No remapping needed — filter to cited-only sources and ensure refs match
         cited_sources = [s for s in sources if s["ref"] in all_refs_in_text]
         return response_text, cited_sources if cited_sources else sources
 
-    # Apply remapping to response text
+    # Apply remapping using placeholders to avoid replacement conflicts
     corrected = response_text
-    # Sort by ref descending to avoid replacement conflicts ([10] before [1])
-    for old_ref in sorted(remap.keys(), reverse=True):
-        new_ref = remap[old_ref]
-        corrected = corrected.replace(f'[{old_ref}]', f'[{new_ref}]')
+    for old_ref in remap:
+        corrected = corrected.replace(f'[{old_ref}]', f'[__REMAP_{remap[old_ref]}__]')
+    # Now replace placeholders with final refs
+    corrected = re.sub(r'\[__REMAP_(\d+)__\]', r'[\1]', corrected)
 
     print(f"  🔄 Citation remap: {remap}")
 
-    # Recalculate which refs are now used
+    # Recalculate which refs are now used in the corrected text
     final_refs = set(int(m.group(1)) for m in citation_pattern.finditer(corrected))
-    cited_sources = [s for s in sources if s["ref"] in final_refs]
+
+    # Build corrected sources with ref fields matching the corrected text
+    cited_sources = []
+    seen_refs = set()
+    for s in sources:
+        if s["ref"] in final_refs and s["ref"] not in seen_refs:
+            cited_sources.append(s)
+            seen_refs.add(s["ref"])
 
     return corrected, cited_sources if cited_sources else sources
 
@@ -403,7 +404,8 @@ class RAGPipeline:
         for i, c in enumerate(chunks):
             page = c.get("page", 0)
             page_end = c.get("page_end", page)
-            text = _normalize_chunk_text(c["text"].strip())
+            raw_text = c["text"].strip()
+            display_text = _normalize_chunk_text(raw_text)
             sources.append({
                 "ref": i + 1,
                 "filename": c.get("filename", "unknown"),
@@ -411,8 +413,8 @@ class RAGPipeline:
                 "page_end": page_end,
                 "section": c.get("section", ""),
                 "score": round(c.get("rerank_score", c.get("rrf_score", c.get("score", 0))), 3),
-                "text": text,
-                "snippet": text[:150].strip(),
+                "text": raw_text,
+                "snippet": display_text[:150].strip(),
             })
         return sources
 
