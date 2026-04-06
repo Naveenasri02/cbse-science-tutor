@@ -4,7 +4,7 @@ import Sidebar, { ASSISTANTS } from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
 import PdfViewer from './components/PdfViewer'
-import SourcePopup from './components/SourcePopup'
+
 
 import useWebSocket from './hooks/useWebSocket'
 import useVoice from './hooks/useVoice'
@@ -47,9 +47,7 @@ export default function App() {
   // PDF Viewer state
   const [pdfPanelOpen, setPdfPanelOpen] = useState(false)
   const [pdfTarget, setPdfTarget] = useState({ page: null, snippet: null })
-  const [popupSource, setPopupSource] = useState(null)
-
-  // Handle citation click — navigate PDF + highlight full source + show popup
+  // Handle citation click — navigate PDF directly + highlight source text (no popup)
   const handleCitationClick = useCallback((refNum, chipRect, msgSources, contextText) => {
     // Priority: 1) sources from the clicked message, 2) find from chat history, 3) live streaming ref (last resort)
     let allSources = msgSources?.length ? msgSources : null
@@ -60,7 +58,6 @@ export default function App() {
     }
     if (!allSources?.length) allSources = lastRagSourcesRef.current
 
-    // Normalize ref comparison — backend sends int, frontend parses int, but be safe
     const ref = Number(refNum)
     console.log(`[Citation] Click ref=[${ref}], ${allSources?.length || 0} sources available:`, allSources?.map(s => `[${s.ref}] p.${s.page} "${s.text?.slice(0,40)}..."`))
     const source = allSources?.find(s => Number(s.ref) === ref)
@@ -71,11 +68,7 @@ export default function App() {
 
     console.log(`[Citation] Found source [${ref}]: page=${source.page}, page_end=${source.page_end}, text="${source.text?.slice(0,80)}..."`)
 
-    // Always create a new object so React detects the state change (even for same source)
-    setPopupSource({ ...source, _clickId: Date.now(), contextText: contextText || '' })
-
     // Navigate PDF to the correct page + highlight
-    // Use raw source chunk text (matches PDF text layer); LLM-generated contextText is paraphrased and rarely matches
     if (source.page != null) {
       const pageNum = Number(source.page) || 1
       const pageEnd = source.page_end != null ? Number(source.page_end) : pageNum
@@ -358,7 +351,6 @@ export default function App() {
     clearDocuments()
     setPdfPanelOpen(false)
     setPdfTarget({ page: null, snippet: null })
-    setPopupSource(null)
     lastRagSourcesRef.current = []
     sessionIdRef.current = generateSessionId()
     reconnect()
@@ -391,7 +383,6 @@ export default function App() {
     clearDocuments()
     setPdfPanelOpen(false)
     setPdfTarget({ page: null, snippet: null })
-    setPopupSource(null)
     lastRagSourcesRef.current = []
     sessionIdRef.current = generateSessionId()
     reconnect()
@@ -499,14 +490,7 @@ export default function App() {
               onQuestionClick={(q) => sendText(q)}
               onOpenPdf={hasPdf ? () => setPdfPanelOpen(true) : undefined}
             />
-            {/* Source Popup — small tooltip at bottom of chat */}
-            {popupSource && (
-              <SourcePopup
-                key={popupSource._clickId}
-                source={popupSource}
-                onClose={() => setPopupSource(null)}
-              />
-            )}
+
           </div>
 
           {/* PDF Viewer panel (RIGHT) */}
