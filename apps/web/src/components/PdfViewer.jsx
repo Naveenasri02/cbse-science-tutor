@@ -131,99 +131,55 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
         console.log('[Highlight] Strategy 1 (full match) succeeded')
       }
 
-      // Strategy 2: Progressive prefix+suffix matching — find start from prefix, extend to suffix
+      // Strategy 2: Anchor-based — probe start, middle, and end of the snippet
+      // independently. Sliding the start forward handles prefix text differences
+      // between PyMuPDF (backend) and pdfjs (frontend). Highlights everything
+      // between the earliest and latest matched anchor.
       if (matchStart === -1) {
-        const wordCounts = [
-          Math.ceil(snippetWords.length * 0.8),
-          Math.ceil(snippetWords.length * 0.6),
-          Math.ceil(snippetWords.length * 0.4),
-          Math.min(20, snippetWords.length),
-          Math.min(15, snippetWords.length),
-          Math.min(10, snippetWords.length),
-          Math.min(7, snippetWords.length),
-          Math.min(5, snippetWords.length),
-        ]
-        for (const wc of wordCounts) {
-          if (wc < 3) continue
-          const searchStr = snippetWords.slice(0, wc).join(' ')
-          const idx = fullText.indexOf(searchStr)
-          if (idx !== -1) {
-            matchStart = idx
-            // Try to extend to the full snippet end using suffix matching
-            let foundEnd = false
-            if (snippetWords.length > wc + 3) {
-              for (const endWc of [
-                Math.min(15, snippetWords.length),
-                Math.min(10, snippetWords.length),
-                Math.min(8, snippetWords.length),
-                Math.min(5, snippetWords.length),
-                Math.min(3, snippetWords.length),
-              ]) {
-                if (endWc < 3) continue
-                const endStr = snippetWords.slice(-endWc).join(' ')
-                const endIdx = fullText.indexOf(endStr, matchStart)
-                if (endIdx !== -1 && endIdx >= matchStart) {
-                  const candidateEnd = endIdx + endStr.length - 1
-                  // Allow up to 2x snippet length to handle formatting differences
-                  if (candidateEnd - matchStart <= snippetNorm.length * 2) {
-                    matchEnd = candidateEnd
-                    foundEnd = true
-                    break
-                  }
-                }
-              }
-            }
-            // If suffix not found, use the prefix match length but also try to
-            // extend to end of the last sentence on this page that overlaps
-            if (!foundEnd) {
-              // Extend matchEnd to cover as much of the snippet as exists on this page
-              // Try increasingly shorter portions of the snippet from the end
-              const remainingText = fullText.slice(matchStart)
-              const remainingWords = remainingText.split(/\s+/)
-              // Find how many consecutive snippet words match from the start
-              let matched = 0
-              for (let wi = 0; wi < snippetWords.length && wi < remainingWords.length; wi++) {
-                if (remainingWords[wi] === snippetWords[wi]) {
-                  matched = wi + 1
-                } else {
-                  // Allow small gaps (1-2 words) for minor normalization differences
-                  if (wi + 1 < snippetWords.length && wi + 1 < remainingWords.length &&
-                      remainingWords[wi + 1] === snippetWords[wi + 1]) {
-                    matched = wi + 2
-                  } else {
-                    break
-                  }
-                }
-              }
-              if (matched > wc) {
-                const extendedStr = remainingWords.slice(0, matched).join(' ')
-                matchEnd = matchStart + extendedStr.length - 1
-              } else {
-                matchEnd = idx + searchStr.length - 1
-              }
-            }
-            console.log(`[Highlight] Strategy 2: prefix ${wc} words, end=${foundEnd ? 'suffix' : 'extended'}, range=${matchEnd - matchStart + 1} chars`)
-            break
-          }
-        }
-      }
+        for (const phraseLen of [4, 3]) {
+          if (snippetWords.length < phraseLen) continue
+          const maxStart = snippetWords.length - phraseLen
+          const positions = new Set()
 
-      // Strategy 3: Suffix matching
-      if (matchStart === -1) {
-        const wordCounts = [
-          Math.ceil(snippetWords.length * 0.6),
-          Math.ceil(snippetWords.length * 0.4),
-          Math.min(8, snippetWords.length),
-          Math.min(5, snippetWords.length),
-        ]
-        for (const wc of wordCounts) {
-          if (wc < 3) continue
-          const searchStr = snippetWords.slice(-wc).join(' ')
-          const idx = fullText.indexOf(searchStr)
-          if (idx !== -1) {
-            matchStart = idx
-            matchEnd = idx + searchStr.length - 1
-            break
+          // Start region: positions 0-4 (slides past problematic first words)
+          for (let s = 0; s <= Math.min(4, maxStart); s++) positions.add(s)
+          // End region: last 5 positions
+          for (let s = 0; s <= Math.min(4, maxStart); s++) positions.add(maxStart - s)
+          // Middle region: evenly spaced
+          for (const frac of [0.2, 0.35, 0.5, 0.65, 0.8]) {
+            positions.add(Math.round(maxStart * frac))
+          }
+
+          const sorted = [...positions].sort((a, b) => a - b)
+          const anchors = sorted.map(pos => ({
+            phrase: snippetWords.slice(pos, pos + phraseLen).join(' '),
+            pos
+          }))
+
+          const found = []
+          for (const anchor of anchors) {
+            const idx = fullText.indexOf(anchor.phrase)
+            if (idx !== -1) {
+              found.push({ start: idx, end: idx + anchor.phrase.length - 1, snippetPos: anchor.pos })
+            }
+          }
+
+          const minRequired = snippetWords.length <= 15 ? 1 : 2
+          if (found.length >= minRequired) {
+            const candidateStart = Math.min(...found.map(f => f.start))
+            const candidateEnd = Math.max(...found.map(f => f.end))
+            const rangeLen = candidateEnd - candidateStart + 1
+
+            if (rangeLen <= snippetNorm.length * 3 && rangeLen <= fullText.length * 0.8) {
+              matchStart = candidateStart
+              matchEnd = candidateEnd
+              console.log(`[Highlight] Strategy 2 (anchors, ${phraseLen}-word): ${found.length}/${anchors.length} matched, range=${rangeLen} chars`)
+              break
+            } else {
+              console.log(`[Highlight] Strategy 2 (anchors, ${phraseLen}-word): range ${rangeLen} too large, skipping`)
+            }
+          } else {
+            console.log(`[Highlight] Strategy 2 (anchors, ${phraseLen}-word): only ${found.length}/${anchors.length} matched (need ${minRequired})`)
           }
         }
       }
