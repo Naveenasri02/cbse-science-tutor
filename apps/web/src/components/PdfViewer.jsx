@@ -166,7 +166,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
         }
       }
 
-      // Strategy 3: Suffix matching as last resort
+      // Strategy 3: Suffix matching
       if (matchStart === -1) {
         const wordCounts = [
           Math.ceil(snippetWords.length * 0.6),
@@ -182,6 +182,38 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
             matchStart = idx
             matchEnd = idx + searchStr.length - 1
             break
+          }
+        }
+      }
+
+      // Strategy 4: Spaceless matching — handles legacy chunks with missing spaces
+      // Remove ALL spaces from both snippet and page text, find match, then map back
+      if (matchStart === -1) {
+        const spacelessSnippet = snippetNorm.replace(/\s+/g, '')
+        if (spacelessSnippet.length >= 15) {
+          // Try first 60 chars spaceless, then 40, then 25
+          for (const len of [60, 40, 25]) {
+            const probe = spacelessSnippet.slice(0, Math.min(len, spacelessSnippet.length))
+            if (probe.length < 15) continue
+            // Build spaceless version of fullText with index mapping
+            let spacelessFull = ''
+            const spacelessToOrigIdx = []
+            for (let ci = 0; ci < fullText.length; ci++) {
+              if (fullText[ci] !== ' ') {
+                spacelessToOrigIdx.push(ci)
+                spacelessFull += fullText[ci]
+              }
+            }
+            const sIdx = spacelessFull.indexOf(probe)
+            if (sIdx !== -1) {
+              matchStart = spacelessToOrigIdx[sIdx]
+              // Find end: use longer probe or full spaceless snippet
+              const endProbe = spacelessSnippet.length <= spacelessFull.length - sIdx
+                ? spacelessSnippet : spacelessSnippet.slice(0, spacelessFull.length - sIdx)
+              const endPos = sIdx + endProbe.length - 1
+              matchEnd = endPos < spacelessToOrigIdx.length ? spacelessToOrigIdx[endPos] : spacelessToOrigIdx[spacelessToOrigIdx.length - 1]
+              break
+            }
           }
         }
       }

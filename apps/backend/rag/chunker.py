@@ -227,9 +227,9 @@ def _extract_pdf_blocks(file_bytes: bytes) -> list[dict]:
                         if size > max_font_size:
                             max_font_size = size
                 if line_parts:
-                    block_text_parts.append("".join(line_parts))
+                    block_text_parts.append(" ".join(line_parts))
 
-            full_text = "\n".join(block_text_parts).strip()
+            full_text = re.sub(r'  +', ' ', "\n".join(block_text_parts)).strip()
             if not full_text:
                 continue
 

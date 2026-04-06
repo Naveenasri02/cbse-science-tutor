@@ -20,6 +20,27 @@ _SUMMARY_PATTERNS = re.compile(
 )
 
 
+def _normalize_chunk_text(text: str) -> str:
+    """Fix spacing artifacts from PDF extraction (e.g., 'measureCPRquality' → 'measure CPRquality').
+
+    Handles common patterns from legacy chunks extracted without proper span spacing.
+    Not a full fix for all-lowercase joins — those are fixed at extraction (chunker.py).
+    """
+    # Insert space between lowercase→uppercase transitions
+    result = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    # Insert space before opening parenthesis when preceded by letter
+    result = re.sub(r'([a-zA-Z])\(', r'\1 (', result)
+    # Insert space after closing parenthesis when followed by letter
+    result = re.sub(r'\)([a-zA-Z])', r') \1', result)
+    # Insert space after period when followed by uppercase (sentence boundary)
+    result = re.sub(r'\.([A-Z])', r'. \1', result)
+    # Insert space after comma when followed by letter (not numbers like 700,000)
+    result = re.sub(r',([a-zA-Z])', r', \1', result)
+    # Collapse multiple spaces
+    result = re.sub(r'  +', ' ', result)
+    return result.strip()
+
+
 async def _llm_generate(prompt: str, max_tokens: int = 128) -> str:
     """Call vLLM for short generations (query analysis, contextual embedding)."""
     async with httpx.AsyncClient(timeout=30) as client:
@@ -264,6 +285,7 @@ class RAGPipeline:
         for i, c in enumerate(chunks):
             page = c.get("page", 0)
             page_end = c.get("page_end", page)
+            text = _normalize_chunk_text(c["text"].strip())
             sources.append({
                 "ref": i + 1,
                 "filename": c.get("filename", "unknown"),
@@ -271,8 +293,8 @@ class RAGPipeline:
                 "page_end": page_end,
                 "section": c.get("section", ""),
                 "score": round(c.get("rerank_score", c.get("rrf_score", c.get("score", 0))), 3),
-                "text": c["text"].strip(),
-                "snippet": c["text"][:150].strip(),
+                "text": text,
+                "snippet": text[:150].strip(),
             })
         return sources
 
