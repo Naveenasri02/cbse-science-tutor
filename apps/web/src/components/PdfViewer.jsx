@@ -7,7 +7,8 @@ import { palette } from '@cbse/shared'
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
-const normalize = (s) => s.toLowerCase().replace(/[\r\n\t]+/g, ' ').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim()
+// NFKD decomposition handles ligatures (ﬁ→fi), math italic (𝑅→R), superscripts (²→2), etc.
+const normalize = (s) => s.normalize('NFKD').toLowerCase().replace(/[\r\n\t]+/g, ' ').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim()
 
 export default function PdfViewer({ fileUrl, fileType, filename, targetPage, targetPageEnd, targetSnippet, targetRequestId, onClose }) {
   const [numPages, setNumPages] = useState(null)
@@ -120,11 +121,14 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
       let matchStart = -1
       let matchEnd = -1
 
+      console.log(`[Highlight] page ${tryPage}: snippet="${snippetNorm.slice(0, 60)}..." (${snippetWords.length} words), pageText="${fullText.slice(0, 80)}..." (${textSpans.length} spans)`)
+
       // Strategy 1: Full snippet as substring (most accurate)
       const fullIdx = fullText.indexOf(snippetNorm)
       if (fullIdx !== -1) {
         matchStart = fullIdx
         matchEnd = fullIdx + snippetNorm.length - 1
+        console.log('[Highlight] Strategy 1 (full match) succeeded')
       }
 
       // Strategy 2: Progressive prefix matching — try longest first

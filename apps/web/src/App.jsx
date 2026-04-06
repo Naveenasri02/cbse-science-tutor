@@ -62,11 +62,14 @@ export default function App() {
 
     // Normalize ref comparison — backend sends int, frontend parses int, but be safe
     const ref = Number(refNum)
+    console.log(`[Citation] Click ref=[${ref}], ${allSources?.length || 0} sources available:`, allSources?.map(s => `[${s.ref}] p.${s.page} "${s.text?.slice(0,40)}..."`))
     const source = allSources?.find(s => Number(s.ref) === ref)
     if (!source) {
       console.warn(`[Citation] No source found for ref [${ref}] in ${allSources?.length || 0} sources:`, allSources?.map(s => s.ref))
       return
     }
+
+    console.log(`[Citation] Found source [${ref}]: page=${source.page}, page_end=${source.page_end}, text="${source.text?.slice(0,80)}..."`)
 
     // Always create a new object so React detects the state change (even for same source)
     setPopupSource({ ...source, _clickId: Date.now(), contextText: contextText || '' })

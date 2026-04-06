@@ -1073,6 +1073,8 @@ RAG_CONTEXT_PROMPT = (
     "   - Place the citation IMMEDIATELY after the claim: \"The lease term is 5 years [1].\"\n"
     "   - If a sentence uses multiple sources, cite all: \"... as specified [1][3].\"\n"
     "   - Do NOT use bold on citations. Write [1] not **[1]**.\n"
+    "   - Cite the MOST SPECIFIC source for each claim. Use ALL available sources — do NOT default to one source for everything.\n"
+    "   - Different facts should cite different sources when the information comes from different passages.\n"
     "3. Include **direct quotes** from the document for key passages:\n"
     "   > \"exact text from the document\" [1]\n"
     "   Use 1-3 quotes per answer to ground your response.\n"

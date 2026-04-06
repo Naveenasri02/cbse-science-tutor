@@ -91,6 +91,8 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
     if not all_refs_in_text:
         return response_text, sources
 
+    print(f"  🔍 Citation verify: refs in text={sorted(all_refs_in_text)}, available sources={[s['ref'] for s in sources]}")
+
     source_by_ref = {s["ref"]: s for s in sources}
 
     # Split into sentences with citations
@@ -116,6 +118,7 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
             if ref in remap:
                 continue
             if ref not in source_by_ref:
+                print(f"  ⚠️ Citation [{ref}] not in sources — skipping")
                 continue
 
             cited_source = source_by_ref[ref]
@@ -131,25 +134,23 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
 
             if best_ref != ref and best_overlap > cited_overlap + 0.2:
                 remap[ref] = best_ref
+                print(f"  🔄 [{ref}]→[{best_ref}] overlap: {cited_overlap:.2f}→{best_overlap:.2f} | claim: {claim[:50]}...")
 
     if not remap:
-        # No remapping needed — filter to cited-only sources and ensure refs match
         cited_sources = [s for s in sources if s["ref"] in all_refs_in_text]
+        print(f"  ✅ Citations verified — no remap needed, {len(cited_sources)} cited sources")
         return response_text, cited_sources if cited_sources else sources
 
     # Apply remapping using placeholders to avoid replacement conflicts
     corrected = response_text
     for old_ref in remap:
         corrected = corrected.replace(f'[{old_ref}]', f'[__REMAP_{remap[old_ref]}__]')
-    # Now replace placeholders with final refs
     corrected = re.sub(r'\[__REMAP_(\d+)__\]', r'[\1]', corrected)
 
     print(f"  🔄 Citation remap: {remap}")
 
-    # Recalculate which refs are now used in the corrected text
     final_refs = set(int(m.group(1)) for m in citation_pattern.finditer(corrected))
 
-    # Build corrected sources with ref fields matching the corrected text
     cited_sources = []
     seen_refs = set()
     for s in sources:
@@ -157,6 +158,7 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
             cited_sources.append(s)
             seen_refs.add(s["ref"])
 
+    print(f"  📎 Final cited sources: {[s['ref'] for s in cited_sources]}")
     return corrected, cited_sources if cited_sources else sources
 
 
@@ -400,11 +402,14 @@ class RAGPipeline:
     @staticmethod
     def _extract_source_metadata(chunks: list[dict]) -> list[dict]:
         """Extract source metadata for streaming preview cards."""
+        import unicodedata
         sources = []
         for i, c in enumerate(chunks):
             page = c.get("page", 0)
             page_end = c.get("page_end", page)
             raw_text = c["text"].strip()
+            # NFKD normalize for consistent matching with PDF.js text layer
+            highlight_text = unicodedata.normalize("NFKD", raw_text)
             display_text = _normalize_chunk_text(raw_text)
             sources.append({
                 "ref": i + 1,
@@ -413,9 +418,10 @@ class RAGPipeline:
                 "page_end": page_end,
                 "section": c.get("section", ""),
                 "score": round(c.get("rerank_score", c.get("rrf_score", c.get("score", 0))), 3),
-                "text": raw_text,
+                "text": highlight_text,
                 "snippet": display_text[:150].strip(),
             })
+            print(f"  📌 Source [{i+1}] p.{page}{f'-{page_end}' if page_end != page else ''} | {raw_text[:60].replace(chr(10), ' ')}...")
         return sources
 
     @staticmethod
