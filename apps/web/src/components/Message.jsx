@@ -44,7 +44,7 @@ function addSourceIds(html) {
   })
 }
 
-export default function Message({ role, text, streaming, onCitationClick }) {
+export default function Message({ role, text, streaming, onCitationClick, sources }) {
   const contentRef = useRef(null)
   const renderTimer = useRef(null)
   const textRef = useRef(text || '')
@@ -121,9 +121,11 @@ export default function Message({ role, text, streaming, onCitationClick }) {
     }
   }, [])
 
-  // Keep a stable ref to onCitationClick so delegation handler never goes stale
+  // Keep stable refs so delegation handler never goes stale
   const onCitationClickRef = useRef(onCitationClick)
   useEffect(() => { onCitationClickRef.current = onCitationClick }, [onCitationClick])
+  const sourcesRef = useRef(sources)
+  useEffect(() => { sourcesRef.current = sources }, [sources])
 
   // Render KaTeX when html changes
   useEffect(() => {
@@ -156,7 +158,7 @@ export default function Message({ role, text, streaming, onCitationClick }) {
       const ref = parseInt(chip.getAttribute('data-ref'), 10)
       if (onCitationClickRef.current) {
         const rect = chip.getBoundingClientRect()
-        onCitationClickRef.current(ref, { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right })
+        onCitationClickRef.current(ref, { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right }, sourcesRef.current)
       }
     }
 

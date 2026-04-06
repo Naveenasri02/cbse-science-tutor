@@ -204,6 +204,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                   text={msg.text}
                   streaming={isBotResponding && msg.role === 'bot' && idx === messages.length - 1}
                   onCitationClick={onCitationClick}
+                  sources={msg.sources}
                 />
               </div>
             ))}

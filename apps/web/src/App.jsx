@@ -50,9 +50,9 @@ export default function App() {
   const [popupSource, setPopupSource] = useState(null)
 
   // Handle citation click — navigate PDF + highlight full source + show popup
-  const handleCitationClick = useCallback((refNum, chipRect) => {
-    console.log('[CitationClick] refNum:', refNum)
-    let allSources = lastRagSourcesRef.current
+  const handleCitationClick = useCallback((refNum, chipRect, msgSources) => {
+    // Priority: 1) sources from the clicked message, 2) live RAG ref (streaming), 3) last bot fallback
+    let allSources = msgSources?.length ? msgSources : lastRagSourcesRef.current
     if (!allSources?.length) {
       const chat = chats.find(c => c.id === activeChatId)
       const lastBotWithSources = chat?.messages?.findLast(m => m.role === 'bot' && m.sources?.length > 0)
@@ -60,7 +60,6 @@ export default function App() {
     }
 
     const source = allSources?.find(s => s.ref === refNum || s.ref === String(refNum))
-    console.log('[CitationClick] found source:', !!source, source?.page)
     if (!source) return
 
     // Always create a new object so React detects the state change (even for same source)
