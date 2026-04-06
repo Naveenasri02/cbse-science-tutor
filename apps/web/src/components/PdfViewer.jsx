@@ -74,10 +74,13 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
     const snippetWords = snippetNorm.split(/\s+/).filter(Boolean)
     if (snippetWords.length === 0) return false
 
+    // Ensure page is a number for arithmetic
+    const pageNum = Number(page) || 1
+
     // Try target page, then ±1, then ±2
-    const pagesToTry = [page]
+    const pagesToTry = [pageNum]
     for (const offset of [1, -1, 2, -2]) {
-      const p = page + offset
+      const p = pageNum + offset
       if (p >= 1 && (!numPages || p <= numPages) && !pagesToTry.includes(p)) {
         pagesToTry.push(p)
       }

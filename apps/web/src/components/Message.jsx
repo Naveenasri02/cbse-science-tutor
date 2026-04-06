@@ -121,10 +121,11 @@ export default function Message({ role, text, streaming, onCitationClick }) {
     }
   }, [])
 
-  // Render KaTeX — both during streaming and after
+  // Keep a stable ref to onCitationClick so delegation handler never goes stale
   const onCitationClickRef = useRef(onCitationClick)
   useEffect(() => { onCitationClickRef.current = onCitationClick }, [onCitationClick])
 
+  // Render KaTeX when html changes
   useEffect(() => {
     if (role === 'bot' && contentRef.current && renderedHtml) {
       try {
@@ -138,22 +139,30 @@ export default function Message({ role, text, streaming, onCitationClick }) {
           throwOnError: false,
         })
       } catch {}
-
-      // Attach click handlers to citation chips
-      const chips = contentRef.current.querySelectorAll('.citation-chip[data-ref]')
-      chips.forEach(chip => {
-        chip.onclick = (e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          const ref = parseInt(chip.getAttribute('data-ref'), 10)
-          if (onCitationClickRef.current) {
-            const rect = chip.getBoundingClientRect()
-            onCitationClickRef.current(ref, { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right })
-          }
-        }
-      })
     }
   }, [role, renderedHtml])
+
+  // Event delegation for citation clicks — survives DOM changes from KaTeX
+  useEffect(() => {
+    if (role !== 'bot') return
+    const container = contentRef.current
+    if (!container) return
+
+    const handler = (e) => {
+      const chip = e.target.closest('.citation-chip[data-ref]')
+      if (!chip) return
+      e.preventDefault()
+      e.stopPropagation()
+      const ref = parseInt(chip.getAttribute('data-ref'), 10)
+      if (onCitationClickRef.current) {
+        const rect = chip.getBoundingClientRect()
+        onCitationClickRef.current(ref, { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right })
+      }
+    }
+
+    container.addEventListener('click', handler)
+    return () => container.removeEventListener('click', handler)
+  }, [role])
 
   if (role === 'user') {
     return (

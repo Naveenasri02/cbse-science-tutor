@@ -68,9 +68,10 @@ export default function App() {
 
     // Navigate PDF to the correct page + highlight
     if (source.page) {
+      const pageNum = Number(source.page)
       const fullText = source.text || source.snippet || ''
       const snippetText = fullText.split(/\s+/).slice(0, 40).join(' ')
-      setPdfTarget({ page: source.page, snippet: snippetText, requestId: Date.now() })
+      setPdfTarget({ page: pageNum, snippet: snippetText, requestId: Date.now() })
       setPdfPanelOpen(true)
     }
   }, [chats, activeChatId])
@@ -481,6 +482,7 @@ export default function App() {
             {/* Source Popup — small tooltip at bottom of chat */}
             {popupSource && (
               <SourcePopup
+                key={popupSource._clickId}
                 source={popupSource}
                 onClose={() => setPopupSource(null)}
               />

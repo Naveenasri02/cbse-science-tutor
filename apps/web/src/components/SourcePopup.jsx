@@ -3,17 +3,37 @@ import { palette } from '@cbse/shared'
 
 export default function SourcePopup({ source, onClose }) {
   const popupRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose })
 
-  // Click-outside to dismiss
+  // Click-outside to dismiss + forward clicks to citation chips hidden beneath popup
   useEffect(() => {
     const handler = (e) => {
-      if (popupRef.current && !popupRef.current.contains(e.target) && !e.target.closest('.citation-chip')) {
-        onClose()
+      if (!popupRef.current) return
+
+      if (popupRef.current.contains(e.target)) {
+        // Click landed on the popup — check if a citation chip is underneath
+        popupRef.current.style.visibility = 'hidden'
+        const underneath = document.elementFromPoint(e.clientX, e.clientY)
+        popupRef.current.style.visibility = ''
+
+        const chip = underneath?.closest('.citation-chip[data-ref]')
+        if (chip) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          chip.click() // forward to the citation handler
+        }
+        return
+      }
+
+      // Click outside popup — dismiss unless it's a citation chip
+      if (!e.target.closest('.citation-chip')) {
+        onCloseRef.current()
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [onClose])
+    document.addEventListener('mousedown', handler, true) // capture phase
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [])
 
   if (!source) return null
 
