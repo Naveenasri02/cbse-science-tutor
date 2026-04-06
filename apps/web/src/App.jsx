@@ -66,11 +66,11 @@ export default function App() {
     setPopupSource({ ...source, _clickId: Date.now(), contextText: contextText || '' })
 
     // Navigate PDF to the correct page + highlight
-    // Use context sentence from bot response for accurate PDF location (falls back to full chunk)
+    // Use actual source chunk text (matches PDF text layer); LLM-generated contextText is paraphrased and rarely matches
     if (source.page != null) {
       const pageNum = Number(source.page) || 1
       const pageEnd = source.page_end != null ? Number(source.page_end) : pageNum
-      const highlightSnippet = contextText || source.text || source.snippet || ''
+      const highlightSnippet = source.text || source.snippet || ''
       setPdfTarget({ page: pageNum, pageEnd, snippet: highlightSnippet, requestId: Date.now() })
       setPdfPanelOpen(true)
     }

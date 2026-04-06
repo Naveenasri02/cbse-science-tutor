@@ -128,11 +128,14 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
       }
 
       // Strategy 2: Progressive prefix matching — try longest first
+      // Extra steps (20, 15) handle full RAG chunks (~300 words) gracefully
       if (matchStart === -1) {
         const wordCounts = [
           Math.ceil(snippetWords.length * 0.8),
           Math.ceil(snippetWords.length * 0.6),
           Math.ceil(snippetWords.length * 0.4),
+          Math.min(20, snippetWords.length),
+          Math.min(15, snippetWords.length),
           Math.min(10, snippetWords.length),
           Math.min(7, snippetWords.length),
           Math.min(5, snippetWords.length),
@@ -231,7 +234,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
     }
 
     // Retry with progressive delays (text layer may still be rendering)
-    const delays = [200, 400, 800, 1400, 2500]
+    const delays = [200, 400, 800, 1400, 2500, 4000]
     let attempt = 0
 
     const runHighlight = () => {
