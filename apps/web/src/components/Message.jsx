@@ -1,10 +1,15 @@
 import { useRef, useEffect, useState } from 'react'
 import { marked } from 'marked'
-import renderMathInElement from 'katex/contrib/auto-render'
+import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { palette } from '@cbse/shared'
 
 marked.setOptions({ breaks: true, gfm: true })
+
+// Strip <think>...</think> reasoning traces from LLM output
+function stripThinkBlocks(text) {
+  return text.replace(/<think>[\s\S]*?<\/think>\s*/g, '')
+}
 
 // Protect LaTeX blocks from markdown parsing by replacing them with placeholders
 function protectLatex(md) {
@@ -24,7 +29,20 @@ function protectLatex(md) {
 
 function restoreLatex(html, placeholders) {
   return html.replace(/%%LATEX_(\d+)%%/g, (_, idx) => {
-    return placeholders[parseInt(idx)] || ''
+    const raw = placeholders[parseInt(idx)] || ''
+    if (!raw) return ''
+    // Determine display vs inline and extract math content
+    const isDisplay = raw.startsWith('$$') || raw.startsWith('\\[')
+    let math = raw
+    if (raw.startsWith('$$')) math = raw.slice(2, -2)
+    else if (raw.startsWith('\\[')) math = raw.slice(2, -2)
+    else if (raw.startsWith('$')) math = raw.slice(1, -1)
+    else if (raw.startsWith('\\(')) math = raw.slice(2, -2)
+    try {
+      return katex.renderToString(math.trim(), { displayMode: isDisplay, throwOnError: false })
+    } catch {
+      return raw
+    }
   })
 }
 
@@ -76,7 +94,7 @@ export default function Message({ role, text, streaming, onCitationClick, source
   // Strip "Sources:" footer block from bot responses (e.g., "---\nSources:\n[1] ...")
   const stripSourcesFooter = (md) => md.replace(/\n*-{2,}\s*\n\s*\*{0,2}Sources:?\*{0,2}\s*\n[\s\S]*$/i, '').replace(/\n\s*\*{0,2}Sources:?\*{0,2}\s*\n\s*\[[\s\S]*$/i, '')
 
-  const displayText = (role === 'bot') ? stripSourcesFooter((text || '').slice(0, displayLen)) : (text || '')
+  const displayText = (role === 'bot') ? stripSourcesFooter(stripThinkBlocks((text || '').slice(0, displayLen))) : (text || '')
   displayTextRef.current = displayText
 
   // Ensure markdown headers/lists have preceding newlines for proper parsing
@@ -126,23 +144,6 @@ export default function Message({ role, text, streaming, onCitationClick, source
   useEffect(() => { onCitationClickRef.current = onCitationClick }, [onCitationClick])
   const sourcesRef = useRef(sources)
   sourcesRef.current = sources
-
-  // Render KaTeX when html changes
-  useEffect(() => {
-    if (role === 'bot' && contentRef.current && renderedHtml) {
-      try {
-        renderMathInElement(contentRef.current, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false },
-            { left: '\\(', right: '\\)', display: false },
-            { left: '\\[', right: '\\]', display: true },
-          ],
-          throwOnError: false,
-        })
-      } catch {}
-    }
-  }, [role, renderedHtml])
 
   // Event delegation for citation clicks — survives DOM changes from KaTeX
   useEffect(() => {
