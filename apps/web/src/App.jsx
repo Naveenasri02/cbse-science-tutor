@@ -65,12 +65,11 @@ export default function App() {
     // Always create a new object so React detects the state change (even for same source)
     setPopupSource({ ...source, _clickId: Date.now() })
 
-    // Navigate PDF to the correct page + highlight
-    if (source.page) {
-      const pageNum = Number(source.page)
+    // Navigate PDF to the correct page + highlight using FULL source text
+    if (source.page != null) {
+      const pageNum = Number(source.page) || 1
       const fullText = source.text || source.snippet || ''
-      const snippetText = fullText.split(/\s+/).slice(0, 40).join(' ')
-      setPdfTarget({ page: pageNum, snippet: snippetText, requestId: Date.now() })
+      setPdfTarget({ page: pageNum, snippet: fullText, requestId: Date.now() })
       setPdfPanelOpen(true)
     }
   }, [chats, activeChatId])

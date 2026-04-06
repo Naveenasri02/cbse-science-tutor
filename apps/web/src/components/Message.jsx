@@ -125,7 +125,7 @@ export default function Message({ role, text, streaming, onCitationClick, source
   const onCitationClickRef = useRef(onCitationClick)
   useEffect(() => { onCitationClickRef.current = onCitationClick }, [onCitationClick])
   const sourcesRef = useRef(sources)
-  useEffect(() => { sourcesRef.current = sources }, [sources])
+  sourcesRef.current = sources
 
   // Render KaTeX when html changes
   useEffect(() => {
