@@ -55,7 +55,7 @@ _llm_http = httpx.AsyncClient(
 print("  ✓ LLM ready")
 
 print("  [4/4] RAG pipeline...")
-from rag.pipeline import RAGPipeline
+from rag.pipeline import RAGPipeline, verify_citations
 rag = RAGPipeline()
 print("  ✓ RAG ready")
 
@@ -959,6 +959,19 @@ async def voice_endpoint(ws: WebSocket):
                                     if len(conversation_history) > 201:
                                         del conversation_history[1:-200]
                             continue
+
+                        # ── Citation verification: fix LLM citation mismatches ──
+                        if full_reply and rag_sources:
+                            clean_for_verify = _strip_think_blocks(full_reply)
+                            if clean_for_verify:
+                                corrected_text, corrected_sources = verify_citations(clean_for_verify, rag_sources)
+                                if corrected_text != clean_for_verify or len(corrected_sources) != len(rag_sources):
+                                    await safe_send_json({
+                                        "type": "citation_correction",
+                                        "text": corrected_text,
+                                        "sources": corrected_sources,
+                                    })
+                                    rag_sources = corrected_sources
 
                         await safe_send_json({"type": "llm_done"})
                         print(f"✅ [{time.perf_counter()-t0:.2f}s] Text reply: {full_reply[:60]}...")

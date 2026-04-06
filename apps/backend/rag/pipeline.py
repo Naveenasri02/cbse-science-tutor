@@ -41,6 +41,124 @@ def _normalize_chunk_text(text: str) -> str:
     return result.strip()
 
 
+# ── STOP WORDS for citation verification ──
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "dare", "ought",
+    "to", "of", "in", "for", "on", "with", "at", "by", "from", "as",
+    "into", "through", "during", "before", "after", "above", "below",
+    "between", "out", "off", "over", "under", "again", "further", "then",
+    "once", "here", "there", "when", "where", "why", "how", "all", "both",
+    "each", "few", "more", "most", "other", "some", "such", "no", "nor",
+    "not", "only", "own", "same", "so", "than", "too", "very", "just",
+    "and", "but", "or", "if", "while", "because", "until", "although",
+    "that", "this", "these", "those", "it", "its", "i", "me", "my",
+    "we", "our", "you", "your", "he", "him", "his", "she", "her",
+    "they", "them", "their", "what", "which", "who", "whom",
+    "also", "about", "up", "well", "however", "thus", "therefore",
+})
+
+
+def _extract_key_terms(text: str) -> set[str]:
+    """Extract meaningful terms from text, filtering stop words."""
+    words = re.findall(r'[a-zA-Z][a-zA-Z0-9]{2,}', text.lower())
+    return {w for w in words if w not in _STOP_WORDS}
+
+
+def _compute_term_overlap(claim_terms: set[str], chunk_text: str) -> float:
+    """Compute fraction of claim terms found in chunk text."""
+    if not claim_terms:
+        return 0.0
+    chunk_lower = chunk_text.lower()
+    matched = sum(1 for t in claim_terms if t in chunk_lower)
+    return matched / len(claim_terms)
+
+
+def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list[dict]]:
+    """Verify and correct citation-to-source mapping in LLM response.
+
+    For each [N] citation, checks if the surrounding sentence actually matches source N.
+    If not, reassigns to the best-matching source. Returns corrected text and filtered sources.
+    """
+    if not sources or not response_text:
+        return response_text, sources
+
+    # Split response into sentences with their citation refs
+    # Pattern: find text segments ending with one or more [N] citations
+    citation_pattern = re.compile(r'\[(\d{1,2})\]')
+    all_refs_in_text = set(int(m.group(1)) for m in citation_pattern.finditer(response_text))
+
+    if not all_refs_in_text:
+        return response_text, sources
+
+    # Build source lookup by ref number
+    source_by_ref = {s["ref"]: s for s in sources}
+
+    # Split into sentences (rough split on period/newline, keeping citations)
+    sentence_pattern = re.compile(
+        r'([^.!?\n]+(?:\[[\d]{1,2}\])+)',
+        re.DOTALL,
+    )
+    sentences = sentence_pattern.findall(response_text)
+
+    # For each sentence with citations, verify the mapping
+    remap = {}  # old_ref -> new_ref
+    for sentence in sentences:
+        # Find citations in this sentence
+        refs_in_sentence = [int(m.group(1)) for m in citation_pattern.finditer(sentence)]
+        if not refs_in_sentence:
+            continue
+
+        # Extract the claim text (sentence without citation markers)
+        claim = citation_pattern.sub('', sentence).strip()
+        claim_terms = _extract_key_terms(claim)
+        if len(claim_terms) < 3:
+            continue  # Too short to verify reliably
+
+        for ref in refs_in_sentence:
+            if ref in remap:
+                continue  # Already remapped
+            if ref not in source_by_ref:
+                continue  # Unknown ref
+
+            cited_source = source_by_ref[ref]
+            cited_overlap = _compute_term_overlap(claim_terms, cited_source.get("text", ""))
+
+            # Find best matching source
+            best_ref = ref
+            best_overlap = cited_overlap
+            for s in sources:
+                overlap = _compute_term_overlap(claim_terms, s.get("text", ""))
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_ref = s["ref"]
+
+            # Only remap if significantly better match exists (>20% improvement)
+            if best_ref != ref and best_overlap > cited_overlap + 0.2:
+                remap[ref] = best_ref
+
+    if not remap:
+        # No remapping needed — just filter to cited-only sources
+        cited_sources = [s for s in sources if s["ref"] in all_refs_in_text]
+        return response_text, cited_sources if cited_sources else sources
+
+    # Apply remapping to response text
+    corrected = response_text
+    # Sort by ref descending to avoid replacement conflicts ([10] before [1])
+    for old_ref in sorted(remap.keys(), reverse=True):
+        new_ref = remap[old_ref]
+        corrected = corrected.replace(f'[{old_ref}]', f'[{new_ref}]')
+
+    print(f"  🔄 Citation remap: {remap}")
+
+    # Recalculate which refs are now used
+    final_refs = set(int(m.group(1)) for m in citation_pattern.finditer(corrected))
+    cited_sources = [s for s in sources if s["ref"] in final_refs]
+
+    return corrected, cited_sources if cited_sources else sources
+
+
 async def _llm_generate(prompt: str, max_tokens: int = 128) -> str:
     """Call vLLM for short generations (query analysis, contextual embedding)."""
     async with httpx.AsyncClient(timeout=30) as client:
@@ -189,8 +307,8 @@ class RAGPipeline:
         # Small doc: inject everything
         if total_doc_tokens <= context_budget:
             print(f"  📄 RAG: full-doc injection ({len(all_chunks)} chunks, ~{total_doc_tokens} tokens)")
-            context = self._format_context_with_sources(all_chunks, is_summary=False, workflow=workflow)
-            sources = self._extract_source_metadata(all_chunks)
+            context, included = self._format_context_with_sources(all_chunks, is_summary=False, workflow=workflow)
+            sources = self._extract_source_metadata(all_chunks[:included])
             return {"context": context, "sources": sources}
 
         # Query analysis: classify intent
@@ -220,9 +338,9 @@ class RAGPipeline:
 
         if is_summary:
             print(f"  📖 RAG: summary mode ({len(all_chunks)} chunks)")
-            context_body = self._build_context_with_sources(all_chunks)
+            context_body, included = self._build_context_with_sources(all_chunks)
             context = config.RAG_SUMMARY_PROMPT.format(context=context_body)
-            sources = self._extract_source_metadata(all_chunks)
+            sources = self._extract_source_metadata(all_chunks[:included])
             return {"context": context, "sources": sources}
 
         # For analysis queries: use multi-pass retrieval for comprehensive coverage
@@ -274,8 +392,8 @@ class RAGPipeline:
             reranked = self._expand_to_parents(reranked, all_chunks, context_budget)
             print(f"  📑 RAG: expanded to {len(reranked)} section parents")
 
-        context = self._format_context_with_sources(reranked, is_summary=False, workflow=workflow)
-        sources = self._extract_source_metadata(reranked)
+        context, included = self._format_context_with_sources(reranked, is_summary=False, workflow=workflow)
+        sources = self._extract_source_metadata(reranked[:included])
         return {"context": context, "sources": sources}
 
     @staticmethod
@@ -607,14 +725,15 @@ class RAGPipeline:
                 break
             parts.append(source_tag)
             tokens_used += chunk_tokens
-        return "\n---\n".join(parts)
+        return "\n---\n".join(parts), len(parts)
 
-    def _format_context_with_sources(self, chunks: list[dict], is_summary: bool, workflow: str = "") -> str:
-        """Build final context string with source citations and RAG prompt."""
-        context = self._build_context_with_sources(chunks)
+    def _format_context_with_sources(self, chunks: list[dict], is_summary: bool, workflow: str = "") -> tuple[str, int]:
+        """Build final context string with source citations and RAG prompt.
+        Returns: (formatted_context, number_of_chunks_included)"""
+        context, included = self._build_context_with_sources(chunks)
         if is_summary:
-            return config.RAG_SUMMARY_PROMPT.format(context=context)
-        return config.get_rag_context_prompt(workflow).format(context=context)
+            return config.RAG_SUMMARY_PROMPT.format(context=context), included
+        return config.get_rag_context_prompt(workflow).format(context=context), included
 
     # ── DOCUMENT MANAGEMENT ──
 

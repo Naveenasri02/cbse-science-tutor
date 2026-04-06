@@ -51,13 +51,14 @@ export default function App() {
 
   // Handle citation click — navigate PDF + highlight full source + show popup
   const handleCitationClick = useCallback((refNum, chipRect, msgSources, contextText) => {
-    // Priority: 1) sources from the clicked message, 2) live RAG ref (streaming), 3) last bot fallback
-    let allSources = msgSources?.length ? msgSources : lastRagSourcesRef.current
+    // Priority: 1) sources from the clicked message, 2) find from chat history, 3) live streaming ref (last resort)
+    let allSources = msgSources?.length ? msgSources : null
     if (!allSources?.length) {
       const chat = chats.find(c => c.id === activeChatId)
       const lastBotWithSources = chat?.messages?.findLast(m => m.role === 'bot' && m.sources?.length > 0)
       if (lastBotWithSources) allSources = lastBotWithSources.sources
     }
+    if (!allSources?.length) allSources = lastRagSourcesRef.current
 
     const source = allSources?.find(s => s.ref === refNum || s.ref === String(refNum))
     if (!source) return
@@ -167,6 +168,17 @@ export default function App() {
       case 'rag_sources':
         setRagSources(msg.sources || [])
         lastRagSourcesRef.current = msg.sources || []
+        updateLastBotMsgSources(msg.sources || [])
+        break
+
+      case 'citation_correction':
+        // Backend verified citations — update message text and sources
+        if (msg.text) updateLastBotMsg(msg.text)
+        if (msg.sources) {
+          lastRagSourcesRef.current = msg.sources
+          updateLastBotMsgSources(msg.sources)
+          setRagSources(msg.sources)
+        }
         break
 
       case 'llm_delta': {
