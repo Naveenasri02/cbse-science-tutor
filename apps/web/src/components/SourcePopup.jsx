@@ -39,6 +39,7 @@ export default function SourcePopup({ source, onClose }) {
 
   const fullText = source.text || source.snippet || ''
   const snippet = fullText.slice(0, 400)
+  const contextText = source.contextText || ''
 
   return (
     <div
@@ -68,14 +69,33 @@ export default function SourcePopup({ source, onClose }) {
         </span>
       </div>
 
-      {/* Snippet */}
+      {/* Referenced text from bot response */}
+      {contextText && (
+        <div className="px-3 pt-2 pb-1">
+          <p
+            className="text-[11px] leading-[1.5] rounded-md px-2.5 py-1.5"
+            style={{
+              color: palette.textPrimary,
+              background: 'rgba(29,155,240,0.15)',
+              borderLeft: `2px solid ${palette.primary}`,
+              fontStyle: 'italic',
+              wordBreak: 'break-word',
+            }}
+          >
+            {contextText.length > 200 ? contextText.slice(0, 200) + '…' : contextText}
+          </p>
+        </div>
+      )}
+
+      {/* Source chunk text */}
       <div className="px-3 py-2" style={{ maxHeight: 120, overflowY: 'auto' }}>
+        <p className="text-[10px] font-medium mb-1" style={{ color: palette.textMuted }}>Source chunk:</p>
         <p
           className="text-[12px] leading-[1.55] rounded-md px-2.5 py-1.5"
           style={{
             color: palette.textPrimary,
             background: 'rgba(29,155,240,0.08)',
-            borderLeft: `2px solid ${palette.primary}`,
+            borderLeft: `2px solid ${palette.border}`,
             wordBreak: 'break-word',
           }}
         >

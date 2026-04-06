@@ -50,7 +50,7 @@ export default function App() {
   const [popupSource, setPopupSource] = useState(null)
 
   // Handle citation click — navigate PDF + highlight full source + show popup
-  const handleCitationClick = useCallback((refNum, chipRect, msgSources) => {
+  const handleCitationClick = useCallback((refNum, chipRect, msgSources, contextText) => {
     // Priority: 1) sources from the clicked message, 2) live RAG ref (streaming), 3) last bot fallback
     let allSources = msgSources?.length ? msgSources : lastRagSourcesRef.current
     if (!allSources?.length) {
@@ -63,13 +63,14 @@ export default function App() {
     if (!source) return
 
     // Always create a new object so React detects the state change (even for same source)
-    setPopupSource({ ...source, _clickId: Date.now() })
+    setPopupSource({ ...source, _clickId: Date.now(), contextText: contextText || '' })
 
-    // Navigate PDF to the correct page + highlight using FULL source text
+    // Navigate PDF to the correct page + highlight
+    // Use context sentence from bot response for accurate PDF location (falls back to full chunk)
     if (source.page != null) {
       const pageNum = Number(source.page) || 1
-      const fullText = source.text || source.snippet || ''
-      setPdfTarget({ page: pageNum, snippet: fullText, requestId: Date.now() })
+      const highlightSnippet = contextText || source.text || source.snippet || ''
+      setPdfTarget({ page: pageNum, snippet: highlightSnippet, requestId: Date.now() })
       setPdfPanelOpen(true)
     }
   }, [chats, activeChatId])

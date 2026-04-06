@@ -158,7 +158,10 @@ export default function Message({ role, text, streaming, onCitationClick, source
       const ref = parseInt(chip.getAttribute('data-ref'), 10)
       if (onCitationClickRef.current) {
         const rect = chip.getBoundingClientRect()
-        onCitationClickRef.current(ref, { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right }, sourcesRef.current)
+        // Extract surrounding sentence/paragraph for accurate PDF highlighting
+        const block = chip.closest('p, li, td, blockquote') || chip.parentElement
+        const contextText = (block?.textContent || '').replace(/\[\d+\]/g, '').replace(/\s+/g, ' ').trim()
+        onCitationClickRef.current(ref, { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right }, sourcesRef.current, contextText)
       }
     }
 
