@@ -160,8 +160,13 @@ class RAGPipeline:
         all_chunks = self.store.get_all_chunks_ordered(session_id)
         total_doc_tokens = sum(int(len(c["text"]) / 2.8) + 5 for c in all_chunks)
 
+        # Use workflow-aware context budget
+        context_budget = config.get_rag_context_tokens(workflow)
+        rerank_top_k = config.get_rag_rerank_top_k(workflow)
+        is_analysis_wf = config.is_analysis_workflow(workflow)
+
         # Small doc: inject everything
-        if total_doc_tokens <= config.RAG_MAX_CONTEXT_TOKENS:
+        if total_doc_tokens <= context_budget:
             print(f"  📄 RAG: full-doc injection ({len(all_chunks)} chunks, ~{total_doc_tokens} tokens)")
             context = self._format_context_with_sources(all_chunks, is_summary=False, workflow=workflow)
             sources = self._extract_source_metadata(all_chunks)
@@ -190,6 +195,7 @@ class RAGPipeline:
             }
 
         is_summary = query_type == "summary" or self._is_summary_query(search_query)
+        is_analysis = query_type == "analysis" or is_analysis_wf
 
         if is_summary:
             print(f"  📖 RAG: summary mode ({len(all_chunks)} chunks)")
@@ -198,29 +204,34 @@ class RAGPipeline:
             sources = self._extract_source_metadata(all_chunks)
             return {"context": context, "sources": sources}
 
-        # Decompose complex queries into sub-queries for broader retrieval
-        sub_queries = self._decompose_query(search_query)
-
-        if len(sub_queries) > 1:
-            print(f"  🔀 RAG: decomposed into {len(sub_queries)} sub-queries: {sub_queries}")
-            all_results = []
-            seen_texts = set()
-            for sq in sub_queries:
-                sq_results = self._hybrid_retrieve(session_id, sq, all_chunks)
-                for r in sq_results:
-                    key = r["text"][:100]
-                    if key not in seen_texts:
-                        seen_texts.add(key)
-                        all_results.append(r)
-            results = all_results
+        # For analysis queries: use multi-pass retrieval for comprehensive coverage
+        if is_analysis:
+            results = self._analysis_retrieve(session_id, search_query, all_chunks)
+            print(f"  🔬 RAG: analysis retrieval → {len(results)} chunks")
         else:
-            results = self._hybrid_retrieve(session_id, search_query, all_chunks)
+            # Decompose complex queries into sub-queries for broader retrieval
+            sub_queries = self._decompose_query(search_query)
+
+            if len(sub_queries) > 1:
+                print(f"  🔀 RAG: decomposed into {len(sub_queries)} sub-queries: {sub_queries}")
+                all_results = []
+                seen_texts = set()
+                for sq in sub_queries:
+                    sq_results = self._hybrid_retrieve(session_id, sq, all_chunks)
+                    for r in sq_results:
+                        key = r["text"][:100]
+                        if key not in seen_texts:
+                            seen_texts.add(key)
+                            all_results.append(r)
+                results = all_results
+            else:
+                results = self._hybrid_retrieve(session_id, search_query, all_chunks)
 
         if not results:
             return {"context": "", "sources": []}
 
         # Rerank all results together with the original query
-        reranked = self.reranker.rerank(search_query, results, top_k=config.RAG_RERANK_TOP_K)
+        reranked = self.reranker.rerank(search_query, results, top_k=rerank_top_k)
 
         # Deduplicate near-identical chunks (>85% text overlap)
         reranked = self._deduplicate_chunks(reranked)
@@ -236,6 +247,11 @@ class RAGPipeline:
                 ),
                 "sources": [],
             }
+
+        # P4: For analysis queries, expand retrieved chunks to full section parents
+        if is_analysis:
+            reranked = self._expand_to_parents(reranked, all_chunks, context_budget)
+            print(f"  📑 RAG: expanded to {len(reranked)} section parents")
 
         context = self._format_context_with_sources(reranked, is_summary=False, workflow=workflow)
         sources = self._extract_source_metadata(reranked)
@@ -368,7 +384,7 @@ class RAGPipeline:
             return [query]
 
     def _analyze_query(self, session_id: str, query: str, workflow: str = "") -> str:
-        """Use LLM to classify query: answerable / out_of_scope / ambiguous / summary."""
+        """Use LLM to classify query: answerable / analysis / out_of_scope / ambiguous / summary."""
         try:
             doc_topics = self.store.get_document_topics(session_id)
             prompt = config.QUERY_ANALYSIS_PROMPT.format(doc_topics=doc_topics, query=query, workflow=workflow or "General")
@@ -376,7 +392,7 @@ class RAGPipeline:
             # Clean up response — extract just the classification word
             result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL).strip()
             result = result.lower().strip().strip(".")
-            valid = {"answerable", "out_of_scope", "ambiguous", "summary"}
+            valid = {"answerable", "analysis", "out_of_scope", "ambiguous", "summary"}
             for v in valid:
                 if v in result:
                     return v
@@ -384,6 +400,110 @@ class RAGPipeline:
         except Exception as e:
             print(f"  ⚠️ Query analysis failed: {e}")
             return "answerable"
+
+    def _analysis_retrieve(self, session_id: str, query: str, all_chunks: list[dict]) -> list[dict]:
+        """Multi-pass retrieval for analysis queries — generates aspect queries for comprehensive coverage."""
+        aspect_queries = self._generate_aspect_queries(query)
+        print(f"  🔬 RAG: analysis multi-pass with {len(aspect_queries)} aspect queries")
+
+        all_results = []
+        seen_texts = set()
+
+        for aq in aspect_queries:
+            aq_results = self._hybrid_retrieve(session_id, aq, all_chunks)
+            for r in aq_results:
+                key = r["text"][:100]
+                if key not in seen_texts:
+                    seen_texts.add(key)
+                    all_results.append(r)
+
+        return all_results
+
+    def _generate_aspect_queries(self, query: str) -> list[str]:
+        """Generate multiple search queries covering different aspects for comprehensive retrieval."""
+        try:
+            prompt = (
+                "A user wants a comprehensive analysis of a document. Generate 4-5 diverse search queries "
+                "that together would retrieve ALL important aspects of the document.\n\n"
+                "Cover different angles: rights/protections, obligations/responsibilities, "
+                "terms/conditions, key details/provisions, and any special clauses.\n\n"
+                f"User's question: {query}\n\n"
+                "Output each query on a separate line, numbered:\n"
+                "1. <query>\n2. <query>\n3. <query>\n4. <query>\n"
+                "/no_think"
+            )
+            result = _llm_generate_sync(prompt, max_tokens=200)
+            result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL).strip()
+
+            aspect_queries = [query]  # always include original query
+            for line in result.split("\n"):
+                line = line.strip()
+                cleaned = re.sub(r'^\d+[\.\)]\s*', '', line).strip()
+                if cleaned and len(cleaned) > 5 and cleaned != query:
+                    aspect_queries.append(cleaned)
+
+            return aspect_queries[:6]  # cap at 6 total (original + 5 aspects)
+        except Exception as e:
+            print(f"  ⚠️ Aspect query generation failed: {e}")
+            return [query]
+
+    def _expand_to_parents(self, reranked: list[dict], all_chunks: list[dict], max_tokens: int) -> list[dict]:
+        """Replace retrieved chunks with their full section (parent) content for deeper context."""
+        # Group all chunks by (doc_id, section)
+        section_map = {}
+        for c in all_chunks:
+            key = (c.get("doc_id", ""), c.get("section", ""), c.get("filename", ""))
+            section_map.setdefault(key, []).append(c)
+
+        # For chunks with no section, group by (doc_id, page) instead
+        page_map = {}
+        for c in all_chunks:
+            if not c.get("section"):
+                key = (c.get("doc_id", ""), c.get("page", 0), c.get("filename", ""))
+                page_map.setdefault(key, []).append(c)
+
+        seen_keys = set()
+        parent_chunks = []
+        tokens_used = 0
+
+        for chunk in reranked:
+            section = chunk.get("section", "")
+            doc_id = chunk.get("doc_id", "")
+            filename = chunk.get("filename", "")
+
+            if section:
+                key = (doc_id, section, filename)
+                group_map = section_map
+            else:
+                key = (doc_id, chunk.get("page", 0), filename)
+                group_map = page_map
+
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
+            siblings = group_map.get(key, [chunk])
+            siblings_sorted = sorted(siblings, key=lambda x: (x.get("page", 0), x.get("position", 0)))
+
+            parent_text = "\n\n".join(s["text"] for s in siblings_sorted)
+            parent_tokens = int(len(parent_text) / 2.8) + 5
+
+            # Check token budget
+            if tokens_used + parent_tokens > max_tokens:
+                # Try adding just the original chunk instead
+                chunk_tokens = int(len(chunk["text"]) / 2.8) + 5
+                if tokens_used + chunk_tokens <= max_tokens:
+                    parent_chunks.append(chunk)
+                    tokens_used += chunk_tokens
+                break
+
+            parent_chunk = dict(chunk)
+            parent_chunk["text"] = parent_text
+            parent_chunk["page_end"] = max(s.get("page_end", s.get("page", 0)) for s in siblings_sorted)
+            parent_chunks.append(parent_chunk)
+            tokens_used += parent_tokens
+
+        return parent_chunks if parent_chunks else reranked[:3]
 
     def _hybrid_retrieve(self, session_id: str, query: str, all_chunks: list[dict]) -> list[dict]:
         """Dense embedding search + BM25 keyword search + RRF fusion."""

@@ -959,6 +959,25 @@ def get_rag_context_prompt(workflow: str = "") -> str:
     return base
 
 
+def is_analysis_workflow(workflow: str = "") -> bool:
+    """Check if the workflow requires deep analysis (more context, more chunks)."""
+    return workflow in ANALYSIS_WORKFLOWS
+
+
+def get_rag_context_tokens(workflow: str = "") -> int:
+    """Return context token budget — higher for analysis workflows."""
+    if is_analysis_workflow(workflow):
+        return RAG_ANALYSIS_CONTEXT_TOKENS
+    return RAG_MAX_CONTEXT_TOKENS
+
+
+def get_rag_rerank_top_k(workflow: str = "") -> int:
+    """Return rerank top_k — higher for analysis workflows."""
+    if is_analysis_workflow(workflow):
+        return RAG_ANALYSIS_RERANK_TOP_K
+    return RAG_RERANK_TOP_K
+
+
 def get_workflow_reject_message(workflow: str = "") -> str:
     """Return a workflow-specific reject message for off-topic queries."""
     if workflow:
@@ -1008,9 +1027,22 @@ RAG_RERANK_TOP_K = int(os.getenv("RAG_RERANK_TOP_K", "6"))
 RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "6000"))
 RERANKER_SCORE_THRESHOLD = float(os.getenv("RERANKER_SCORE_THRESHOLD", "0.01"))
 
+# Analysis workflows get deeper retrieval and larger context budget
+RAG_ANALYSIS_CONTEXT_TOKENS = int(os.getenv("RAG_ANALYSIS_CONTEXT_TOKENS", "16000"))
+RAG_ANALYSIS_RERANK_TOP_K = int(os.getenv("RAG_ANALYSIS_RERANK_TOP_K", "15"))
+ANALYSIS_WORKFLOWS = {
+    "I want help with due diligence",
+    "I want help with contract analysis",
+    "I want help with compliance lookup",
+    "I want help with compliance and regulatory support",
+    "I want help with policy and product lookup",
+    "I want help with HR policy support",
+    "I want help with policy clarification",
+}
+
 # Chunking
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "64"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "800"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "128"))
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(50 * 1024 * 1024)))  # 50 MB
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/workspace/uploads")
 
@@ -1093,8 +1125,11 @@ QUERY_ANALYSIS_PROMPT = (
     "Active workflow: {workflow}\n\n"
     "User query: \"{query}\"\n\n"
     "Classify as exactly ONE of:\n"
-    "- answerable — the query can DIRECTLY be answered using information in the uploaded documents "
-    "within the active workflow scope. The document must contain the specific information needed.\n"
+    "- answerable — the query asks a SPECIFIC question that can be answered using focused parts of the uploaded documents.\n"
+    "- analysis — the query asks for a COMPREHENSIVE review, analysis, or explanation of the document "
+    "or a broad topic within it. Examples: 'analyze this contract', 'review this deed', "
+    "'what protections does this provide', 'explain all the terms', 'what are the key provisions', "
+    "'do due diligence on this'. This needs the FULL document or large sections, not just a few passages.\n"
     "- out_of_scope — the query meets ANY of these criteria:\n"
     "  * Has nothing to do with the document topics or the active workflow\n"
     "  * Would require general knowledge, training data, or external information to answer\n"
