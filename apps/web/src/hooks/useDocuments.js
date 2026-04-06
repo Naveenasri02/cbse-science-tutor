@@ -101,6 +101,7 @@ export default function useDocuments(sessionIdRef, assistantRef, workflowRef) {
         return data
       }
       const fileUrl = URL.createObjectURL(file)
+      console.log('[useDocuments] Adding doc, relevance_warning:', data.relevance_warning, 'summary:', !!data.summary)
       setDocuments(prev => [...prev, {
         ...data,
         fileUrl,

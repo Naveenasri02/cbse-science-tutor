@@ -23,6 +23,8 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
     ? assistantConfig?.tryOptions?.find(opt => opt.message === workflow)
     : null
 
+  console.log('[ChatArea] hasDocuments:', hasDocuments, 'hasAnyDocs:', hasAnyDocs, 'showWelcome:', showWelcome, 'showUploadZone:', showUploadZone, 'docs:', documents?.map(d => ({id: d.doc_id, rw: d.relevanceWarning})))
+
   const handleDrop= useCallback((e) => {
     e.preventDefault()
     setDragOver(false)
