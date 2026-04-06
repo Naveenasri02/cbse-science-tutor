@@ -65,7 +65,7 @@ export default function SourcePopup({ source, onClose }) {
         <span className="text-[11px] font-semibold truncate" style={{ color: palette.textSecondary }}>
           <span style={{ color: palette.primary, fontWeight: 700 }}>[{source.ref}]</span>
           {' '}
-          {source.filename || 'Source'}{source.page ? ` · p.${source.page}` : ''}
+          {source.filename || 'Source'}{source.page != null ? ` · p.${source.page}${source.page_end && source.page_end !== source.page ? `-${source.page_end}` : ''}` : ''}
         </span>
       </div>
 

@@ -69,8 +69,9 @@ export default function App() {
     // Use context sentence from bot response for accurate PDF location (falls back to full chunk)
     if (source.page != null) {
       const pageNum = Number(source.page) || 1
+      const pageEnd = source.page_end != null ? Number(source.page_end) : pageNum
       const highlightSnippet = contextText || source.text || source.snippet || ''
-      setPdfTarget({ page: pageNum, snippet: highlightSnippet, requestId: Date.now() })
+      setPdfTarget({ page: pageNum, pageEnd, snippet: highlightSnippet, requestId: Date.now() })
       setPdfPanelOpen(true)
     }
   }, [chats, activeChatId])
@@ -498,6 +499,7 @@ export default function App() {
                   fileType={activePdfDoc.fileType}
                   filename={activePdfDoc.filename}
                   targetPage={pdfTarget.page}
+                  targetPageEnd={pdfTarget.pageEnd}
                   targetSnippet={pdfTarget.snippet}
                   targetRequestId={pdfTarget.requestId}
                   onClose={() => setPdfPanelOpen(false)}

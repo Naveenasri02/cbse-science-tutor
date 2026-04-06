@@ -9,7 +9,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 
 const normalize = (s) => s.toLowerCase().replace(/[\r\n\t]+/g, ' ').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim()
 
-export default function PdfViewer({ fileUrl, fileType, filename, targetPage, targetSnippet, targetRequestId, onClose }) {
+export default function PdfViewer({ fileUrl, fileType, filename, targetPage, targetPageEnd, targetSnippet, targetRequestId, onClose }) {
   const [numPages, setNumPages] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [scale, setScale] = useState(1.0)
@@ -64,7 +64,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
   }, [])
 
   // Core highlight logic — finds and highlights the source text in PDF
-  const tryHighlight = useCallback((snippet, page) => {
+  const tryHighlight = useCallback((snippet, page, pageEnd) => {
     const container = scrollContainerRef.current
     if (!container) return false
 
@@ -74,20 +74,23 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
     const snippetWords = snippetNorm.split(/\s+/).filter(Boolean)
     if (snippetWords.length === 0) return false
 
-    // Ensure page is a number for arithmetic
+    // Ensure pages are numeric
     const pageNum = Number(page) || 1
+    const lastPage = Number(pageEnd) || pageNum
 
-    // Try target page, then ±1, then ±2
-    const pagesToTry = [pageNum]
-    for (const offset of [1, -1, 2, -2]) {
-      const p = pageNum + offset
-      if (p >= 1 && (!numPages || p <= numPages) && !pagesToTry.includes(p)) {
-        pagesToTry.push(p)
+    // Build page search list: all pages in chunk range + ±2 padding
+    const pagesToTry = []
+    for (let p = pageNum; p <= lastPage; p++) {
+      if (p >= 1 && (!numPages || p <= numPages)) pagesToTry.push(p)
+    }
+    for (const pad of [pageNum - 1, lastPage + 1, pageNum - 2, lastPage + 2]) {
+      if (pad >= 1 && (!numPages || pad <= numPages) && !pagesToTry.includes(pad)) {
+        pagesToTry.push(pad)
       }
     }
 
-    for (const pageNum of pagesToTry) {
-      const pageEl = pageRefs.current[pageNum]
+    for (const tryPage of pagesToTry) {
+      const pageEl = pageRefs.current[tryPage]
       if (!pageEl) continue
 
       const textSpans = Array.from(
@@ -195,7 +198,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
         continue
       }
 
-      console.log('[Highlight] highlighting spans', startSpanIdx, 'to', endSpanIdx, 'on page', pageNum)
+      console.log('[Highlight] highlighting spans', startSpanIdx, 'to', endSpanIdx, 'on page', tryPage)
       for (let k = startSpanIdx; k <= endSpanIdx; k++) {
         textSpans[k].classList.add('pdf-highlight')
       }
@@ -211,7 +214,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
   // Uses targetRequestId (timestamp) to guarantee re-trigger on every click
   useEffect(() => {
     if (!targetPage || !targetRequestId || !numPages) return
-    console.log('[PdfViewer Effect] target page:', targetPage, 'requestId:', targetRequestId, 'snippet:', targetSnippet?.slice(0, 40))
+    console.log('[PdfViewer Effect] target page:', targetPage, 'pageEnd:', targetPageEnd, 'requestId:', targetRequestId, 'snippet:', targetSnippet?.slice(0, 40))
 
     clearHighlightTimers()
     clearAllHighlights()
@@ -236,7 +239,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
       console.log('[Highlight] attempt', attempt, 'for requestId:', targetRequestId)
       scrollToPage()
       if (targetSnippet) {
-        const found = tryHighlight(targetSnippet, targetPage)
+        const found = tryHighlight(targetSnippet, targetPage, targetPageEnd)
         if (!found && attempt < delays.length - 1) {
           attempt++
           const tid = setTimeout(runHighlight, delays[attempt])
@@ -251,7 +254,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
     return () => {
       clearHighlightTimers()
     }
-  }, [targetPage, targetSnippet, targetRequestId, numPages, tryHighlight, clearAllHighlights])
+  }, [targetPage, targetPageEnd, targetSnippet, targetRequestId, numPages, tryHighlight, clearAllHighlights])
 
   const onDocumentLoadSuccess = useCallback(({ numPages: n }) => {
     setNumPages(n)

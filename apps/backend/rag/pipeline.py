@@ -246,10 +246,13 @@ class RAGPipeline:
         """Extract source metadata for streaming preview cards."""
         sources = []
         for i, c in enumerate(chunks):
+            page = c.get("page", 0)
+            page_end = c.get("page_end", page)
             sources.append({
                 "ref": i + 1,
                 "filename": c.get("filename", "unknown"),
-                "page": c.get("page", 0),
+                "page": page,
+                "page_end": page_end,
                 "section": c.get("section", ""),
                 "score": round(c.get("rerank_score", c.get("rrf_score", c.get("score", 0))), 3),
                 "text": c["text"].strip(),
@@ -443,10 +446,14 @@ class RAGPipeline:
         tokens_used = 0
         for i, c in enumerate(chunks):
             ref_num = i + 1
+            # Show page range when chunk spans multiple pages
+            page = c.get("page", "?")
+            page_end = c.get("page_end")
+            page_str = str(page) if (not page_end or page_end == page) else f"{page}-{page_end}"
             source_tag = config.RAG_CONTEXT_PROMPT_TEMPLATE.format(
                 ref_num=ref_num,
                 filename=c.get("filename", "unknown"),
-                page=c.get("page", "?"),
+                page=page_str,
                 section=c.get("section", ""),
                 text=c["text"],
             )

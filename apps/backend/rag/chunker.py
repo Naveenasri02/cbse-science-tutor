@@ -38,6 +38,7 @@ def _make_chunk(
     text: str,
     chunk_type: str = "paragraph",
     page: int = 1,
+    page_end: int | None = None,
     section: str = "",
     section_hierarchy: list | None = None,
     position: int = 0,
@@ -47,6 +48,7 @@ def _make_chunk(
         "text": text,
         "type": chunk_type,
         "page": page,
+        "page_end": page_end if page_end is not None else page,
         "section": section,
         "section_hierarchy": list(section_hierarchy or []),
         "position": position,
@@ -331,6 +333,7 @@ def _chunk_pdf_blocks(blocks: list[dict]) -> list[dict]:
                     text=combined,
                     chunk_type=buffer_meta["type"],
                     page=buffer_meta["page"],
+                    page_end=buffer_meta.get("page_end", buffer_meta["page"]),
                     section=buffer_meta["section"],
                     section_hierarchy=buffer_meta["section_hierarchy"],
                     position=buffer_meta["position"],
@@ -348,6 +351,7 @@ def _chunk_pdf_blocks(blocks: list[dict]) -> list[dict]:
                     text=sc,
                     chunk_type=buffer_meta["type"],
                     page=buffer_meta["page"],
+                    page_end=buffer_meta.get("page_end", buffer_meta["page"]),
                     section=buffer_meta["section"],
                     section_hierarchy=buffer_meta["section_hierarchy"],
                     position=buffer_meta["position"] + i,
@@ -394,10 +398,15 @@ def _chunk_pdf_blocks(blocks: list[dict]) -> list[dict]:
                 buffer_meta = {
                     "type": block["type"],
                     "page": block["page"],
+                    "page_end": block["page"],
                     "section": block["section"],
                     "section_hierarchy": block["section_hierarchy"],
                     "position": block["position"],
                 }
+            else:
+                # Track the latest page as more blocks from later pages join
+                if block["page"] > buffer_meta.get("page_end", buffer_meta["page"]):
+                    buffer_meta["page_end"] = block["page"]
 
             paragraph_buffer.append(block["text"])
 
