@@ -1023,7 +1023,7 @@ CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/workspace/vector_db")
 
 # Retrieval
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "15"))
-RAG_RERANK_TOP_K = int(os.getenv("RAG_RERANK_TOP_K", "6"))
+RAG_RERANK_TOP_K = int(os.getenv("RAG_RERANK_TOP_K", "10"))
 RAG_MAX_CONTEXT_TOKENS = int(os.getenv("RAG_MAX_CONTEXT_TOKENS", "6000"))
 RERANKER_SCORE_THRESHOLD = float(os.getenv("RERANKER_SCORE_THRESHOLD", "0.01"))
 
@@ -1041,8 +1041,8 @@ ANALYSIS_WORKFLOWS = {
 }
 
 # Chunking
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "800"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "128"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "350"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(50 * 1024 * 1024)))  # 50 MB
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/workspace/uploads")
 
@@ -1073,8 +1073,10 @@ RAG_CONTEXT_PROMPT = (
     "   - Place the citation IMMEDIATELY after the claim: \"The lease term is 5 years [1].\"\n"
     "   - If a sentence uses multiple sources, cite all: \"... as specified [1][3].\"\n"
     "   - Do NOT use bold on citations. Write [1] not **[1]**.\n"
-    "   - Cite the MOST SPECIFIC source for each claim. Use ALL available sources — do NOT default to one source for everything.\n"
-    "   - Different facts should cite different sources when the information comes from different passages.\n"
+    "   - Each citation MUST point to the MOST SPECIFIC source that directly contains the claim.\n"
+    "   - Use ALL available sources — distribute citations across different source numbers.\n"
+    "   - NEVER cite the same source for every sentence. Different facts from different passages MUST use different citation numbers.\n"
+    "   - When the same topic appears in multiple sources, cite the source with the most specific/detailed passage.\n"
     "3. Include **direct quotes** from the document for key passages:\n"
     "   > \"exact text from the document\" [1]\n"
     "   Use 1-3 quotes per answer to ground your response.\n"

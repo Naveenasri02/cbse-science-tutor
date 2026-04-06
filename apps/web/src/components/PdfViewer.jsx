@@ -10,7 +10,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 // NFKD decomposition handles ligatures (ﬁ→fi), math italic (𝑅→R), superscripts (²→2), etc.
 const normalize = (s) => s.normalize('NFKD').toLowerCase().replace(/[\r\n\t]+/g, ' ').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim()
 
-export default function PdfViewer({ fileUrl, fileType, filename, targetPage, targetPageEnd, targetSnippet, targetRequestId, onClose }) {
+export default function PdfViewer({ fileUrl, fileType, filename, targetPage, targetPageEnd, targetSnippet, targetFallbackSnippet, targetRequestId, onClose }) {
   const [numPages, setNumPages] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [scale, setScale] = useState(1.0)
@@ -272,6 +272,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
     // Retry with progressive delays (text layer may still be rendering)
     const delays = [200, 400, 800, 1400, 2500, 4000]
     let attempt = 0
+    let triedFallback = false
 
     const runHighlight = () => {
       if (highlightGenRef.current !== genId) return
@@ -283,6 +284,20 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
           attempt++
           const tid = setTimeout(runHighlight, delays[attempt])
           highlightTimersRef.current.push(tid)
+        } else if (!found && !triedFallback && targetFallbackSnippet) {
+          // Primary (narrowed) snippet failed — try full chunk text as fallback
+          triedFallback = true
+          attempt = 0
+          console.log('[Highlight] Primary snippet failed, trying fallback (full chunk)')
+          const fallbackFound = tryHighlight(targetFallbackSnippet, targetPage, targetPageEnd)
+          if (!fallbackFound) {
+            attempt++
+            const tid = setTimeout(() => {
+              if (highlightGenRef.current !== genId) return
+              tryHighlight(targetFallbackSnippet, targetPage, targetPageEnd)
+            }, 800)
+            highlightTimersRef.current.push(tid)
+          }
         }
       }
     }
@@ -293,7 +308,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
     return () => {
       clearHighlightTimers()
     }
-  }, [targetPage, targetPageEnd, targetSnippet, targetRequestId, numPages, tryHighlight, clearAllHighlights])
+  }, [targetPage, targetPageEnd, targetSnippet, targetFallbackSnippet, targetRequestId, numPages, tryHighlight, clearAllHighlights])
 
   const onDocumentLoadSuccess = useCallback(({ numPages: n }) => {
     setNumPages(n)

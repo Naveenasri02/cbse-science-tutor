@@ -47,7 +47,56 @@ export default function App() {
   // PDF Viewer state
   const [pdfPanelOpen, setPdfPanelOpen] = useState(false)
   const [pdfTarget, setPdfTarget] = useState({ page: null, snippet: null })
-  // Handle citation click — navigate PDF directly + highlight source text (no popup)
+  // Stop words for context-aware term extraction
+  const STOP_WORDS = useRef(new Set([
+    'the','a','an','is','are','was','were','be','been','being','have','has','had','do','does','did',
+    'will','would','could','should','may','might','can','to','of','in','for','on','with','at','by',
+    'from','as','into','through','and','but','or','if','that','this','it','its','than','also','not',
+    'no','so','very','just','about','more','most','other','some','such','only','their','they','them',
+    'we','our','you','your','he','she','her','him','his','who','which','what','where','when','how',
+    'all','each','both','few','up','out','over','between','after','before','during','while','because',
+  ])).current
+
+  // Narrow a large chunk to the most relevant paragraph based on the LLM's claim sentence
+  const narrowToRelevantParagraph = useCallback((chunkText, contextText) => {
+    if (!contextText || chunkText.length < 500) return chunkText
+
+    // Split chunk into paragraphs (by double newline, or single newline for shorter blocks)
+    let paragraphs = chunkText.split(/\n\n+/).filter(p => p.trim().length > 40)
+    if (paragraphs.length <= 1) {
+      paragraphs = chunkText.split(/\n/).filter(p => p.trim().length > 40)
+    }
+    if (paragraphs.length <= 1) return chunkText
+
+    // Extract meaningful terms from the LLM's sentence around the citation
+    const contextWords = contextText.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !STOP_WORDS.has(w))
+
+    if (contextWords.length < 2) return chunkText
+
+    // Score each paragraph by keyword overlap with the claim
+    let bestPara = null
+    let bestScore = 0
+    for (const para of paragraphs) {
+      const paraLower = para.toLowerCase()
+      const score = contextWords.filter(w => paraLower.includes(w)).length / contextWords.length
+      if (score > bestScore) {
+        bestScore = score
+        bestPara = para
+      }
+    }
+
+    // Only narrow if we have decent confidence (≥30% term overlap)
+    if (bestPara && bestScore >= 0.3) {
+      console.log(`[Citation] Narrowed to paragraph: score=${bestScore.toFixed(2)}, "${bestPara.slice(0, 60)}..."`)
+      return bestPara.trim()
+    }
+    return chunkText
+  }, [STOP_WORDS])
+
+  // Handle citation click — navigate PDF directly + highlight source text
   const handleCitationClick = useCallback((refNum, chipRect, msgSources, contextText) => {
     // Priority: 1) sources from the clicked message, 2) find from chat history, 3) live streaming ref (last resort)
     let allSources = msgSources?.length ? msgSources : null
@@ -72,11 +121,17 @@ export default function App() {
     if (source.page != null) {
       const pageNum = Number(source.page) || 1
       const pageEnd = source.page_end != null ? Number(source.page_end) : pageNum
-      const highlightSnippet = source.text || source.snippet || ''
-      setPdfTarget({ page: pageNum, pageEnd, snippet: highlightSnippet, requestId: Date.now() })
+      const fullChunkText = source.text || source.snippet || ''
+
+      // Context-aware narrowing: use the sentence around the citation to find
+      // the most relevant paragraph within the chunk for precise highlighting
+      const highlightSnippet = narrowToRelevantParagraph(fullChunkText, contextText)
+      const fallbackSnippet = highlightSnippet !== fullChunkText ? fullChunkText : null
+
+      setPdfTarget({ page: pageNum, pageEnd, snippet: highlightSnippet, fallbackSnippet, requestId: Date.now() })
       setPdfPanelOpen(true)
     }
-  }, [chats, activeChatId])
+  }, [chats, activeChatId, narrowToRelevantParagraph])
 
   // Store last rag sources for citation lookups (persists after streaming ends)
   const lastRagSourcesRef = useRef([])
@@ -505,6 +560,7 @@ export default function App() {
                   targetPage={pdfTarget.page}
                   targetPageEnd={pdfTarget.pageEnd}
                   targetSnippet={pdfTarget.snippet}
+                  targetFallbackSnippet={pdfTarget.fallbackSnippet}
                   targetRequestId={pdfTarget.requestId}
                   onClose={() => setPdfPanelOpen(false)}
                 />
