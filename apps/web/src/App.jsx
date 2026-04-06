@@ -35,6 +35,7 @@ export default function App() {
   const sessionIdRef = useRef(generateSessionId())
   const activeAssistantRef = useRef('legal')
   const activeWorkflowRef = useRef('')
+  const requestIdCounter = useRef(0)
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0]
   const [dismissedSummaries, setDismissedSummaries] = useState(new Set())
@@ -68,7 +69,7 @@ export default function App() {
     // Navigate PDF to the correct page + highlight
     if (source.page) {
       const snippetText = source.text || source.snippet || ''
-      setPdfTarget({ page: source.page, snippet: snippetText, requestId: Date.now() })
+      setPdfTarget({ page: source.page, snippet: snippetText, requestId: ++requestIdCounter.current })
       setPdfPanelOpen(true)
     }
   }, [chats, activeChatId])
