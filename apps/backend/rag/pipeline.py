@@ -79,8 +79,9 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
     """Verify and correct citation-to-source mapping in LLM response.
 
     For each [N] citation, checks if the surrounding sentence actually matches source N.
-    If not, reassigns to the best-matching source. Returns corrected text and filtered sources
-    with ref fields updated to match the corrected text.
+    If not, reassigns to the best-matching source. Also redistributes citations when
+    one source is over-cited (>60% of all citations) and better-matching sources exist.
+    Returns corrected text and filtered sources with ref fields updated.
     """
     if not sources or not response_text:
         return response_text, sources
@@ -102,8 +103,24 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
     )
     sentences = sentence_pattern.findall(response_text)
 
-    # For each sentence with citations, verify the mapping
-    remap = {}  # old_ref -> new_ref
+    # Count how often each ref is cited
+    ref_counts = {}
+    for m in citation_pattern.finditer(response_text):
+        r = int(m.group(1))
+        ref_counts[r] = ref_counts.get(r, 0) + 1
+    total_citations = sum(ref_counts.values())
+
+    # Detect over-cited source: one ref used for >60% of all citations
+    dominant_ref = None
+    if total_citations >= 4:
+        for r, count in ref_counts.items():
+            if count / total_citations > 0.6:
+                dominant_ref = r
+                print(f"  ⚠️ Source [{r}] over-cited: {count}/{total_citations} ({count*100//total_citations}%)")
+                break
+
+    # For each sentence with citations, find best-matching source
+    sentence_assignments = []  # list of (sentence, [(ref, best_ref, best_overlap)])
     for sentence in sentences:
         refs_in_sentence = [int(m.group(1)) for m in citation_pattern.finditer(sentence)]
         if not refs_in_sentence:
@@ -112,42 +129,67 @@ def verify_citations(response_text: str, sources: list[dict]) -> tuple[str, list
         claim = citation_pattern.sub('', sentence).strip()
         claim_terms = _extract_key_terms(claim)
         if len(claim_terms) < 3:
+            sentence_assignments.append((sentence, [(r, r, 0.0) for r in refs_in_sentence]))
             continue
 
+        assignments = []
         for ref in refs_in_sentence:
-            if ref in remap:
-                continue
             if ref not in source_by_ref:
                 print(f"  ⚠️ Citation [{ref}] not in sources — skipping")
+                assignments.append((ref, ref, 0.0))
                 continue
 
-            cited_source = source_by_ref[ref]
-            cited_overlap = _compute_term_overlap(claim_terms, cited_source.get("text", ""))
-
-            best_ref = ref
-            best_overlap = cited_overlap
+            # Score ALL sources against this claim
+            scored = []
             for s in sources:
                 overlap = _compute_term_overlap(claim_terms, s.get("text", ""))
-                if overlap > best_overlap:
-                    best_overlap = overlap
-                    best_ref = s["ref"]
+                scored.append((s["ref"], overlap))
+            scored.sort(key=lambda x: -x[1])
 
-            if best_ref != ref and best_overlap > cited_overlap + 0.2:
-                remap[ref] = best_ref
-                print(f"  🔄 [{ref}]→[{best_ref}] overlap: {cited_overlap:.2f}→{best_overlap:.2f} | claim: {claim[:50]}...")
+            cited_overlap = _compute_term_overlap(claim_terms, source_by_ref[ref].get("text", ""))
+            best_ref, best_overlap = scored[0]
 
-    if not remap:
+            assignments.append((ref, best_ref, best_overlap))
+
+        sentence_assignments.append((sentence, assignments))
+
+    # Build remap: for each sentence, decide whether to remap citations
+    remap_per_occurrence = []  # list of (sentence_text, old_ref, new_ref)
+    for sentence, assignments in sentence_assignments:
+        for old_ref, best_ref, best_overlap in assignments:
+            if old_ref not in source_by_ref:
+                continue
+            cited_overlap = _compute_term_overlap(
+                _extract_key_terms(citation_pattern.sub('', sentence).strip()),
+                source_by_ref[old_ref].get("text", "")
+            )
+
+            # Remap if: (a) much better source exists, or (b) this ref is over-cited and a good alternative exists
+            should_remap = False
+            if best_ref != old_ref and best_overlap > cited_overlap + 0.2:
+                should_remap = True
+            elif dominant_ref and old_ref == dominant_ref and best_ref != old_ref and best_overlap >= cited_overlap * 0.8 and best_overlap >= 0.3:
+                should_remap = True
+
+            if should_remap:
+                remap_per_occurrence.append((sentence, old_ref, best_ref))
+                print(f"  🔄 [{old_ref}]→[{best_ref}] overlap: {cited_overlap:.2f}→{best_overlap:.2f} | claim: {citation_pattern.sub('', sentence).strip()[:50]}...")
+
+    if not remap_per_occurrence:
         cited_sources = [s for s in sources if s["ref"] in all_refs_in_text]
         print(f"  ✅ Citations verified — no remap needed, {len(cited_sources)} cited sources")
         return response_text, cited_sources if cited_sources else sources
 
-    # Apply remapping using placeholders to avoid replacement conflicts
+    # Apply per-sentence remapping
     corrected = response_text
-    for old_ref in remap:
-        corrected = corrected.replace(f'[{old_ref}]', f'[__REMAP_{remap[old_ref]}__]')
-    corrected = re.sub(r'\[__REMAP_(\d+)__\]', r'[\1]', corrected)
+    for sentence_text, old_ref, new_ref in remap_per_occurrence:
+        # Replace [old_ref] with [new_ref] only within this sentence occurrence
+        old_citation = f'[{old_ref}]'
+        new_citation = f'[{new_ref}]'
+        remapped_sentence = sentence_text.replace(old_citation, new_citation, 1)
+        corrected = corrected.replace(sentence_text, remapped_sentence, 1)
 
-    print(f"  🔄 Citation remap: {remap}")
+    print(f"  🔄 Citation redistribution: {len(remap_per_occurrence)} remaps applied")
 
     final_refs = set(int(m.group(1)) for m in citation_pattern.finditer(corrected))
 
