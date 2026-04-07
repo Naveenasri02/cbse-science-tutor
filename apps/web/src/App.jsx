@@ -663,37 +663,11 @@ export default function App() {
         ) : (
           /* ── CHAT / ASSISTANT VIEW ── */
           <div className="flex flex-col min-h-0 overflow-hidden">
-            {/* Mobile tab bar — NotebookLM-style toggle between Chat and Doc */}
-            {showDocPanel && (
-              <div className="md:hidden flex shrink-0" style={{ borderBottom: `1px solid ${palette.border}`, background: palette.panel }}>
-                <button
-                  onClick={() => setMobileTab('chat')}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
-                  style={{
-                    color: mobileTab === 'chat' ? palette.primary : palette.textMuted,
-                    background: mobileTab === 'chat' ? 'rgba(29,155,240,0.08)' : 'transparent',
-                    borderBottom: `2px solid ${mobileTab === 'chat' ? palette.primary : 'transparent'}`,
-                  }}
-                >
-                  💬 Chat
-                </button>
-                <button
-                  onClick={() => setMobileTab('doc')}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
-                  style={{
-                    color: mobileTab === 'doc' ? palette.primary : palette.textMuted,
-                    background: mobileTab === 'doc' ? 'rgba(29,155,240,0.08)' : 'transparent',
-                    borderBottom: `2px solid ${mobileTab === 'doc' ? palette.primary : 'transparent'}`,
-                  }}
-                >
-                  📄 Document
-                </button>
-              </div>
-            )}
-
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-              {/* Chat column — hidden on mobile when Doc tab is active */}
-              <div className={`flex flex-col min-w-0 relative flex-1 ${showDocPanel ? 'md:flex-[0_0_55%]' : ''} ${showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}`}>
+            {/* Mobile: vertical stack (chat top 50%, doc bottom 50%)
+                Desktop: horizontal side-by-side (55% chat, 45% doc) */}
+            <div className={`flex flex-1 min-h-0 overflow-hidden ${showDocPanel ? 'max-md:flex-col' : ''}`}>
+              {/* Chat column */}
+              <div className={`flex flex-col min-w-0 relative flex-1 ${showDocPanel ? 'md:flex-[0_0_55%] max-md:flex-[0_0_50%]' : ''}`}>
                 <ChatArea
                   messages={activeChat.messages}
                   isBotResponding={isBotResponding}
@@ -711,15 +685,17 @@ export default function App() {
                   dismissedSummaries={dismissedSummaries}
                   onDismissSummary={(docId) => setDismissedSummaries(prev => new Set([...prev, docId]))}
                   onQuestionClick={(q) => sendText(q)}
-                  onOpenPdf={hasPreviewableDoc ? () => { setPdfPanelOpen(true); setMobileTab('doc') } : undefined}
+                  onOpenPdf={hasPreviewableDoc ? () => setPdfPanelOpen(true) : undefined}
                 />
               </div>
 
-              {/* Document Viewer panel — full-width on mobile Doc tab, 45% on desktop */}
+              {/* Document Viewer panel */}
               {showDocPanel && (
                 <>
+                  {/* Desktop: vertical resize handle | Mobile: horizontal divider */}
                   <div className="panel-resize-handle shrink-0 max-md:hidden" style={{ background: palette.border }} />
-                  <div className={`min-w-0 flex-1 md:flex-[0_0_45%] h-full ${mobileTab === 'chat' ? 'max-md:hidden' : ''}`}>
+                  <div className="hidden max-md:block shrink-0 h-px" style={{ background: palette.border }} />
+                  <div className="min-w-0 flex-1 md:flex-[0_0_45%] max-md:flex-[0_0_50%] h-full">
                     <DocViewer
                       fileUrl={activeViewDoc.fileUrl}
                       fileType={activeViewDoc.fileType}
@@ -729,7 +705,7 @@ export default function App() {
                       targetSnippet={pdfTarget.snippet}
                       targetFallbackSnippet={pdfTarget.fallbackSnippet}
                       targetRequestId={pdfTarget.requestId}
-                      onClose={() => { setPdfPanelOpen(false); setMobileTab('chat') }}
+                      onClose={() => setPdfPanelOpen(false)}
                     />
                   </div>
                 </>
@@ -738,17 +714,15 @@ export default function App() {
 
             <div className="shrink-0">
               {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
-                <div className={showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}>
-                  <InputBar
-                    onSend={sendText}
-                    onToggleVoice={toggleVoice}
-                    voiceActive={voiceActive}
-                    voiceStatus={voiceStatus}
-                    disabled={!connected}
-                    mode={activeChat.mode}
-                    voiceEnabled={activeAssistantCfg.voice}
-                  />
-                </div>
+                <InputBar
+                  onSend={sendText}
+                  onToggleVoice={toggleVoice}
+                  voiceActive={voiceActive}
+                  voiceStatus={voiceStatus}
+                  disabled={!connected}
+                  mode={activeChat.mode}
+                  voiceEnabled={activeAssistantCfg.voice}
+                />
               )}
             </div>
           </div>
