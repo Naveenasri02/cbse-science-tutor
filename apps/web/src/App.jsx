@@ -3,7 +3,7 @@ import LandingPage from './components/LandingPage'
 import Sidebar, { ASSISTANTS } from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
-import PdfViewer from './components/PdfViewer'
+import DocViewer, { isPreviewable } from './components/DocViewer'
 
 
 import useWebSocket from './hooks/useWebSocket'
@@ -135,12 +135,12 @@ export default function App() {
   // Documents (RAG) — pass ref so session ID is always current
   const { documents, uploading, uploadProgress, uploadFile, deleteDocument, clearDocuments, abortUpload } = useDocuments(sessionIdRef, activeAssistantRef, activeWorkflowRef)
 
-  // Auto-open PDF panel when a PDF is uploaded
+  // Auto-open doc panel when a previewable document is uploaded
   const prevDocCountRef = useRef(0)
   useEffect(() => {
     if (documents.length > prevDocCountRef.current) {
       const newDoc = documents[documents.length - 1]
-      if (!newDoc?.relevanceWarning && (newDoc?.fileType === 'application/pdf' || newDoc?.filename?.toLowerCase().endsWith('.pdf'))) {
+      if (!newDoc?.relevanceWarning && isPreviewable(newDoc?.filename, newDoc?.fileType)) {
         setPdfPanelOpen(true)
       }
     }
@@ -441,19 +441,19 @@ export default function App() {
 
   const activeAssistantCfg = ASSISTANTS.find(a => a.key === activeAssistant) || ASSISTANTS[0]
 
-  // Auto-open PDF panel when a PDF is uploaded
-  const activePdfDoc = documents.find(d => !d.relevanceWarning && (d.fileType === 'application/pdf' || d.filename?.toLowerCase().endsWith('.pdf')))
-  const hasPdf = !!activePdfDoc
+  // Find first previewable document for the doc viewer panel
+  const activeViewDoc = documents.find(d => !d.relevanceWarning && isPreviewable(d.filename, d.fileType))
+  const hasPreviewableDoc = !!activeViewDoc
 
   // Landing page
   if (pageMode === 'landing') {
     return <LandingPage onTryDemo={() => setPageMode('demo')} />
   }
 
-  const showPdfPanel = pdfPanelOpen && hasPdf
+  const showDocPanel = pdfPanelOpen && hasPreviewableDoc
 
   // Calculate chat column flex based on PDF panel
-  const chatFlex = showPdfPanel ? '0 0 55%' : '1 1 auto'
+  const chatFlex = showDocPanel ? '0 0 55%' : '1 1 auto'
 
   return (
     <div className="h-dvh flex overflow-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
@@ -487,8 +487,8 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            {/* PDF panel toggle — only show when PDF is available */}
-            {hasPdf && (
+            {/* Doc panel toggle — show when any previewable document is available */}
+            {hasPreviewableDoc && (
               <button
                 onClick={() => setPdfPanelOpen(v => !v)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
@@ -497,10 +497,10 @@ export default function App() {
                   color: pdfPanelOpen ? palette.primary : palette.textMuted,
                   border: `1px solid ${pdfPanelOpen ? 'rgba(29,155,240,0.3)' : 'transparent'}`,
                 }}
-                title={pdfPanelOpen ? 'Hide PDF viewer' : 'Show PDF viewer'}
+                title={pdfPanelOpen ? 'Hide document viewer' : 'Show document viewer'}
               >
                 <FileText size={14} />
-                <span className="hidden sm:inline">PDF</span>
+                <span className="hidden sm:inline">Doc</span>
                 {pdfPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
               </button>
             )}
@@ -539,20 +539,20 @@ export default function App() {
               dismissedSummaries={dismissedSummaries}
               onDismissSummary={(docId) => setDismissedSummaries(prev => new Set([...prev, docId]))}
               onQuestionClick={(q) => sendText(q)}
-              onOpenPdf={hasPdf ? () => setPdfPanelOpen(true) : undefined}
+              onOpenPdf={hasPreviewableDoc ? () => setPdfPanelOpen(true) : undefined}
             />
 
           </div>
 
-          {/* PDF Viewer panel (RIGHT) */}
-          {showPdfPanel && (
+          {/* Document Viewer panel (RIGHT) */}
+          {showDocPanel && (
             <>
               <div className="panel-resize-handle shrink-0" style={{ background: palette.border }} />
               <div className="min-w-0" style={{ flex: '0 0 45%' }}>
-                <PdfViewer
-                  fileUrl={activePdfDoc.fileUrl}
-                  fileType={activePdfDoc.fileType}
-                  filename={activePdfDoc.filename}
+                <DocViewer
+                  fileUrl={activeViewDoc.fileUrl}
+                  fileType={activeViewDoc.fileType}
+                  filename={activeViewDoc.filename}
                   targetPage={pdfTarget.page}
                   targetPageEnd={pdfTarget.pageEnd}
                   targetSnippet={pdfTarget.snippet}
