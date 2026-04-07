@@ -328,9 +328,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
           <span className="text-[13px] font-medium truncate" style={{ color: palette.textPrimary }}>
             {filename || 'Document'}
           </span>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-white/5 max-md:hidden" style={{ color: palette.textMuted }}>
-            <X size={16} />
-          </button>
+
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
           <p className="text-[13px] text-center" style={{ color: palette.textMuted }}>
@@ -400,9 +398,7 @@ export default function PdfViewer({ fileUrl, fileType, filename, targetPage, tar
           >
             {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
-          <button onClick={onClose} className="p-1 rounded hover:bg-white/5 max-md:hidden" style={{ color: palette.textMuted }}>
-            <X size={14} />
-          </button>
+
         </div>
       </div>
 
