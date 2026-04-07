@@ -123,33 +123,44 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
           </div>
         </div>
 
-        {/* Summary — concise 2-3 lines */}
+        {/* Summary — prominent, always open */}
         <Section icon={BookOpen} title="Summary">
-          <p className="text-[13px] leading-relaxed" style={{ color: palette.textSecondary }}>
+          <p className="text-[14px] leading-relaxed" style={{ color: palette.textSecondary }}>
             {doc.summary}
           </p>
         </Section>
 
-        {/* Key Findings */}
-        {doc.keyFindings?.length > 0 && (
-          <Section icon={Lightbulb} title="Key Findings">
-            <ul className="space-y-1.5">
-              {doc.keyFindings.map((f, i) => (
-                <li key={i} className="flex items-start gap-2 text-[12px]" style={{ color: palette.textSecondary }}>
-                  <span
-                    className="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold mt-0.5"
-                    style={{ background: 'rgba(29,155,240,0.12)', color: palette.primary }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="leading-relaxed">{f}</span>
-                </li>
+        {/* Suggested questions — prominent, always open */}
+        {doc.suggestedQuestions?.length > 0 && (
+          <Section icon={Sparkles} title="Suggested Questions">
+            <div className="flex flex-wrap gap-2">
+              {doc.suggestedQuestions.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => onQuestionClick?.(q)}
+                  className="text-left text-[13px] px-4 py-2 rounded-full border transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    background: 'rgba(29,155,240,0.08)',
+                    borderColor: 'rgba(29,155,240,0.2)',
+                    color: palette.textSecondary,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(29,155,240,0.5)'
+                    e.currentTarget.style.background = 'rgba(29,155,240,0.15)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(29,155,240,0.2)'
+                    e.currentTarget.style.background = 'rgba(29,155,240,0.08)'
+                  }}
+                >
+                  {q}
+                </button>
               ))}
-            </ul>
+            </div>
           </Section>
         )}
 
-        {/* Table of Contents / Document Structure */}
+        {/* Table of Contents / Document Structure — collapsed */}
         {doc.toc?.length > 0 && (
           <Section icon={List} title="Document Structure" defaultOpen={false}>
             <div className="space-y-1">
@@ -175,7 +186,26 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
           </Section>
         )}
 
-        {/* Important Terms */}
+        {/* Key Findings — collapsed by default */}
+        {doc.keyFindings?.length > 0 && (
+          <Section icon={Lightbulb} title="Key Findings" defaultOpen={false}>
+            <ul className="space-y-1.5">
+              {doc.keyFindings.map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-[12px]" style={{ color: palette.textSecondary }}>
+                  <span
+                    className="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold mt-0.5"
+                    style={{ background: 'rgba(29,155,240,0.12)', color: palette.primary }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="leading-relaxed">{f}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* Important Terms — collapsed by default */}
         {doc.terms?.length > 0 && (
           <Section icon={Layers} title="Key Terms" defaultOpen={false}>
             <div className="space-y-1.5">
@@ -194,7 +224,7 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
           </Section>
         )}
 
-        {/* Themes */}
+        {/* Themes — collapsed by default */}
         {doc.themes?.length > 0 && (
           <Section icon={Tag} title="Key Themes" defaultOpen={false}>
             <div className="flex flex-wrap gap-1.5">
@@ -215,42 +245,12 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
           </Section>
         )}
 
-        {/* Key Entities */}
+        {/* Key Entities — collapsed by default */}
         {doc.entities?.length > 0 && (
           <Section icon={Users} title="Key Entities" defaultOpen={false}>
             <p className="text-[12px] leading-relaxed" style={{ color: palette.textMuted }}>
               {doc.entities.join(' · ')}
             </p>
-          </Section>
-        )}
-
-        {/* Suggested questions */}
-        {doc.suggestedQuestions?.length > 0 && (
-          <Section icon={Sparkles} title="Suggested Questions">
-            <div className="flex flex-wrap gap-1.5">
-              {doc.suggestedQuestions.map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => onQuestionClick?.(q)}
-                  className="text-left text-[12px] px-3 py-1.5 rounded-full border transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  style={{
-                    background: 'rgba(29,155,240,0.08)',
-                    borderColor: 'rgba(29,155,240,0.2)',
-                    color: palette.textSecondary,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(29,155,240,0.5)'
-                    e.currentTarget.style.background = 'rgba(29,155,240,0.15)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(29,155,240,0.2)'
-                    e.currentTarget.style.background = 'rgba(29,155,240,0.08)'
-                  }}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
           </Section>
         )}
       </div>
