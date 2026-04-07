@@ -106,59 +106,60 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
           </div>
         </div>
 
-        {/* Home + Assistants */}
-        <div className="px-5 pt-8">
-          <button
-            onClick={() => { onHome(); onClose() }}
-            className="mb-4 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/5"
-            style={{ color: showLanding ? palette.textPrimary : palette.textSecondary }}
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-              style={{
-                background: showLanding ? 'rgba(29,155,240,0.14)' : undefined,
-                color: showLanding ? palette.primary : palette.textSecondary,
-              }}>
-              <Home className="h-4 w-4" />
+        {/* Home + Assistants + Chats — scrollable together */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <div className="px-5 pt-8">
+            <button
+              onClick={() => { onHome(); onClose() }}
+              className="mb-4 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/5"
+              style={{ color: showLanding ? palette.textPrimary : palette.textSecondary }}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg"
+                style={{
+                  background: showLanding ? 'rgba(29,155,240,0.14)' : undefined,
+                  color: showLanding ? palette.primary : palette.textSecondary,
+                }}>
+                <Home className="h-4 w-4" />
+              </div>
+              <div className="text-[14px] font-medium leading-5">Home</div>
+            </button>
+
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: palette.textMuted }}>
+              AI Assistants
             </div>
-            <div className="text-[14px] font-medium leading-5">Home</div>
-          </button>
-
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: palette.textMuted }}>
-            AI Assistants
+            <div className="space-y-1.5">
+              {ASSISTANTS.map((assistant) => {
+                const Icon = assistant.icon
+                const active = !showLanding && activeAssistant === assistant.key
+                return (
+                  <button
+                    key={assistant.key}
+                    onClick={() => { onSelectAssistant(assistant.key); onClose() }}
+                    className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/5"
+                    style={{ color: active ? palette.textPrimary : palette.textSecondary }}
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg"
+                      style={{
+                        background: active ? 'rgba(29,155,240,0.14)' : undefined,
+                        color: active ? palette.primary : palette.textSecondary,
+                      }}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="text-[14px] font-medium leading-5">{assistant.label}</div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-          <div className="space-y-1.5">
-            {ASSISTANTS.map((assistant) => {
-              const Icon = assistant.icon
-              const active = !showLanding && activeAssistant === assistant.key
-              return (
-                <button
-                  key={assistant.key}
-                  onClick={() => { onSelectAssistant(assistant.key); onClose() }}
-                  className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/5"
-                  style={{ color: active ? palette.textPrimary : palette.textSecondary }}
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-                    style={{
-                      background: active ? 'rgba(29,155,240,0.14)' : undefined,
-                      color: active ? palette.primary : palette.textSecondary,
-                    }}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="text-[14px] font-medium leading-5">{assistant.label}</div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
 
-        {/* Chats */}
-        <div className="px-5 pt-8">
-          <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: palette.textMuted }}>
-            Chats
+          {/* Chats */}
+          <div className="px-5 pt-8">
+            <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: palette.textMuted }}>
+              Chats
+            </div>
           </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto px-5 space-y-1.5 scrollbar-thin">
+          <div className="px-5 space-y-1.5">
           {chats.map((chat) => {
             const assistantCfg = ASSISTANTS.find(a => a.key === chat.assistant) || ASSISTANTS[0]
             const active = !showLanding && chat.id === activeChatId
@@ -191,6 +192,7 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
               </div>
             )
           })}
+          </div>
         </div>
 
         {/* Profile */}
