@@ -409,6 +409,11 @@ async def _generate_doc_summary(session_id: str, filename: str) -> dict:
     summary_match = _re.search(r'SUMMARY_START\s*\n(.*?)\nSUMMARY_END', text, _re.DOTALL)
     if summary_match:
         summary = summary_match.group(1).strip()
+
+    # Force summary to max 3 sentences regardless of LLM output
+    if summary:
+        sentences = _re.split(r'(?<=[.!?])\s+', summary)
+        summary = ' '.join(sentences[:3])
     
     for line in text.split("\n"):
         line = line.strip()
@@ -416,7 +421,9 @@ async def _generate_doc_summary(session_id: str, filename: str) -> dict:
             doc_type = line[8:].strip()
         elif line.upper().startswith("SUMMARY:") and not summary:
             # Fallback: single-line summary if markers not used
-            summary = line[8:].strip()
+            raw = line[8:].strip()
+            sentences = _re.split(r'(?<=[.!?])\s+', raw)
+            summary = ' '.join(sentences[:3])
         elif line.upper().startswith("THEMES:"):
             themes = [t.strip() for t in line[7:].split(",") if t.strip()]
         elif line.upper().startswith("ENTITIES:"):
