@@ -20,7 +20,7 @@ function generateSessionId() {
 
 export default function App() {
   const [showLanding, setShowLanding] = useState(true)
-  const [selectedModel, setSelectedModel] = useState('Qwen3-30B')
+  const [selectedModel, setSelectedModel] = useState('Pico 2.5')
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'doc', assistant: 'legal', workflow: null, messages: [] }])
   const [activeChatId, setActiveChatId] = useState(1)
   const [activeAssistant, setActiveAssistant] = useState('legal')
@@ -517,7 +517,7 @@ export default function App() {
                     boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.02)',
                   }}
                 >
-                  <option value="Qwen3-30B">Qwen3-30B</option>
+                  <option value="Pico 2.5">Pico 2.5</option>
                 </select>
                 <ChevronDown
                   className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2"
