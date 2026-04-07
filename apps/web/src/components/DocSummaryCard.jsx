@@ -126,7 +126,10 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
         {/* Summary — concise 2-3 lines */}
         <Section icon={BookOpen} title="Summary">
           <p className="text-[13px] leading-relaxed" style={{ color: palette.textSecondary }}>
-            {doc.summary.replace(/\n+/g, ' ').trim().split(/(?<=[.!?])\s+/).slice(0, 3).join(' ')}
+            {(() => {
+              const short = doc.summary.replace(/\n+/g, ' ').trim().split(/(?<=[.!?])\s+/).slice(0, 3).join(' ')
+              return short.length > 280 ? short.slice(0, 277) + '...' : short
+            })()}
           </p>
         </Section>
 
