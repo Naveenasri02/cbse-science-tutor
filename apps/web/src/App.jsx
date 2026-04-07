@@ -10,7 +10,7 @@ import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
 import { palette } from '@cbse/shared'
-import { FileText, PanelRightClose, PanelRightOpen, Mail, ShieldCheck } from 'lucide-react'
+import { FileText, PanelRightClose, PanelRightOpen, Mail, ShieldCheck, ChevronDown } from 'lucide-react'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
 
@@ -20,6 +20,7 @@ function generateSessionId() {
 
 export default function App() {
   const [showLanding, setShowLanding] = useState(true)
+  const [selectedModel, setSelectedModel] = useState('Qwen3-30B')
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'doc', assistant: 'legal', workflow: null, messages: [] }])
   const [activeChatId, setActiveChatId] = useState(1)
   const [activeAssistant, setActiveAssistant] = useState('legal')
@@ -494,6 +495,36 @@ export default function App() {
               ☰
             </button>
             <div className="text-[15px] font-semibold lg:hidden">matify.tech</div>
+            <div className="hidden lg:block">
+              <div className="relative">
+                <div
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                  style={{ color: palette.textMuted }}
+                >
+                  Model
+                </div>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="min-w-[190px] rounded-2xl border pl-[72px] pr-11 py-3 text-[15px] font-medium outline-none"
+                  style={{
+                    borderColor: palette.borderStrong,
+                    background: palette.panel,
+                    color: palette.textPrimary,
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.02)',
+                  }}
+                >
+                  <option value="Qwen3-30B">Qwen3-30B</option>
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: palette.textSecondary }}
+                />
+              </div>
+            </div>
           </div>
           <div className="ml-auto flex items-center gap-3">
             {/* Doc panel toggle */}
