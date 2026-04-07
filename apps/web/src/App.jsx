@@ -663,6 +663,34 @@ export default function App() {
         ) : (
           /* ── CHAT / ASSISTANT VIEW ── */
           <>
+            {/* Mobile tab bar — NotebookLM-style toggle between Chat and Doc */}
+            {showDocPanel && (
+              <div className="md:hidden flex" style={{ borderBottom: `1px solid ${palette.border}`, background: palette.panel }}>
+                <button
+                  onClick={() => setMobileTab('chat')}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
+                  style={{
+                    color: mobileTab === 'chat' ? palette.primary : palette.textMuted,
+                    background: mobileTab === 'chat' ? 'rgba(29,155,240,0.08)' : 'transparent',
+                    borderBottom: `2px solid ${mobileTab === 'chat' ? palette.primary : 'transparent'}`,
+                  }}
+                >
+                  💬 Chat
+                </button>
+                <button
+                  onClick={() => setMobileTab('doc')}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
+                  style={{
+                    color: mobileTab === 'doc' ? palette.primary : palette.textMuted,
+                    background: mobileTab === 'doc' ? 'rgba(29,155,240,0.08)' : 'transparent',
+                    borderBottom: `2px solid ${mobileTab === 'doc' ? palette.primary : 'transparent'}`,
+                  }}
+                >
+                  📄 Document
+                </button>
+              </div>
+            )}
+
             <div className="flex min-h-0 overflow-hidden">
               {/* Chat column — hidden on mobile when Doc tab is active */}
               <div className={`flex flex-col min-w-0 relative flex-1 ${showDocPanel ? 'md:flex-[0_0_55%]' : ''} ${showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}`}>
@@ -709,34 +737,6 @@ export default function App() {
             </div>
 
             <div>
-              {/* Mobile tab bar — NotebookLM-style toggle between Chat and Doc */}
-              {showDocPanel && (
-                <div className="md:hidden flex" style={{ borderTop: `1px solid ${palette.border}`, background: palette.panel }}>
-                  <button
-                    onClick={() => setMobileTab('chat')}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
-                    style={{
-                      color: mobileTab === 'chat' ? palette.primary : palette.textMuted,
-                      background: mobileTab === 'chat' ? 'rgba(29,155,240,0.08)' : 'transparent',
-                      borderBottom: `2px solid ${mobileTab === 'chat' ? palette.primary : 'transparent'}`,
-                    }}
-                  >
-                    💬 Chat
-                  </button>
-                  <button
-                    onClick={() => setMobileTab('doc')}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
-                    style={{
-                      color: mobileTab === 'doc' ? palette.primary : palette.textMuted,
-                      background: mobileTab === 'doc' ? 'rgba(29,155,240,0.08)' : 'transparent',
-                      borderBottom: `2px solid ${mobileTab === 'doc' ? palette.primary : 'transparent'}`,
-                    }}
-                  >
-                    📄 Document
-                  </button>
-                </div>
-              )}
-
               {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
                 <div className={showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}>
                   <InputBar
