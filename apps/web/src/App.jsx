@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import LandingPage from './components/LandingPage'
 import Sidebar, { ASSISTANTS } from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputBar from './components/InputBar'
@@ -11,7 +10,7 @@ import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
 import { palette } from '@cbse/shared'
-import { FileText, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { FileText, PanelRightClose, PanelRightOpen, Mail, ShieldCheck } from 'lucide-react'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
 
@@ -20,7 +19,7 @@ function generateSessionId() {
 }
 
 export default function App() {
-  const [pageMode, setPageMode] = useState('landing')
+  const [showLanding, setShowLanding] = useState(true)
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', mode: 'doc', assistant: 'legal', workflow: null, messages: [] }])
   const [activeChatId, setActiveChatId] = useState(1)
   const [activeAssistant, setActiveAssistant] = useState('legal')
@@ -442,12 +441,23 @@ export default function App() {
   const activeAssistantCfg = ASSISTANTS.find(a => a.key === activeAssistant) || ASSISTANTS[0]
 
   // Find first previewable document for the doc viewer panel
+  const [hoveredAssistant, setHoveredAssistant] = useState(null)
+  const [showContactModal, setShowContactModal] = useState(false)
+  const [contactSubmitted, setContactSubmitted] = useState(false)
+  const [contactForm, setContactForm] = useState({ name: '', email: '', company: '', useCase: '' })
+
   const activeViewDoc = documents.find(d => !d.relevanceWarning && isPreviewable(d.filename, d.fileType))
   const hasPreviewableDoc = !!activeViewDoc
 
-  // Landing page
-  if (pageMode === 'landing') {
-    return <LandingPage onTryDemo={() => setPageMode('demo')} />
+  // Select assistant from landing page
+  const selectAssistantFromLanding = (key) => {
+    selectAssistant(key)
+    setShowLanding(false)
+  }
+
+  // Go back to landing
+  const goToLanding = () => {
+    setShowLanding(true)
   }
 
   const showDocPanel = pdfPanelOpen && hasPreviewableDoc
@@ -461,20 +471,21 @@ export default function App() {
         chats={chats}
         activeChatId={activeChatId}
         activeAssistant={activeAssistant}
-        onSelectAssistant={selectAssistant}
-        onSwitchChat={switchChat}
+        onSelectAssistant={(key) => { selectAssistant(key); setShowLanding(false) }}
+        onSwitchChat={(id) => { switchChat(id); setShowLanding(false) }}
         onDeleteChat={deleteChat}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        onBackToLanding={() => setPageMode('landing')}
+        onHome={goToLanding}
+        showLanding={showLanding}
       />
       <div className="relative min-w-0 flex-1 overflow-hidden" style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', height: '100%' }}>
         {/* Header */}
         <header
-          className="flex items-center justify-between border-b px-3 py-2 md:px-5 md:py-3"
+          className="flex items-center justify-between border-b px-5 py-4 md:px-6"
           style={{ borderColor: palette.border, background: palette.bg }}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg text-base transition-colors active:bg-white/5"
@@ -482,34 +493,32 @@ export default function App() {
             >
               ☰
             </button>
-            <div className="text-[15px] font-semibold" style={{ color: palette.textPrimary }}>
-              Secure AI Chat
-            </div>
+            <div className="text-[15px] font-semibold lg:hidden">matify.tech</div>
           </div>
-          <div className="flex items-center gap-2.5">
-            {/* Doc panel toggle — show when any previewable document is available */}
-            {hasPreviewableDoc && (
+          <div className="ml-auto flex items-center gap-3">
+            {/* Doc panel toggle */}
+            {!showLanding && hasPreviewableDoc && (
               <button
                 onClick={() => setPdfPanelOpen(v => !v)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:scale-[1.03] active:scale-[0.97]"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[12px] font-medium transition-all"
                 style={{
                   background: pdfPanelOpen ? 'rgba(29,155,240,0.15)' : 'rgba(29,155,240,0.06)',
                   color: pdfPanelOpen ? palette.primary : palette.textMuted,
                   border: `1px solid ${pdfPanelOpen ? 'rgba(29,155,240,0.3)' : 'transparent'}`,
                 }}
-                title={pdfPanelOpen ? 'Hide document viewer' : 'Show document viewer'}
               >
-                <FileText size={14} />
-                <span className="hidden sm:inline">Doc</span>
+                <FileText size={14} /><span className="hidden sm:inline">Doc</span>
                 {pdfPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
               </button>
             )}
-            <div
-              className="rounded-full px-3 py-1.5 text-[13px]"
-              style={{ background: palette.panel, color: palette.textSecondary }}
+            <button
+              onClick={() => { setContactSubmitted(false); setShowContactModal(true) }}
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
+              style={{ background: palette.primary, color: 'white' }}
             >
-              {activeAssistantCfg.label}
-            </div>
+              <Mail className="h-4 w-4" />
+              Contact Us
+            </button>
             <span
               className={`w-2.5 h-2.5 rounded-full ${connected ? '' : 'animate-pulse'}`}
               style={{ background: connected ? '#10b981' : '#ef4444' }}
@@ -518,65 +527,232 @@ export default function App() {
           </div>
         </header>
 
-        {/* Main content: Chat (LEFT) + optional PDF panel (RIGHT) */}
-        <div className="flex min-h-0 overflow-hidden">
-          {/* Chat column */}
-          <div className="flex flex-col min-w-0 relative" style={{ flex: chatFlex }}>
-            <ChatArea
-              messages={activeChat.messages}
-              isBotResponding={isBotResponding}
-              mode={activeChat.mode}
-              assistantConfig={activeAssistantCfg}
-              onTryClick={handleTryClick}
-              workflow={activeChat.workflow}
-              ragSources={ragSources}
-              onUpload={uploadFile}
-              uploading={uploading}
-              uploadProgress={uploadProgress}
-              hasDocuments={documents.some(d => !d.relevanceWarning)}
-              onCitationClick={handleCitationClick}
-              documents={documents}
-              dismissedSummaries={dismissedSummaries}
-              onDismissSummary={(docId) => setDismissedSummaries(prev => new Set([...prev, docId]))}
-              onQuestionClick={(q) => sendText(q)}
-              onOpenPdf={hasPreviewableDoc ? () => setPdfPanelOpen(true) : undefined}
-            />
+        {/* Main content */}
+        {showLanding ? (
+          /* ── LANDING PAGE ── */
+          <div className="flex flex-1 items-start justify-center overflow-auto px-6 pb-8 pt-6 md:px-10 md:pt-8">
+            <div className="w-full max-w-6xl text-center">
+              {/* Badge */}
+              <div
+                className="mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.primary }}
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Own your AI
+              </div>
 
+              {/* Hero */}
+              <h1
+                className="mx-auto mt-6 max-w-[1000px] text-[36px] font-semibold leading-[1.08] tracking-tight md:text-[52px] xl:text-[54px]"
+                style={{ color: palette.textPrimary }}
+              >
+                <span className="block">Who owns the AI you are using?</span>
+                <span className="mt-1 block">
+                  <span style={{ color: palette.textPrimary }}>and </span>
+                  <span style={{ color: palette.primary }}>How secure is your data?</span>
+                </span>
+              </h1>
+
+              <p
+                className="mx-auto mt-5 max-w-[900px] text-sm leading-7 md:text-[17px]"
+                style={{ color: palette.textSecondary }}
+              >
+                We turn your organization's data into a secure SLM, deployed in your own environment, so your data never leaves your premise.
+              </p>
+
+              {/* TRY section */}
+              <div className="mx-auto mt-12 max-w-6xl">
+                <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: palette.textMuted }}>
+                  TRY
+                </div>
+                <div className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  {ASSISTANTS.map((assistant) => {
+                    const Icon = assistant.icon
+                    const hovered = hoveredAssistant === assistant.key
+                    return (
+                      <button
+                        key={assistant.key}
+                        onClick={() => selectAssistantFromLanding(assistant.key)}
+                        onMouseEnter={() => setHoveredAssistant(assistant.key)}
+                        onMouseLeave={() => setHoveredAssistant(null)}
+                        className="rounded-[22px] border px-4 py-4 text-left transition-all hover:-translate-y-0.5"
+                        style={{
+                          borderColor: hovered ? palette.primary : palette.border,
+                          background: hovered ? palette.panelAlt : palette.panel,
+                          color: palette.textPrimary,
+                          boxShadow: hovered ? '0 0 0 1px rgba(29,155,240,0.18)' : 'none',
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="flex h-9 w-9 items-center justify-center rounded-xl"
+                            style={{
+                              background: hovered ? 'rgba(29,155,240,0.14)' : palette.bg,
+                              color: hovered ? palette.primary : palette.textSecondary,
+                            }}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="text-sm font-medium leading-5">{assistant.label}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Footer */}
+                <div
+                  className="mx-auto mt-10 flex max-w-3xl flex-wrap items-center justify-center gap-x-6 gap-y-3 border-t pt-5 text-sm"
+                  style={{ borderColor: palette.border, color: palette.textMuted }}
+                >
+                  <span>© 2026 Mat Studio, Inc.</span>
+                  <a href="#" className="transition-opacity hover:opacity-80" style={{ color: palette.textSecondary }}>Terms</a>
+                  <a href="#" className="transition-opacity hover:opacity-80" style={{ color: palette.textSecondary }}>Privacy Policy</a>
+                  <a href="#" className="transition-opacity hover:opacity-80" style={{ color: palette.textSecondary }}>Cookie Policy</a>
+                </div>
+              </div>
+            </div>
           </div>
-
-          {/* Document Viewer panel (RIGHT) */}
-          {showDocPanel && (
-            <>
-              <div className="panel-resize-handle shrink-0" style={{ background: palette.border }} />
-              <div className="min-w-0" style={{ flex: '0 0 45%' }}>
-                <DocViewer
-                  fileUrl={activeViewDoc.fileUrl}
-                  fileType={activeViewDoc.fileType}
-                  filename={activeViewDoc.filename}
-                  targetPage={pdfTarget.page}
-                  targetPageEnd={pdfTarget.pageEnd}
-                  targetSnippet={pdfTarget.snippet}
-                  targetFallbackSnippet={pdfTarget.fallbackSnippet}
-                  targetRequestId={pdfTarget.requestId}
-                  onClose={() => setPdfPanelOpen(false)}
+        ) : (
+          /* ── CHAT / ASSISTANT VIEW ── */
+          <>
+            <div className="flex min-h-0 overflow-hidden">
+              {/* Chat column */}
+              <div className="flex flex-col min-w-0 relative" style={{ flex: chatFlex }}>
+                <ChatArea
+                  messages={activeChat.messages}
+                  isBotResponding={isBotResponding}
+                  mode={activeChat.mode}
+                  assistantConfig={activeAssistantCfg}
+                  onTryClick={handleTryClick}
+                  workflow={activeChat.workflow}
+                  ragSources={ragSources}
+                  onUpload={uploadFile}
+                  uploading={uploading}
+                  uploadProgress={uploadProgress}
+                  hasDocuments={documents.some(d => !d.relevanceWarning)}
+                  onCitationClick={handleCitationClick}
+                  documents={documents}
+                  dismissedSummaries={dismissedSummaries}
+                  onDismissSummary={(docId) => setDismissedSummaries(prev => new Set([...prev, docId]))}
+                  onQuestionClick={(q) => sendText(q)}
+                  onOpenPdf={hasPreviewableDoc ? () => setPdfPanelOpen(true) : undefined}
                 />
               </div>
-            </>
-          )}
-        </div>
 
-        {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
-          <InputBar
-            onSend={sendText}
-            onToggleVoice={toggleVoice}
-            voiceActive={voiceActive}
-            voiceStatus={voiceStatus}
-            disabled={!connected}
-            mode={activeChat.mode}
-            voiceEnabled={activeAssistantCfg.voice}
-          />
+              {/* Document Viewer panel (RIGHT) */}
+              {showDocPanel && (
+                <>
+                  <div className="panel-resize-handle shrink-0" style={{ background: palette.border }} />
+                  <div className="min-w-0" style={{ flex: '0 0 45%' }}>
+                    <DocViewer
+                      fileUrl={activeViewDoc.fileUrl}
+                      fileType={activeViewDoc.fileType}
+                      filename={activeViewDoc.filename}
+                      targetPage={pdfTarget.page}
+                      targetPageEnd={pdfTarget.pageEnd}
+                      targetSnippet={pdfTarget.snippet}
+                      targetFallbackSnippet={pdfTarget.fallbackSnippet}
+                      targetRequestId={pdfTarget.requestId}
+                      onClose={() => setPdfPanelOpen(false)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
+              <InputBar
+                onSend={sendText}
+                onToggleVoice={toggleVoice}
+                voiceActive={voiceActive}
+                voiceStatus={voiceStatus}
+                disabled={!connected}
+                mode={activeChat.mode}
+                voiceEnabled={activeAssistantCfg.voice}
+              />
+            )}
+          </>
         )}
       </div>
+
+      {/* ── CONTACT MODAL ── */}
+      {showContactModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.62)' }}>
+          <div className="w-full max-w-lg rounded-[28px] border p-6 shadow-2xl"
+            style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.textPrimary }}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-2xl font-semibold">Contact Us</div>
+                <p className="mt-2 text-sm leading-7" style={{ color: palette.textMuted }}>
+                  Tell us about your organization and workflow. We'll reach out to discuss how we can deploy a secure SLM for you.
+                </p>
+              </div>
+              <button onClick={() => setShowContactModal(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full"
+                style={{ background: palette.bg, color: palette.textSecondary }}>
+                ✕
+              </button>
+            </div>
+
+            {contactSubmitted ? (
+              <div className="mt-6 rounded-2xl border p-5" style={{ borderColor: palette.borderStrong, background: palette.bg }}>
+                <div className="text-lg font-semibold">Thanks — we've got your details.</div>
+                <p className="mt-2 text-sm leading-7" style={{ color: palette.textMuted }}>
+                  Our team will reach out to discuss your use case.
+                </p>
+                <button onClick={() => setShowContactModal(false)}
+                  className="mt-5 rounded-xl px-4 py-3 text-sm font-medium"
+                  style={{ background: palette.primary, color: 'white' }}>
+                  Close
+                </button>
+              </div>
+            ) : (
+              <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); setContactSubmitted(true) }}>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <div className="mb-2 text-sm" style={{ color: palette.textSecondary }}>Name</div>
+                    <input value={contactForm.name} onChange={(e) => setContactForm(p => ({ ...p, name: e.target.value }))}
+                      className="w-full rounded-xl border px-4 py-3 outline-none"
+                      style={{ borderColor: palette.borderStrong, background: palette.bg, color: palette.textPrimary }}
+                      placeholder="Your name" required />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-sm" style={{ color: palette.textSecondary }}>Work Email</div>
+                    <input type="email" value={contactForm.email} onChange={(e) => setContactForm(p => ({ ...p, email: e.target.value }))}
+                      className="w-full rounded-xl border px-4 py-3 outline-none"
+                      style={{ borderColor: palette.borderStrong, background: palette.bg, color: palette.textPrimary }}
+                      placeholder="you@company.com" required />
+                  </label>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <div className="mb-2 text-sm" style={{ color: palette.textSecondary }}>Company</div>
+                    <input value={contactForm.company} onChange={(e) => setContactForm(p => ({ ...p, company: e.target.value }))}
+                      className="w-full rounded-xl border px-4 py-3 outline-none"
+                      style={{ borderColor: palette.borderStrong, background: palette.bg, color: palette.textPrimary }}
+                      placeholder="Company name" />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-sm" style={{ color: palette.textSecondary }}>Use Case</div>
+                    <input value={contactForm.useCase} onChange={(e) => setContactForm(p => ({ ...p, useCase: e.target.value }))}
+                      className="w-full rounded-xl border px-4 py-3 outline-none"
+                      style={{ borderColor: palette.borderStrong, background: palette.bg, color: palette.textPrimary }}
+                      placeholder="Legal, employee, support, banking..." />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button type="submit" className="rounded-xl px-4 py-3 text-sm font-medium"
+                    style={{ background: palette.primary, color: 'white' }}>Submit</button>
+                  <button type="button" onClick={() => setShowContactModal(false)}
+                    className="rounded-xl border px-4 py-3 text-sm font-medium"
+                    style={{ borderColor: palette.borderStrong, background: palette.bg, color: palette.textPrimary }}>Cancel</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
