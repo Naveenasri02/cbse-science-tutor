@@ -1,15 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import mammoth from 'mammoth'
 import { palette } from '@cbse/shared'
-import { clearHighlights, highlightWithRetry, ViewerToolbar } from './highlightUtils'
+import { highlightTextInDOM, clearHighlights, ViewerToolbar } from './highlightUtils'
 
-export default function DocxRenderer({ fileUrl, filename, targetSnippet, targetFallbackSnippet, targetRequestId, onClose }) {
+export default function DocxRenderer({ fileUrl, filename, targetSnippet, targetRequestId, onClose }) {
   const [html, setHtml] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [expanded, setExpanded] = useState(false)
   const contentRef = useRef(null)
-  const genRef = useRef(0)
 
   // Fetch and convert DOCX to HTML
   useEffect(() => {
@@ -31,13 +30,15 @@ export default function DocxRenderer({ fileUrl, filename, targetSnippet, targetF
       })
   }, [fileUrl])
 
-  // Apply highlighting with retry mechanism (mirrors PdfRenderer)
+  // Apply highlighting when snippet changes
   useEffect(() => {
     if (!targetSnippet || !targetRequestId || !contentRef.current) return
     clearHighlights(contentRef.current)
-    const cleanup = highlightWithRetry(contentRef.current, targetSnippet, targetFallbackSnippet, targetRequestId, genRef)
-    return cleanup
-  }, [targetSnippet, targetFallbackSnippet, targetRequestId, html])
+    const timer = setTimeout(() => {
+      highlightTextInDOM(contentRef.current, targetSnippet)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [targetSnippet, targetRequestId, html])
 
   return (
     <div className={`h-full flex flex-col ${expanded ? 'fixed inset-0 z-50' : ''}`} style={{ background: palette.panel }}>

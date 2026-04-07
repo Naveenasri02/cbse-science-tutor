@@ -1,17 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { palette } from '@cbse/shared'
-import { clearHighlights, highlightWithRetry, ViewerToolbar } from './highlightUtils'
+import { highlightTextInDOM, clearHighlights, ViewerToolbar } from './highlightUtils'
 
 /**
  * Fallback renderer for formats without dedicated viewers (PPTX, DOC, etc.).
  * Displays the chunked text extracted by the backend with citation highlighting.
  */
-export default function FallbackRenderer({ fileUrl, filename, targetSnippet, targetFallbackSnippet, targetRequestId, onClose, chunks }) {
+export default function FallbackRenderer({ fileUrl, filename, targetSnippet, targetRequestId, onClose, chunks }) {
   const [content, setContent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
   const contentRef = useRef(null)
-  const genRef = useRef(0)
 
   const ext = (filename || '').split('.').pop()?.toLowerCase() || '?'
   const typeLabel = { pptx: 'PowerPoint', doc: 'Word (Legacy)', ppt: 'PowerPoint' }[ext] || ext.toUpperCase()
@@ -24,19 +23,22 @@ export default function FallbackRenderer({ fileUrl, filename, targetSnippet, tar
       .then(r => {
         const ct = r.headers.get('content-type') || ''
         if (ct.includes('text') || ct.includes('json')) return r.text()
+        // Binary file — can't display raw, show extracted chunks instead
         return null
       })
       .then(text => { setContent(text); setLoading(false) })
       .catch(() => { setContent(null); setLoading(false) })
   }, [fileUrl])
 
-  // Highlighting with retry mechanism (mirrors PdfRenderer)
+  // Highlighting
   useEffect(() => {
     if (!targetSnippet || !targetRequestId || !contentRef.current) return
     clearHighlights(contentRef.current)
-    const cleanup = highlightWithRetry(contentRef.current, targetSnippet, targetFallbackSnippet, targetRequestId, genRef)
-    return cleanup
-  }, [targetSnippet, targetFallbackSnippet, targetRequestId, content])
+    const timer = setTimeout(() => {
+      highlightTextInDOM(contentRef.current, targetSnippet)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [targetSnippet, targetRequestId, content])
 
   return (
     <div className={`h-full flex flex-col ${expanded ? 'fixed inset-0 z-50' : ''}`} style={{ background: palette.panel }}>
