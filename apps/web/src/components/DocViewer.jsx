@@ -78,8 +78,6 @@ export default function DocViewer({
         <DocxRenderer
           fileUrl={fileUrl}
           filename={filename}
-          targetSnippet={targetSnippet}
-          targetRequestId={targetRequestId}
           onClose={onClose}
         />
       )
@@ -88,8 +86,6 @@ export default function DocViewer({
         <SpreadsheetRenderer
           fileUrl={fileUrl}
           filename={filename}
-          targetSnippet={targetSnippet}
-          targetRequestId={targetRequestId}
           onClose={onClose}
         />
       )
@@ -98,8 +94,6 @@ export default function DocViewer({
         <TextRenderer
           fileUrl={fileUrl}
           filename={filename}
-          targetSnippet={targetSnippet}
-          targetRequestId={targetRequestId}
           onClose={onClose}
         />
       )
@@ -116,8 +110,6 @@ export default function DocViewer({
         <FallbackRenderer
           fileUrl={fileUrl}
           filename={filename}
-          targetSnippet={targetSnippet}
-          targetRequestId={targetRequestId}
           onClose={onClose}
         />
       )

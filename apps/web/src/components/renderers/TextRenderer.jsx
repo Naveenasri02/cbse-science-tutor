@@ -1,13 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { marked } from 'marked'
 import { palette } from '@cbse/shared'
-import { highlightTextInDOM, clearHighlights, ViewerToolbar } from './highlightUtils'
+import { ViewerToolbar } from './highlightUtils'
 
-export default function TextRenderer({ fileUrl, filename, targetSnippet, targetRequestId, onClose }) {
+export default function TextRenderer({ fileUrl, filename, onClose }) {
   const [content, setContent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
-  const contentRef = useRef(null)
 
   const isMarkdown = /\.(md|markdown)$/i.test(filename || '')
 
@@ -21,17 +20,6 @@ export default function TextRenderer({ fileUrl, filename, targetSnippet, targetR
       .catch(() => { setContent('Failed to load file.'); setLoading(false) })
   }, [fileUrl])
 
-  // Apply highlighting when snippet changes
-  useEffect(() => {
-    if (!targetSnippet || !targetRequestId || !contentRef.current) return
-    clearHighlights(contentRef.current)
-    // Small delay for DOM to settle
-    const timer = setTimeout(() => {
-      highlightTextInDOM(contentRef.current, targetSnippet)
-    }, 200)
-    return () => clearTimeout(timer)
-  }, [targetSnippet, targetRequestId, content])
-
   const renderContent = useCallback(() => {
     if (loading) {
       return (
@@ -44,7 +32,6 @@ export default function TextRenderer({ fileUrl, filename, targetSnippet, targetR
     if (isMarkdown) {
       return (
         <div
-          ref={contentRef}
           className="prose prose-invert max-w-none p-4 md:p-6 msg-md"
           dangerouslySetInnerHTML={{ __html: marked.parse(content || '') }}
           style={{ color: palette.textSecondary, fontSize: '13px', lineHeight: '1.7' }}
@@ -55,7 +42,7 @@ export default function TextRenderer({ fileUrl, filename, targetSnippet, targetR
     // Plain text with line numbers
     const lines = (content || '').split('\n')
     return (
-      <div ref={contentRef} className="p-4 md:p-6 font-mono text-[12px] leading-relaxed" style={{ color: palette.textSecondary }}>
+      <div className="p-4 md:p-6 font-mono text-[12px] leading-relaxed" style={{ color: palette.textSecondary }}>
         <table className="w-full border-collapse">
           <tbody>
             {lines.map((line, i) => (

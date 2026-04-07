@@ -1,15 +1,14 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { palette } from '@cbse/shared'
-import { normalize, ViewerToolbar } from './highlightUtils'
+import { ViewerToolbar } from './highlightUtils'
 
-export default function SpreadsheetRenderer({ fileUrl, filename, targetSnippet, targetRequestId, onClose }) {
+export default function SpreadsheetRenderer({ fileUrl, filename, onClose }) {
   const [sheets, setSheets] = useState([])
   const [activeSheet, setActiveSheet] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [expanded, setExpanded] = useState(false)
-  const tableRef = useRef(null)
 
   const isCsv = /\.csv$/i.test(filename || '')
 
@@ -37,21 +36,6 @@ export default function SpreadsheetRenderer({ fileUrl, filename, targetSnippet, 
         setLoading(false)
       })
   }, [fileUrl])
-
-  // Highlight matching cells
-  const snippetNorm = targetSnippet ? normalize(targetSnippet) : ''
-  const snippetWords = snippetNorm ? snippetNorm.split(/\s+/).filter(Boolean) : []
-
-  const isCellHighlighted = (cellValue) => {
-    if (!snippetWords.length || !cellValue) return false
-    const cellNorm = normalize(String(cellValue))
-    if (cellNorm.length < 2) return false
-    // Full cell in snippet or snippet contains cell
-    if (snippetNorm.includes(cellNorm) && cellNorm.length >= 4) return true
-    // Check if multiple words from snippet appear in cell
-    const matchCount = snippetWords.filter(w => cellNorm.includes(w)).length
-    return matchCount >= 2 && matchCount >= snippetWords.length * 0.3
-  }
 
   const currentSheet = sheets[activeSheet]
 
@@ -114,28 +98,21 @@ export default function SpreadsheetRenderer({ fileUrl, filename, targetSnippet, 
                     >
                       {ri + 1}
                     </td>
-                    {row.map((cell, ci) => {
-                      const highlighted = targetRequestId && isCellHighlighted(cell)
-                      return (
-                        <td
-                          key={ci}
-                          className="px-2.5 py-1.5 border whitespace-pre-wrap break-words"
-                          style={{
-                            borderColor: palette.border,
-                            background: ri === 0
-                              ? 'rgba(29,155,240,0.06)'
-                              : highlighted
-                                ? 'rgba(29,155,240,0.2)'
-                                : 'transparent',
-                            color: ri === 0 ? palette.textPrimary : palette.textSecondary,
-                            fontWeight: ri === 0 ? 600 : 400,
-                            maxWidth: '250px',
-                          }}
-                        >
-                          {String(cell)}
-                        </td>
-                      )
-                    })}
+                    {row.map((cell, ci) => (
+                      <td
+                        key={ci}
+                        className="px-2.5 py-1.5 border whitespace-pre-wrap break-words"
+                        style={{
+                          borderColor: palette.border,
+                          background: ri === 0 ? 'rgba(29,155,240,0.06)' : 'transparent',
+                          color: ri === 0 ? palette.textPrimary : palette.textSecondary,
+                          fontWeight: ri === 0 ? 600 : 400,
+                          maxWidth: '250px',
+                        }}
+                      >
+                        {String(cell)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

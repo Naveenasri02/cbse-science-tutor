@@ -1,14 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import mammoth from 'mammoth'
 import { palette } from '@cbse/shared'
-import { highlightTextInDOM, clearHighlights, ViewerToolbar } from './highlightUtils'
+import { ViewerToolbar } from './highlightUtils'
 
-export default function DocxRenderer({ fileUrl, filename, targetSnippet, targetRequestId, onClose }) {
+export default function DocxRenderer({ fileUrl, filename, onClose }) {
   const [html, setHtml] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [expanded, setExpanded] = useState(false)
-  const contentRef = useRef(null)
 
   // Fetch and convert DOCX to HTML
   useEffect(() => {
@@ -29,16 +28,6 @@ export default function DocxRenderer({ fileUrl, filename, targetSnippet, targetR
         setLoading(false)
       })
   }, [fileUrl])
-
-  // Apply highlighting when snippet changes
-  useEffect(() => {
-    if (!targetSnippet || !targetRequestId || !contentRef.current) return
-    clearHighlights(contentRef.current)
-    const timer = setTimeout(() => {
-      highlightTextInDOM(contentRef.current, targetSnippet)
-    }, 200)
-    return () => clearTimeout(timer)
-  }, [targetSnippet, targetRequestId, html])
 
   return (
     <div className={`h-full flex flex-col ${expanded ? 'fixed inset-0 z-50' : ''}`} style={{ background: palette.panel }}>
@@ -61,7 +50,6 @@ export default function DocxRenderer({ fileUrl, filename, targetSnippet, targetR
         )}
         {html && (
           <div
-            ref={contentRef}
             className="p-4 md:p-6 max-w-none docx-content"
             dangerouslySetInnerHTML={{ __html: html }}
             style={{
