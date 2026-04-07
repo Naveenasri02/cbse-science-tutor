@@ -47,6 +47,7 @@ export default function App() {
   // PDF Viewer state
   const [pdfPanelOpen, setPdfPanelOpen] = useState(false)
   const [pdfTarget, setPdfTarget] = useState({ page: null, snippet: null })
+  const [mobileTab, setMobileTab] = useState('chat')
   // Stop words for context-aware term extraction
   const STOP_WORDS = useRef(new Set([
     'the','a','an','is','are','was','were','be','been','being','have','has','had','do','does','did',
@@ -126,6 +127,7 @@ export default function App() {
 
       setPdfTarget({ page: pageNum, pageEnd, snippet: highlightSnippet, fallbackSnippet, requestId: Date.now() })
       setPdfPanelOpen(true)
+      setMobileTab('doc')
     }
   }, [chats, activeChatId, narrowToRelevantParagraph])
 
@@ -416,6 +418,7 @@ export default function App() {
     clearDocuments()
     setPdfPanelOpen(false)
     setPdfTarget({ page: null, snippet: null })
+    setMobileTab('chat')
     lastRagSourcesRef.current = []
     sessionIdRef.current = generateSessionId()
     reconnect()
@@ -448,6 +451,7 @@ export default function App() {
     clearDocuments()
     setPdfPanelOpen(false)
     setPdfTarget({ page: null, snippet: null })
+    setMobileTab('chat')
     lastRagSourcesRef.current = []
     sessionIdRef.current = generateSessionId()
     reconnect()
@@ -478,8 +482,6 @@ export default function App() {
   const showDocPanel = pdfPanelOpen && hasPreviewableDoc
 
   // Calculate chat column flex based on PDF panel
-  const chatFlex = showDocPanel ? '0 0 55%' : '1 1 auto'
-
   return (
     <div className="h-dvh flex overflow-hidden" style={{ background: palette.bg, color: palette.textPrimary }}>
       <Sidebar
@@ -544,7 +546,7 @@ export default function App() {
             {/* Doc panel toggle */}
             {!showLanding && hasPreviewableDoc && (
               <button
-                onClick={() => setPdfPanelOpen(v => !v)}
+                onClick={() => { const willOpen = !pdfPanelOpen; setPdfPanelOpen(willOpen); setMobileTab(willOpen ? 'doc' : 'chat') }}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[12px] font-medium transition-all"
                 style={{
                   background: pdfPanelOpen ? 'rgba(29,155,240,0.15)' : 'rgba(29,155,240,0.06)',
@@ -662,8 +664,8 @@ export default function App() {
           /* ── CHAT / ASSISTANT VIEW ── */
           <>
             <div className="flex min-h-0 overflow-hidden">
-              {/* Chat column */}
-              <div className="flex flex-col min-w-0 relative" style={{ flex: chatFlex }}>
+              {/* Chat column — hidden on mobile when Doc tab is active */}
+              <div className={`flex flex-col min-w-0 relative flex-1 ${showDocPanel ? 'md:flex-[0_0_55%]' : ''} ${showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}`}>
                 <ChatArea
                   messages={activeChat.messages}
                   isBotResponding={isBotResponding}
@@ -681,15 +683,15 @@ export default function App() {
                   dismissedSummaries={dismissedSummaries}
                   onDismissSummary={(docId) => setDismissedSummaries(prev => new Set([...prev, docId]))}
                   onQuestionClick={(q) => sendText(q)}
-                  onOpenPdf={hasPreviewableDoc ? () => setPdfPanelOpen(true) : undefined}
+                  onOpenPdf={hasPreviewableDoc ? () => { setPdfPanelOpen(true); setMobileTab('doc') } : undefined}
                 />
               </div>
 
-              {/* Document Viewer panel (RIGHT) */}
+              {/* Document Viewer panel — full-width on mobile Doc tab, 45% on desktop */}
               {showDocPanel && (
                 <>
-                  <div className="panel-resize-handle shrink-0" style={{ background: palette.border }} />
-                  <div className="min-w-0" style={{ flex: '0 0 45%' }}>
+                  <div className="panel-resize-handle shrink-0 max-md:hidden" style={{ background: palette.border }} />
+                  <div className={`min-w-0 flex-1 md:flex-[0_0_45%] ${mobileTab === 'chat' ? 'max-md:hidden' : ''}`}>
                     <DocViewer
                       fileUrl={activeViewDoc.fileUrl}
                       fileType={activeViewDoc.fileType}
@@ -699,24 +701,56 @@ export default function App() {
                       targetSnippet={pdfTarget.snippet}
                       targetFallbackSnippet={pdfTarget.fallbackSnippet}
                       targetRequestId={pdfTarget.requestId}
-                      onClose={() => setPdfPanelOpen(false)}
+                      onClose={() => { setPdfPanelOpen(false); setMobileTab('chat') }}
                     />
                   </div>
                 </>
               )}
             </div>
 
-            {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
-              <InputBar
-                onSend={sendText}
-                onToggleVoice={toggleVoice}
-                voiceActive={voiceActive}
-                voiceStatus={voiceStatus}
-                disabled={!connected}
-                mode={activeChat.mode}
-                voiceEnabled={activeAssistantCfg.voice}
-              />
-            )}
+            <div>
+              {/* Mobile tab bar — NotebookLM-style toggle between Chat and Doc */}
+              {showDocPanel && (
+                <div className="md:hidden flex" style={{ borderTop: `1px solid ${palette.border}`, background: palette.panel }}>
+                  <button
+                    onClick={() => setMobileTab('chat')}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
+                    style={{
+                      color: mobileTab === 'chat' ? palette.primary : palette.textMuted,
+                      background: mobileTab === 'chat' ? 'rgba(29,155,240,0.08)' : 'transparent',
+                      borderBottom: `2px solid ${mobileTab === 'chat' ? palette.primary : 'transparent'}`,
+                    }}
+                  >
+                    💬 Chat
+                  </button>
+                  <button
+                    onClick={() => setMobileTab('doc')}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
+                    style={{
+                      color: mobileTab === 'doc' ? palette.primary : palette.textMuted,
+                      background: mobileTab === 'doc' ? 'rgba(29,155,240,0.08)' : 'transparent',
+                      borderBottom: `2px solid ${mobileTab === 'doc' ? palette.primary : 'transparent'}`,
+                    }}
+                  >
+                    📄 Document
+                  </button>
+                </div>
+              )}
+
+              {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
+                <div className={showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}>
+                  <InputBar
+                    onSend={sendText}
+                    onToggleVoice={toggleVoice}
+                    voiceActive={voiceActive}
+                    voiceStatus={voiceStatus}
+                    disabled={!connected}
+                    mode={activeChat.mode}
+                    voiceEnabled={activeAssistantCfg.voice}
+                  />
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
