@@ -62,6 +62,10 @@ print("  ✓ RAG ready")
 # Dedicated executor for RAG embedding (avoid blocking event loop)
 _rag_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="rag")
 
+# Track sessions where only irrelevant documents have been uploaded
+# key=session_id, value={"total": int, "irrelevant": int}
+_session_doc_relevance: dict[str, dict] = {}
+
 
 def _estimate_tokens(text: str) -> int:
     """Token estimate: ~2.8 chars per token (conservative for technical text)."""
@@ -297,7 +301,20 @@ async def upload_document(
             )
             if not relevance["relevant"]:
                 result["relevance_warning"] = relevance["warning"]
+                # Clear summary data for irrelevant docs — only show the warning
+                result["summary"] = ""
+                result["suggested_questions"] = []
+                result["key_findings"] = []
+                result["terms"] = []
+                result["toc"] = []
+                # Track irrelevant doc for this session
+                tracker = _session_doc_relevance.setdefault(session_id, {"total": 0, "irrelevant": 0})
+                tracker["total"] += 1
+                tracker["irrelevant"] += 1
                 print(f"⚠️ Document relevance warning for '{filename}': {relevance['warning'][:100]}")
+            else:
+                tracker = _session_doc_relevance.setdefault(session_id, {"total": 0, "irrelevant": 0})
+                tracker["total"] += 1
         except Exception as e:
             print(f"⚠️ Document relevance check failed: {e}")
 
@@ -899,6 +916,21 @@ async def voice_endpoint(ws: WebSocket):
                         await safe_send_json({"type": "llm_start"})
                         upload_msg = config.get_upload_message(assistant_key, active_workflow)
                         await safe_send_json({"type": "llm_delta", "text": upload_msg})
+                        await safe_send_json({"type": "llm_done"})
+                        continue
+
+                    # ── Irrelevant Document Gate — block if only irrelevant docs uploaded ──
+                    tracker = _session_doc_relevance.get(session_id, {})
+                    if tracker.get("total", 0) > 0 and tracker.get("irrelevant", 0) == tracker.get("total", 0):
+                        role_info = config.ASSISTANT_ROLES.get(assistant_key, {})
+                        role_name = role_info.get("role", assistant_key)
+                        domain = role_info.get("domain", "this assistant's domain")
+                        await safe_send_json({"type": "llm_start"})
+                        await safe_send_json({"type": "llm_delta", "text": (
+                            f"The uploaded document doesn't appear to be relevant to the **{role_name} Assistant**. "
+                            f"I can only answer questions based on documents related to {domain}.\n\n"
+                            f"Please upload a relevant document to get started, or switch to the **General Assistant** which accepts any document type."
+                        )})
                         await safe_send_json({"type": "llm_done"})
                         continue
 
