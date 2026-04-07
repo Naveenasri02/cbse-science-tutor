@@ -357,8 +357,10 @@ async def _generate_doc_summary(session_id: str, filename: str) -> dict:
         "DOCTYPE: <one of: Legal Document, Research Paper, Business Report, Policy Document, "
         "Technical Manual, Educational Material, Financial Document, HR Document, General Document>\n"
         "SUMMARY_START\n"
-        "Write a 2-3 sentence summary in under 60 words total. "
-        "Keep each sentence short and simple. State what the document is, who wrote it, and the key finding or purpose. No filler words.\n"
+        "Write EXACTLY 2-3 short sentences (max 40 words total). Example format:\n"
+        "\"A thesis on VR and AR-based CPR training by S Sai Naveena Sri at IIT Madras. "
+        "Develops two platforms and validates SMART CPR as non-inferior to traditional methods via a 50-participant RCT.\"\n"
+        "Do NOT exceed 40 words. Do NOT include long titles or full department names.\n"
         "SUMMARY_END\n"
         "THEMES: <comma-separated list of 4-8 key themes or topics covered>\n"
         "ENTITIES: <comma-separated list of key people, organizations, dates, or amounts mentioned>\n"
@@ -386,7 +388,7 @@ async def _generate_doc_summary(session_id: str, filename: str) -> dict:
         resp = await client.post("/chat/completions", json={
             "model": config.VLLM_MODEL,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 3000,
+            "max_tokens": 1500,
             "temperature": 0.3,
         })
         resp.raise_for_status()
