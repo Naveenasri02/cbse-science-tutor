@@ -21,9 +21,10 @@ function Section({ icon: Icon, title, children, defaultOpen = false }) {
   )
 }
 
-export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, onOpenPdf }) {
-  const doc = [...documents].reverse().find(d => d.summary || d.relevanceWarning)
+export default function DocSummaryCard({ doc, onQuestionClick, onDismiss, onOpenDoc }) {
   if (!doc) return null
+
+  const handleOpenDoc = () => onOpenDoc?.(doc.doc_id)
 
   // Irrelevant document — show rejection with guidance to upload a related doc
   if (doc.relevanceWarning) {
@@ -77,12 +78,12 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
               <span className="text-[14px] font-semibold truncate" style={{ color: palette.textPrimary }}>
                 {doc.filename}
               </span>
-              {onOpenPdf && (
+              {onOpenDoc && (
                 <button
-                  onClick={onOpenPdf}
+                  onClick={handleOpenDoc}
                   className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-all hover:scale-[1.05]"
                   style={{ background: 'rgba(29,155,240,0.1)', color: palette.primary }}
-                  title="View PDF"
+                  title="View document"
                 >
                   <ExternalLink size={10} /> View
                 </button>
@@ -153,7 +154,7 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
                 <button
                   key={i}
                   onClick={() => {
-                    if (entry.page && onOpenPdf) onOpenPdf()
+                    if (entry.page && onOpenDoc) handleOpenDoc()
                   }}
                   className="flex items-center justify-between w-full text-left px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5 group"
                 >

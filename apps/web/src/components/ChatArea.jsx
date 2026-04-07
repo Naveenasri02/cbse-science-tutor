@@ -5,7 +5,7 @@ import { MatifyLogo } from './LandingPage'
 import { palette } from '@cbse/shared'
 import { FileUp } from 'lucide-react'
 
-export default function ChatArea({ messages, isBotResponding, mode, assistantConfig, onTryClick, workflow, ragSources, onUpload, uploading, uploadProgress, hasDocuments, onCitationClick, documents, dismissedSummaries, onDismissSummary, onQuestionClick, onOpenPdf }) {
+export default function ChatArea({ messages, isBotResponding, mode, assistantConfig, onTryClick, workflow, ragSources, onUpload, uploading, uploadProgress, hasDocuments, onCitationClick, documents, dismissedSummaries, onDismissSummary, onQuestionClick, onOpenPdf, onOpenDoc }) {
   const bottomRef = useRef(null)
   const fileInputRef = useRef(null)
   const [dragOver, setDragOver] = useState(false)
@@ -187,15 +187,16 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
       ) : (
         <div className="h-full overflow-auto px-3 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 scrollbar-thin">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-            {/* Document Summary Card — shown at top of chat after upload */}
-            {documents?.some(d => (d.summary || d.relevanceWarning) && !dismissedSummaries?.has(d.doc_id)) && (
+            {/* Document Summary Cards — one per uploaded document */}
+            {documents?.filter(d => (d.summary || d.relevanceWarning) && !dismissedSummaries?.has(d.doc_id)).map(doc => (
               <DocSummaryCard
-                documents={documents.filter(d => !dismissedSummaries?.has(d.doc_id))}
+                key={doc.doc_id}
+                doc={doc}
                 onQuestionClick={onQuestionClick}
                 onDismiss={onDismissSummary}
-                onOpenPdf={onOpenPdf}
+                onOpenDoc={onOpenDoc}
               />
-            )}
+            ))}
 
             {messages.map((msg, idx) => (
               <div key={msg.id}>

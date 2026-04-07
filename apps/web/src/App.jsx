@@ -48,6 +48,7 @@ export default function App() {
   const [pdfPanelOpen, setPdfPanelOpen] = useState(false)
   const [pdfTarget, setPdfTarget] = useState({ page: null, snippet: null })
   const [mobileTab, setMobileTab] = useState('chat')
+  const [activeDocId, setActiveDocId] = useState(null)
   // Stop words for context-aware term extraction
   const STOP_WORDS = useRef(new Set([
     'the','a','an','is','are','was','were','be','been','being','have','has','had','do','does','did',
@@ -465,7 +466,8 @@ export default function App() {
   const [contactSubmitted, setContactSubmitted] = useState(false)
   const [contactForm, setContactForm] = useState({ name: '', email: '', company: '', useCase: '' })
 
-  const activeViewDoc = documents.find(d => !d.relevanceWarning && isPreviewable(d.filename, d.fileType))
+  const previewableDocs = documents.filter(d => !d.relevanceWarning && isPreviewable(d.filename, d.fileType))
+  const activeViewDoc = (activeDocId && previewableDocs.find(d => d.doc_id === activeDocId)) || previewableDocs[previewableDocs.length - 1] || null
   const hasPreviewableDoc = !!activeViewDoc
 
   // Select assistant from landing page
@@ -710,6 +712,7 @@ export default function App() {
                   onDismissSummary={(docId) => setDismissedSummaries(prev => new Set([...prev, docId]))}
                   onQuestionClick={(q) => sendText(q)}
                   onOpenPdf={hasPreviewableDoc ? () => { setPdfPanelOpen(true); setMobileTab('doc') } : undefined}
+                  onOpenDoc={(docId) => { setActiveDocId(docId); setPdfPanelOpen(true); setMobileTab('doc') }}
                 />
               </div>
 
