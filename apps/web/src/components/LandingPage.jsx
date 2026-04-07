@@ -1,4 +1,5 @@
-import { ShieldCheck, ArrowRight, Mail, MapPin } from 'lucide-react'
+import { useState } from 'react'
+import { ShieldCheck, Scale, GraduationCap, Briefcase, Headset, Landmark, Bot, Mail } from 'lucide-react'
 import { palette } from '@cbse/shared'
 
 function MatifyLogo({ className = '' }) {
@@ -20,165 +21,145 @@ function MatifyLogo({ className = '' }) {
 
 export { MatifyLogo }
 
-function BrandHeader() {
-  return (
-    <header
-      className="flex items-center justify-between rounded-2xl border px-4 py-4 md:px-6"
-      style={{ borderColor: palette.border, background: palette.panel }}
-    >
-      <div className="flex items-center gap-3">
-        <div
-          className="flex h-10 w-10 items-center justify-center rounded-xl border p-1"
-          style={{ borderColor: palette.borderStrong, background: palette.bg }}
-        >
-          <MatifyLogo className="h-full w-full rounded-lg object-cover" />
-        </div>
-        <div>
-          <div className="text-lg font-semibold tracking-tight" style={{ color: palette.textPrimary }}>
-            matify.tech
-          </div>
-          <div className="text-xs" style={{ color: palette.textMuted }}>
-            We build GPT for your business
-          </div>
-        </div>
-      </div>
-
-      <a
-        href="mailto:help@matify.tech"
-        className="hidden items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium md:inline-flex"
-        style={{ borderColor: palette.borderStrong, background: palette.bg, color: palette.textSecondary }}
-      >
-        <Mail className="h-4 w-4" style={{ color: palette.primary }} />
-        help@matify.tech
-      </a>
-    </header>
-  )
-}
-
-function LandingFooter() {
-  return (
-    <footer className="mt-6 sm:mt-10">
-      <section
-        className="rounded-2xl sm:rounded-[28px] border px-4 py-5 sm:px-6 sm:py-7 md:px-8 md:py-8"
-        style={{ borderColor: palette.border, background: palette.panel }}
-      >
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-lg">
-            <div className="text-base font-semibold" style={{ color: palette.textPrimary }}>
-              matify.tech
-            </div>
-            <p className="mt-3 text-sm leading-7" style={{ color: palette.textMuted }}>
-              Private AI experiences for businesses that want more control, better security, and deployment inside their own environment.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div
-              className="rounded-2xl border px-4 py-4"
-              style={{ borderColor: palette.borderStrong, background: palette.bg }}
-            >
-              <div className="text-xs uppercase tracking-[0.14em]" style={{ color: palette.textMuted }}>
-                Location
-              </div>
-              <div className="mt-2 flex items-center gap-2 text-sm font-medium" style={{ color: palette.textPrimary }}>
-                <MapPin className="h-4 w-4" style={{ color: palette.primary }} />
-                California, USA
-              </div>
-            </div>
-
-            <a
-              href="mailto:help@matify.tech"
-              className="rounded-2xl border px-4 py-4 transition-colors"
-              style={{ borderColor: palette.borderStrong, background: palette.bg, color: palette.textPrimary }}
-            >
-              <div className="text-xs uppercase tracking-[0.14em]" style={{ color: palette.textMuted }}>
-                Email
-              </div>
-              <div className="mt-2 flex items-center gap-2 text-sm font-medium" style={{ color: palette.textPrimary }}>
-                <Mail className="h-4 w-4" style={{ color: palette.primary }} />
-                help@matify.tech
-              </div>
-            </a>
-          </div>
-        </div>
-
-        <div
-          className="mt-8 flex flex-col gap-3 border-t pt-4 text-sm md:flex-row md:items-center md:justify-between"
-          style={{ borderColor: palette.border }}
-        >
-          <div style={{ color: palette.textMuted }}>On-prem SLM deployment · Secure AI infrastructure</div>
-          <div style={{ color: palette.textMuted }}>© 2026 matify.tech</div>
-        </div>
-      </section>
-    </footer>
-  )
-}
+const LANDING_ASSISTANTS = [
+  { key: 'legal', label: 'Legal Assistant', icon: Scale },
+  { key: 'teaching', label: 'Teaching Assistant', icon: GraduationCap },
+  { key: 'employee', label: 'Employee Assistant', icon: Briefcase },
+  { key: 'customer', label: 'Customer Assistant', icon: Headset },
+  { key: 'banking', label: 'Banking & Insurance', icon: Landmark },
+  { key: 'general', label: 'General Assistant', icon: Bot },
+]
 
 export default function LandingPage({ onTryDemo }) {
+  const [hoveredAssistant, setHoveredAssistant] = useState(null)
+
   return (
-    <div className="h-dvh w-full overflow-x-hidden overflow-y-auto -webkit-overflow-scrolling-touch" style={{ background: palette.bg, color: palette.textPrimary }}>
-      <div className="mx-auto flex min-h-full max-w-7xl flex-col px-4 py-3 sm:px-6 sm:py-4 md:px-8 md:py-6 lg:px-10">
-        <BrandHeader />
+    <div
+      className="flex min-h-screen w-full flex-col"
+      style={{
+        background: palette.bg,
+        color: palette.textPrimary,
+        fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      {/* Header */}
+      <header
+        className="flex items-center justify-between border-b px-5 py-4 md:px-6"
+        style={{ borderColor: palette.border, background: palette.bg }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-lg border p-1"
+            style={{ borderColor: palette.borderStrong, background: palette.panel }}
+          >
+            <MatifyLogo className="h-full w-full" />
+          </div>
+          <div className="text-[15px] font-semibold">matify.tech</div>
+        </div>
+        <a
+          href="mailto:help@matify.tech"
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
+          style={{ background: palette.primary, color: 'white' }}
+        >
+          <Mail className="h-4 w-4" />
+          Contact Us
+        </a>
+      </header>
 
-        <main className="flex flex-1 items-center justify-center py-8 sm:py-10 md:py-12">
-          <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
+      {/* Main content */}
+      <main className="flex flex-1 items-start justify-center px-6 pb-8 pt-8 md:px-10 md:pt-12">
+        <div className="w-full max-w-6xl text-center">
+          {/* Badge */}
+          <div
+            className="mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em]"
+            style={{
+              borderColor: palette.borderStrong,
+              background: palette.panel,
+              color: palette.primary,
+            }}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Own your AI
+          </div>
+
+          {/* Hero */}
+          <h1
+            className="mx-auto mt-6 max-w-[1000px] text-[36px] font-semibold leading-[1.08] tracking-tight md:text-[52px] xl:text-[54px]"
+            style={{ color: palette.textPrimary }}
+          >
+            <span className="block">Who owns the AI you are using?</span>
+            <span className="mt-1 block">
+              <span style={{ color: palette.textPrimary }}>and </span>
+              <span style={{ color: palette.primary }}>How secure is your data?</span>
+            </span>
+          </h1>
+
+          <p
+            className="mx-auto mt-5 max-w-[900px] text-sm leading-7 md:text-[17px]"
+            style={{ color: palette.textSecondary }}
+          >
+            We turn your organization's data into a secure SLM, deployed in your own environment, so your data never leaves your premise.
+          </p>
+
+          {/* TRY section */}
+          <div className="mx-auto mt-12 max-w-6xl">
+            <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: palette.textMuted }}>
+              TRY
+            </div>
+            <div className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {LANDING_ASSISTANTS.map((assistant) => {
+                const Icon = assistant.icon
+                const hovered = hoveredAssistant === assistant.key
+                return (
+                  <button
+                    key={assistant.key}
+                    onClick={onTryDemo}
+                    onMouseEnter={() => setHoveredAssistant(assistant.key)}
+                    onMouseLeave={() => setHoveredAssistant(null)}
+                    className="rounded-[22px] border px-4 py-4 text-left transition-all hover:-translate-y-0.5"
+                    style={{
+                      borderColor: hovered ? palette.primary : palette.border,
+                      background: hovered ? palette.panelAlt : palette.panel,
+                      color: palette.textPrimary,
+                      boxShadow: hovered ? '0 0 0 1px rgba(29,155,240,0.18)' : 'none',
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-9 w-9 items-center justify-center rounded-xl"
+                        style={{
+                          background: hovered ? 'rgba(29,155,240,0.14)' : palette.bg,
+                          color: hovered ? palette.primary : palette.textSecondary,
+                        }}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="text-sm font-medium leading-5">{assistant.label}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
             <div
-              className="mb-4 sm:mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs sm:text-sm font-semibold uppercase tracking-[0.18em]"
-              style={{ borderColor: palette.borderStrong, background: palette.panel, color: palette.primary }}
+              className="mx-auto mt-10 flex max-w-3xl flex-wrap items-center justify-center gap-x-6 gap-y-3 border-t pt-5 text-sm"
+              style={{ borderColor: palette.border, color: palette.textMuted }}
             >
-              <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Own Your AI
+              <span>© 2026 Mat Studio, Inc.</span>
+              <a href="#" className="transition-opacity hover:opacity-80" style={{ color: palette.textSecondary }}>
+                Terms
+              </a>
+              <a href="#" className="transition-opacity hover:opacity-80" style={{ color: palette.textSecondary }}>
+                Privacy Policy
+              </a>
+              <a href="#" className="transition-opacity hover:opacity-80" style={{ color: palette.textSecondary }}>
+                Cookie Policy
+              </a>
             </div>
-
-            <h1
-              className="mx-auto font-bold tracking-tight"
-              style={{
-                color: palette.textPrimary,
-                fontSize: 'clamp(2rem, 8vw, 4.5rem)',
-                lineHeight: 1.1,
-              }}
-            >
-              Who owns the AI
-              <br />
-              you are using?
-            </h1>
-            <h1
-              className="mx-auto mt-1 font-bold tracking-tight"
-              style={{
-                color: palette.primary,
-                fontSize: 'clamp(1.75rem, 7vw, 4rem)',
-                lineHeight: 1.1,
-              }}
-            >
-              And how secure is your data?
-            </h1>
-
-            <p
-              className="mx-auto mt-4 max-w-xs text-[0.95rem] leading-relaxed sm:mt-5 sm:max-w-2xl sm:text-base md:text-lg md:leading-7"
-              style={{ color: palette.textSecondary }}
-            >
-              We build GPT for your business using your data, deploy it on your server, and keep your data inside your premise.
-            </p>
-
-            <div className="mt-6 sm:mt-8 flex justify-center">
-              <button
-                onClick={onTryDemo}
-                className="inline-flex items-center gap-2 rounded-2xl px-8 py-3.5 text-base font-semibold transition-all hover:-translate-y-0.5 active:scale-95 min-h-[52px]"
-                style={{
-                  background: palette.primary,
-                  color: 'white',
-                  boxShadow: '0 8px 24px rgba(29,155,240,0.22)',
-                }}
-              >
-                Try the Demo
-                <ArrowRight className="h-5 w-5" />
-              </button>
-            </div>
-          </section>
-        </main>
-
-        <LandingFooter />
-      </div>
+          </div>
+        </div>
+      </main>
     </div>
   )
 }
