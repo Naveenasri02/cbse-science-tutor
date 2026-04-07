@@ -238,15 +238,3 @@
 .panel-resize-handle:hover {
   background: rgba(29,155,240,0.4) !important;
 }
-
-/* Mobile 50/50 horizontal split for chat + doc */
-@media (max-width: 767px) {
-  .mobile-split {
-    flex-direction: column;
-  }
-  .mobile-split-panel {
-    flex: 0 0 50% !important;
-    max-height: 50%;
-    overflow: hidden;
-  }
-}
