@@ -115,6 +115,7 @@ export default function useDocuments(sessionIdRef, assistantRef, workflowRef) {
         terms: data.terms || [],
         toc: data.toc || [],
         relevanceWarning: data.relevance_warning || null,
+        uploadedAt: Date.now(),
       }])
       // Show 100% briefly before hiding
       setUploadProgress(100)

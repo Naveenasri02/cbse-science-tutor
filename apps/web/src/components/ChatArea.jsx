@@ -187,28 +187,45 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
       ) : (
         <div className="h-full overflow-auto px-3 pb-4 pt-4 md:px-6 md:pb-6 lg:px-8 scrollbar-thin">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-            {/* Document Summary Cards — one per uploaded document */}
-            {documents?.filter(d => (d.summary || d.relevanceWarning) && !dismissedSummaries?.has(d.doc_id)).map(doc => (
-              <DocSummaryCard
-                key={doc.doc_id}
-                doc={doc}
-                onQuestionClick={onQuestionClick}
-                onDismiss={onDismissSummary}
-                onOpenDoc={onOpenDoc}
-              />
-            ))}
+            {/* Interleave messages and document summary cards chronologically */}
+            {(() => {
+              const validDocs = documents?.filter(d => (d.summary || d.relevanceWarning) && !dismissedSummaries?.has(d.doc_id)) || []
+              // Build a merged timeline: messages + doc summary cards
+              const items = []
+              messages.forEach((msg, idx) => {
+                items.push({ type: 'message', msg, idx, ts: msg.id })
+              })
+              validDocs.forEach(doc => {
+                items.push({ type: 'doc', doc, ts: doc.uploadedAt || 0 })
+              })
+              // Sort by timestamp so each card appears at its upload position
+              items.sort((a, b) => a.ts - b.ts)
 
-            {messages.map((msg, idx) => (
-              <div key={msg.id}>
-                <Message
-                  role={msg.role}
-                  text={msg.text}
-                  streaming={isBotResponding && msg.role === 'bot' && idx === messages.length - 1}
-                  onCitationClick={onCitationClick}
-                  sources={msg.sources}
-                />
-              </div>
-            ))}
+              return items.map((item) => {
+                if (item.type === 'doc') {
+                  return (
+                    <DocSummaryCard
+                      key={`doc-${item.doc.doc_id}`}
+                      doc={item.doc}
+                      onQuestionClick={onQuestionClick}
+                      onDismiss={onDismissSummary}
+                      onOpenDoc={onOpenDoc}
+                    />
+                  )
+                }
+                return (
+                  <div key={item.msg.id}>
+                    <Message
+                      role={item.msg.role}
+                      text={item.msg.text}
+                      streaming={isBotResponding && item.msg.role === 'bot' && item.idx === messages.length - 1}
+                      onCitationClick={onCitationClick}
+                      sources={item.msg.sources}
+                    />
+                  </div>
+                )
+              })
+            })()}
 
             {isBotResponding && messages.length > 0 && messages[messages.length - 1]?.text === '' && (
               <div className="flex justify-start">
