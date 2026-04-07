@@ -22,7 +22,14 @@ export function ViewerToolbar({ filename, children, onClose, expanded, onToggleE
             </button>
           </>
         )}
-
+        {onClose && (
+          <>
+            <div className="w-px h-4 mx-1" style={{ background: palette.border }} />
+            <button onClick={onClose} className="p-1 rounded hover:bg-white/5" style={{ color: palette.textMuted }}>
+              ✕
+            </button>
+          </>
+        )}
       </div>
     </div>
   )

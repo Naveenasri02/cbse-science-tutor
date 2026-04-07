@@ -89,7 +89,6 @@ export default function LandingPage({ onTryDemo }) {
           >
             <span className="block">Who owns the AI you are using?</span>
             <span className="mt-1 block">
-              <span style={{ color: palette.textPrimary }}>and </span>
               <span style={{ color: palette.primary }}>How secure is your data?</span>
             </span>
           </h1>
