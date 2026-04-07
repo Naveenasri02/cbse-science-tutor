@@ -13,7 +13,12 @@ const normalize = (s) => s.normalize('NFKD').toLowerCase().replace(/[\r\n\t]+/g,
 export default function PdfRenderer({ fileUrl, filename, targetPage, targetPageEnd, targetSnippet, targetFallbackSnippet, targetRequestId, onClose }) {
   const [numPages, setNumPages] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [scale, setScale] = useState(1.0)
+  const [scale, setScale] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return Math.round(Math.max(0.5, (window.innerWidth - 32) / 612) * 10) / 10
+    }
+    return 1.0
+  })
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
   const scrollContainerRef = useRef(null)

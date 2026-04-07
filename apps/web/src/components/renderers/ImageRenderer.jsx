@@ -26,7 +26,7 @@ export default function ImageRenderer({ fileUrl, filename, onClose }) {
         <img
           src={fileUrl}
           alt={filename}
-          className="max-w-none transition-transform duration-200"
+          className="max-w-full transition-transform duration-200"
           style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
           draggable={false}
         />

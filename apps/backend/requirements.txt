@@ -29,8 +29,8 @@ sentence-transformers>=3.0
 pdfplumber>=0.11
 rank_bm25>=0.2.2
 
-# OCR (optional — for scanned PDFs)
-# easyocr>=1.7
+# OCR (for scanned PDFs and image uploads)
+easyocr>=1.7
 
 # Infra (installed on GPU server, not in requirements)
 # vllm>=0.18        — serves Qwen3-30B-A3B LLM on port 8002
