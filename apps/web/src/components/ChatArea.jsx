@@ -222,6 +222,42 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
               </div>
             )}
 
+            {/* Upload progress — shown in chat when uploading via paperclip */}
+            {uploading && hasDocuments && (
+              <div className="mx-auto w-full max-w-md rounded-2xl border p-4 animate-fade-in"
+                style={{
+                  borderColor: 'rgba(29,155,240,0.3)',
+                  background: 'rgba(29,155,240,0.04)',
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative w-10 h-10 shrink-0">
+                    <svg className="w-10 h-10 -rotate-90" viewBox="0 0 40 40">
+                      <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(29,155,240,0.15)" strokeWidth="2.5" />
+                      <circle
+                        cx="20" cy="20" r="16" fill="none"
+                        stroke={palette.primary} strokeWidth="2.5" strokeLinecap="round"
+                        strokeDasharray={`${2 * Math.PI * 16}`}
+                        strokeDashoffset={`${2 * Math.PI * 16 * (1 - uploadProgress / 100)}`}
+                        className="transition-all duration-300"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold" style={{ color: palette.primary }}>
+                      {uploadProgress}%
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium" style={{ color: palette.textPrimary }}>
+                      Uploading document...
+                    </p>
+                    <p className="text-[11px]" style={{ color: palette.textMuted }}>
+                      {uploadProgress < 85 ? 'Sending file' : uploadProgress < 100 ? 'Processing & embedding' : 'Done!'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Inline upload card — shown when workflow is active but no documents uploaded yet */}
             {workflow && !hasDocuments && !isBotResponding && (
               <>
