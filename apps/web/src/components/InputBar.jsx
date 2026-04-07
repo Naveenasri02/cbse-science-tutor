@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Mic, SendHorizontal, Square } from 'lucide-react'
+import { Mic, SendHorizontal, Square, Paperclip } from 'lucide-react'
 import { palette } from '@cbse/shared'
 
 const VOICE_COLORS = {
@@ -11,10 +11,11 @@ const VOICE_COLORS = {
   error: '#ef4444',
 }
 
-export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, mode, voiceEnabled = true, hasWorkflow = true }) {
+export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStatus, disabled, mode, voiceEnabled = true, hasWorkflow = true, onUpload, uploading }) {
   const showVoice = voiceEnabled
   const [text, setText] = useState('')
   const inputRef = useRef(null)
+  const fileRef = useRef(null)
 
   const handleSend = () => {
     if (!text.trim()) return
@@ -59,6 +60,32 @@ export default function InputBar({ onSend, onToggleVoice, voiceActive, voiceStat
               : '0 8px 30px rgba(0,0,0,0.28)',
           }}
         >
+          {/* Attach file button */}
+          {onUpload && !voiceActive && (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  e.target.value = ''
+                  try { await onUpload(file) } catch (err) { alert(err.message || 'Upload failed') }
+                }}
+              />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={disabled || uploading}
+                className="flex h-11 w-11 md:h-8 md:w-8 items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40 hover:bg-white/10"
+                style={{ color: uploading ? palette.primary : palette.textMuted }}
+                title="Attach file"
+              >
+                <Paperclip className={`h-4 w-4 ${uploading ? 'animate-pulse' : ''}`} />
+              </button>
+            </>
+          )}
           <input
             ref={inputRef}
             value={voiceActive ? '' : text}

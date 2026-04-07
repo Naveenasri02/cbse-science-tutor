@@ -751,6 +751,8 @@ export default function App() {
                     disabled={!connected}
                     mode={activeChat.mode}
                     voiceEnabled={activeAssistantCfg.voice}
+                    onUpload={uploadFile}
+                    uploading={uploading}
                   />
                 </div>
               )}
