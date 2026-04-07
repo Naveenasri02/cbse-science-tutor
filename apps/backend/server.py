@@ -1151,6 +1151,25 @@ async def voice_endpoint(ws: WebSocket):
                         await safe_send_json({"type": "tts_done"})
                         return
 
+                    # Irrelevant document gate for voice — block if only irrelevant docs uploaded
+                    tracker = _session_doc_relevance.get(session_id, {})
+                    if tracker.get("total", 0) > 0 and tracker.get("irrelevant", 0) == tracker.get("total", 0):
+                        role_info = config.ASSISTANT_ROLES.get(assistant_key, {})
+                        role_name = role_info.get("role", assistant_key)
+                        domain = role_info.get("domain", "this assistant's domain")
+                        irrelevant_msg = (
+                            f"The uploaded document doesn't appear to be relevant to the {role_name} Assistant. "
+                            f"I can only answer questions based on documents related to {domain}. "
+                            f"Please upload a relevant document to get started, or switch to the General Assistant which accepts any document type."
+                        )
+                        await safe_send_json({"type": "user_transcript", "text": transcript})
+                        await safe_send_json({"type": "llm_start"})
+                        await safe_send_json({"type": "llm_delta", "text": irrelevant_msg})
+                        await safe_send_json({"type": "llm_done"})
+                        await _send_tts(ws, irrelevant_msg)
+                        await safe_send_json({"type": "tts_done"})
+                        return
+
                     # Topic filter (workflow-aware)
                     if not config.is_topic_related(transcript, active_workflow):
                         reject_msg = config.get_workflow_reject_message(active_workflow)
