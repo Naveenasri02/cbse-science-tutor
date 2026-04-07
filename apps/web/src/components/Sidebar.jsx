@@ -99,35 +99,29 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
         style={{ borderColor: palette.border, background: palette.sidebar }}
       >
         {/* Logo */}
-        <div className="px-5 pt-7">
-          <div className="flex items-center gap-2.5">
-            <MatifyLogo className="h-8 w-8 rounded-lg" />
-            <div className="text-[15px] font-semibold">matify.tech</div>
+        <div className="px-3 pt-4 pb-2">
+          <div className="flex items-center gap-2">
+            <MatifyLogo className="h-7 w-7 rounded-md" />
+            <div className="text-[14px] font-semibold">matify.tech</div>
           </div>
         </div>
 
         {/* Home + Assistants + Chats — scrollable together */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          <div className="px-5 pt-8">
+          <div className="px-3 pt-3">
             <button
               onClick={() => { onHome(); onClose() }}
-              className="mb-4 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/5"
+              className="mb-2 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-all hover:bg-white/5"
               style={{ color: showLanding ? palette.textPrimary : palette.textSecondary }}
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-                style={{
-                  background: showLanding ? 'rgba(29,155,240,0.14)' : undefined,
-                  color: showLanding ? palette.primary : palette.textSecondary,
-                }}>
-                <Home className="h-4 w-4" />
-              </div>
-              <div className="text-[14px] font-medium leading-5">Home</div>
+              <Home className="h-4 w-4 shrink-0" style={{ color: showLanding ? palette.primary : palette.textSecondary }} />
+              <div className="text-[13px] font-medium">Home</div>
             </button>
 
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: palette.textMuted }}>
+            <div className="mb-1.5 mt-2 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: palette.textMuted }}>
               AI Assistants
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-0.5">
               {ASSISTANTS.map((assistant) => {
                 const Icon = assistant.icon
                 const active = !showLanding && activeAssistant === assistant.key
@@ -135,17 +129,14 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
                   <button
                     key={assistant.key}
                     onClick={() => { onSelectAssistant(assistant.key); onClose() }}
-                    className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-all hover:bg-white/5"
-                    style={{ color: active ? palette.textPrimary : palette.textSecondary }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-all hover:bg-white/5"
+                    style={{
+                      color: active ? palette.textPrimary : palette.textSecondary,
+                      background: active ? 'rgba(255,255,255,0.06)' : undefined,
+                    }}
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-                      style={{
-                        background: active ? 'rgba(29,155,240,0.14)' : undefined,
-                        color: active ? palette.primary : palette.textSecondary,
-                      }}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="text-[14px] font-medium leading-5">{assistant.label}</div>
+                    <Icon className="h-4 w-4 shrink-0" style={{ color: active ? palette.primary : palette.textSecondary }} />
+                    <div className="text-[13px] font-medium truncate">{assistant.label}</div>
                   </button>
                 )
               })}
@@ -153,13 +144,13 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
           </div>
 
           {/* Chats */}
-          <div className="px-5 pt-8">
-            <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: palette.textMuted }}>
+          <div className="px-3 pt-4">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: palette.textMuted }}>
               Chats
             </div>
           </div>
 
-          <div className="px-5 space-y-1.5">
+          <div className="px-3 space-y-0.5">
           {chats.map((chat) => {
             const assistantCfg = ASSISTANTS.find(a => a.key === chat.assistant) || ASSISTANTS[0]
             const active = !showLanding && chat.id === activeChatId
@@ -167,23 +158,23 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
               <div
                 key={chat.id}
                 onClick={() => { onSwitchChat(chat.id); onClose() }}
-                className="group flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-all hover:bg-white/5 cursor-pointer"
-                style={{ background: active ? palette.panelAlt : undefined, color: palette.textPrimary }}
+                className="group flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-all hover:bg-white/5 cursor-pointer"
+                style={{
+                  background: active ? 'rgba(255,255,255,0.06)' : undefined,
+                  color: palette.textPrimary,
+                }}
               >
-                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg"
-                  style={{ background: active ? 'rgba(29,155,240,0.14)' : palette.panel }}>
-                  <FileText className="h-4 w-4" style={{ color: active ? palette.primary : palette.textSecondary }} />
-                </div>
+                <FileText className="h-4 w-4 shrink-0" style={{ color: active ? palette.primary : palette.textSecondary }} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px]">{chat.title}</div>
-                  <div className="mt-1 text-xs" style={{ color: palette.textMuted }}>
+                  <div className="truncate text-[13px]">{chat.title}</div>
+                  <div className="text-[11px]" style={{ color: palette.textMuted }}>
                     {assistantCfg.label}
                   </div>
                 </div>
                 {chats.length > 1 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
-                    className="opacity-0 group-hover:opacity-100 transition p-1 rounded-lg hover:bg-white/10"
+                    className="opacity-0 group-hover:opacity-100 transition p-0.5 rounded hover:bg-white/10"
                     style={{ color: palette.textMuted }}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -196,37 +187,34 @@ export default function Sidebar({ chats, activeChatId, activeAssistant, onSelect
         </div>
 
         {/* Profile */}
-        <div className="mt-auto border-t p-5" style={{ borderColor: palette.border }}>
+        <div className="mt-auto border-t px-3 py-3" style={{ borderColor: palette.border }}>
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu(p => !p)}
-              className="flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-left transition-all hover:bg-white/5"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-all hover:bg-white/5"
               style={{ background: palette.panel }}
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full"
+              <div className="flex h-8 w-8 items-center justify-center rounded-full shrink-0"
                 style={{ background: 'rgba(29,155,240,0.14)', color: palette.primary }}>
-                <CircleUserRound className="h-5 w-5" />
+                <CircleUserRound className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium" style={{ color: palette.textPrimary }}>User</div>
-                <div className="truncate text-xs" style={{ color: palette.textMuted }}>Admin</div>
+                <div className="truncate text-[13px] font-medium" style={{ color: palette.textPrimary }}>User</div>
+                <div className="truncate text-[11px]" style={{ color: palette.textMuted }}>Admin</div>
               </div>
-              <ChevronDown className="h-4 w-4 transition-transform"
+              <ChevronDown className="h-3.5 w-3.5 transition-transform"
                 style={{ color: palette.textSecondary, transform: showProfileMenu ? 'rotate(180deg)' : 'rotate(0deg)' }} />
             </button>
 
             {showProfileMenu && (
-              <div className="mt-3 rounded-2xl border p-2" style={{ borderColor: palette.borderStrong, background: palette.panel }}>
+              <div className="mt-2 rounded-lg border p-1" style={{ borderColor: palette.borderStrong, background: palette.panel }}>
                 <button
                   onClick={() => { onHome(); onClose(); setShowProfileMenu(false) }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-all hover:bg-white/5"
+                  className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-all hover:bg-white/5"
                   style={{ color: palette.textSecondary }}
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-                    style={{ background: palette.panelAlt, color: palette.textSecondary }}>
-                    <LogOut className="h-4 w-4" />
-                  </div>
-                  <div className="text-[14px] font-medium leading-5">Logout</div>
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  <div className="text-[13px] font-medium">Logout</div>
                 </button>
               </div>
             )}
