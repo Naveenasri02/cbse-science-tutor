@@ -662,10 +662,10 @@ export default function App() {
           </div>
         ) : (
           /* ── CHAT / ASSISTANT VIEW ── */
-          <div className="flex flex-col min-h-0">
+          <>
             {/* Mobile tab bar — NotebookLM-style toggle between Chat and Doc */}
             {showDocPanel && (
-              <div className="md:hidden flex shrink-0" style={{ borderBottom: `1px solid ${palette.border}`, background: palette.panel }}>
+              <div className="md:hidden flex" style={{ borderBottom: `1px solid ${palette.border}`, background: palette.panel }}>
                 <button
                   onClick={() => setMobileTab('chat')}
                   className="flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold transition-colors"
@@ -691,7 +691,7 @@ export default function App() {
               </div>
             )}
 
-            <div className="flex flex-1 min-h-0 overflow-hidden">
+            <div className="flex min-h-0 overflow-hidden">
               {/* Chat column — hidden on mobile when Doc tab is active */}
               <div className={`flex flex-col min-w-0 relative flex-1 ${showDocPanel ? 'md:flex-[0_0_55%]' : ''} ${showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}`}>
                 <ChatArea
@@ -719,7 +719,7 @@ export default function App() {
               {showDocPanel && (
                 <>
                   <div className="panel-resize-handle shrink-0 max-md:hidden" style={{ background: palette.border }} />
-                  <div className={`min-w-0 flex-1 md:flex-[0_0_45%] h-full ${mobileTab === 'chat' ? 'max-md:hidden' : ''}`}>
+                  <div className={`min-w-0 flex-1 md:flex-[0_0_45%] ${mobileTab === 'chat' ? 'max-md:hidden' : ''}`}>
                     <DocViewer
                       fileUrl={activeViewDoc.fileUrl}
                       fileType={activeViewDoc.fileType}
@@ -736,7 +736,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="shrink-0">
+            <div>
               {(activeChat.workflow || !activeAssistantCfg.tryOptions?.length) && (
                 <div className={showDocPanel && mobileTab === 'doc' ? 'max-md:hidden' : ''}>
                   <InputBar
@@ -751,7 +751,7 @@ export default function App() {
                 </div>
               )}
             </div>
-          </div>
+          </>
         )}
       </div>
 
