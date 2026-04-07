@@ -36,14 +36,6 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
             borderColor: 'rgba(234,179,8,0.3)',
           }}
         >
-          <button
-            onClick={() => onDismiss?.(doc.doc_id)}
-            className="absolute top-3 right-3 p-1 rounded-full transition-colors hover:bg-white/10"
-            style={{ color: palette.textMuted }}
-            title="Dismiss"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
           <div className="flex items-start gap-3">
             <span className="text-xl shrink-0 mt-0.5">⚠️</span>
             <div>
@@ -72,16 +64,6 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
           borderColor: 'rgba(29,155,240,0.2)',
         }}
       >
-        {/* Dismiss button */}
-        <button
-          onClick={() => onDismiss?.(doc.doc_id)}
-          className="absolute top-3 right-3 p-1 rounded-full transition-colors hover:bg-white/10"
-          style={{ color: palette.textMuted }}
-          title="Dismiss"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-
         {/* Header with doc type badge */}
         <div className="flex items-center gap-3 mb-4">
           <div
