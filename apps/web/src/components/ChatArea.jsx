@@ -160,7 +160,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                     </span>
                   </div>
                   <span className="text-[13px] font-medium" style={{ color: palette.textSecondary }}>
-                    {uploadProgress < 90 ? 'Uploading...' : 'Processing document...'}
+                    Uploading...
                   </span>
                 </div>
               ) : (
@@ -261,7 +261,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
                         </span>
                       </div>
                       <span className="text-[13px] font-medium" style={{ color: palette.textSecondary }}>
-                        {uploadProgress < 90 ? 'Uploading...' : 'Processing...'}
+                        Uploading...
                       </span>
                     </div>
                   ) : (
