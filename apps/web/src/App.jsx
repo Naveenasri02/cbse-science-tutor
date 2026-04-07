@@ -10,7 +10,7 @@ import useVoice from './hooks/useVoice'
 import useAudioPlayer from './hooks/useAudioPlayer'
 import useDocuments from './hooks/useDocuments'
 import { palette } from '@cbse/shared'
-import { FileText, PanelRightClose, PanelRightOpen, Mail, ShieldCheck, ChevronDown } from 'lucide-react'
+import { FileText, PanelRightClose, PanelRightOpen, ShieldCheck, ChevronDown } from 'lucide-react'
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/voice`
 
@@ -563,7 +563,6 @@ export default function App() {
               className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
               style={{ background: palette.primary, color: 'white' }}
             >
-              <Mail className="h-4 w-4" />
               Contact Us
             </button>
             <span

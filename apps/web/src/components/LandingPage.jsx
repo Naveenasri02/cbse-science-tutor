@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ShieldCheck, Scale, GraduationCap, Briefcase, Headset, Landmark, Bot, Mail } from 'lucide-react'
+import { ShieldCheck, Scale, GraduationCap, Briefcase, Headset, Landmark, Bot } from 'lucide-react'
 import { palette } from '@cbse/shared'
 
 function MatifyLogo({ className = '' }) {
@@ -61,7 +61,6 @@ export default function LandingPage({ onTryDemo }) {
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
           style={{ background: palette.primary, color: 'white' }}
         >
-          <Mail className="h-4 w-4" />
           Contact Us
         </a>
       </header>
