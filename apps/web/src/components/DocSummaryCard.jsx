@@ -123,15 +123,11 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
           </div>
         </div>
 
-        {/* Executive Summary — multi-paragraph */}
+        {/* Summary — concise 2-3 lines */}
         <Section icon={BookOpen} title="Summary">
-          <div className="space-y-2.5">
-            {doc.summary.split('\n').filter(p => p.trim()).map((paragraph, i) => (
-              <p key={i} className="text-[13px] leading-relaxed" style={{ color: palette.textSecondary }}>
-                {paragraph.trim()}
-              </p>
-            ))}
-          </div>
+          <p className="text-[13px] leading-relaxed" style={{ color: palette.textSecondary }}>
+            {doc.summary.replace(/\n+/g, ' ').trim().split(/(?<=[.!?])\s+/).slice(0, 3).join(' ')}
+          </p>
         </Section>
 
         {/* Key Findings */}
