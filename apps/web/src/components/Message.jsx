@@ -47,9 +47,14 @@ function restoreLatex(html, placeholders) {
 }
 
 // Convert inline citation references like [1], [2] into styled clickable citation chips
-function renderCitations(html) {
-  // Match [N] patterns (but not inside href or src attributes, and not [Source:...])
+// Only renders chips for PDF sources; strips [N] for non-PDF sources
+function renderCitations(html, sources) {
   return html.replace(/\[(\d{1,2})\]/g, (match, num) => {
+    const ref = Number(num)
+    const source = sources?.find(s => Number(s.ref) === ref)
+    // Only show citation chip if source is a PDF
+    const ext = (source?.filename || '').split('.').pop()?.toLowerCase()
+    if (!source || ext !== 'pdf') return ''
     return `<span class="citation-chip" data-ref="${num}" title="Jump to Source [${num}]" role="button" tabindex="0">[${num}]</span>`
   })
 }
@@ -107,7 +112,7 @@ export default function Message({ role, text, streaming, onCitationClick, source
     const { result, placeholders } = protectLatex(fixed)
     let html = marked.parse(result)
     html = restoreLatex(html, placeholders)
-    html = renderCitations(html)
+    html = renderCitations(html, sources)
     return html
   }
 
