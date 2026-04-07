@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { FileText, Sparkles, X, Tag, Users, Layers, BookOpen, Lightbulb, List, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { palette } from '@cbse/shared'
 
-function Section({ icon: Icon, title, children, defaultOpen = true }) {
+function Section({ icon: Icon, title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="mb-3">
@@ -124,7 +124,7 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
         </div>
 
         {/* Summary — prominent, always open */}
-        <Section icon={BookOpen} title="Summary">
+        <Section icon={BookOpen} title="Summary" defaultOpen={true}>
           <p className="text-[14px] leading-relaxed" style={{ color: palette.textSecondary }}>
             {doc.summary}
           </p>
@@ -132,7 +132,7 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
 
         {/* Suggested questions — prominent, always open */}
         {doc.suggestedQuestions?.length > 0 && (
-          <Section icon={Sparkles} title="Suggested Questions">
+          <Section icon={Sparkles} title="Suggested Questions" defaultOpen={true}>
             <div className="flex flex-wrap gap-2">
               {doc.suggestedQuestions.map((q, i) => (
                 <button
