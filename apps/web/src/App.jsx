@@ -662,12 +662,12 @@ export default function App() {
           </div>
         ) : (
           /* ── CHAT / ASSISTANT VIEW ── */
-          <div className="flex flex-col min-h-0 overflow-hidden">
+          <div className="flex flex-col min-h-0 overflow-hidden" style={{ flex: '1 1 0%' }}>
             {/* Mobile: vertical stack (chat top 50%, doc bottom 50%)
                 Desktop: horizontal side-by-side (55% chat, 45% doc) */}
-            <div className={`flex flex-1 min-h-0 overflow-hidden ${showDocPanel ? 'max-md:flex-col' : ''}`}>
+            <div className={`flex flex-1 min-h-0 overflow-hidden ${showDocPanel ? 'mobile-split' : ''}`}>
               {/* Chat column */}
-              <div className={`flex flex-col min-w-0 relative flex-1 ${showDocPanel ? 'md:flex-[0_0_55%] max-md:flex-[0_0_50%]' : ''}`}>
+              <div className={`flex flex-col min-w-0 relative flex-1 overflow-hidden ${showDocPanel ? 'md:flex-[0_0_55%] mobile-split-panel' : ''}`}>
                 <ChatArea
                   messages={activeChat.messages}
                   isBotResponding={isBotResponding}
@@ -695,7 +695,7 @@ export default function App() {
                   {/* Desktop: vertical resize handle | Mobile: horizontal divider */}
                   <div className="panel-resize-handle shrink-0 max-md:hidden" style={{ background: palette.border }} />
                   <div className="hidden max-md:block shrink-0 h-px" style={{ background: palette.border }} />
-                  <div className="min-w-0 flex-1 md:flex-[0_0_45%] max-md:flex-[0_0_50%] h-full">
+                  <div className="min-w-0 flex-1 md:flex-[0_0_45%] mobile-split-panel overflow-hidden">
                     <DocViewer
                       fileUrl={activeViewDoc.fileUrl}
                       fileType={activeViewDoc.fileType}
