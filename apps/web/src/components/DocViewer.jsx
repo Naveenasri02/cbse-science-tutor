@@ -79,6 +79,7 @@ export default function DocViewer({
           fileUrl={fileUrl}
           filename={filename}
           targetSnippet={targetSnippet}
+          targetFallbackSnippet={targetFallbackSnippet}
           targetRequestId={targetRequestId}
           onClose={onClose}
         />
@@ -89,6 +90,7 @@ export default function DocViewer({
           fileUrl={fileUrl}
           filename={filename}
           targetSnippet={targetSnippet}
+          targetFallbackSnippet={targetFallbackSnippet}
           targetRequestId={targetRequestId}
           onClose={onClose}
         />
@@ -99,6 +101,7 @@ export default function DocViewer({
           fileUrl={fileUrl}
           filename={filename}
           targetSnippet={targetSnippet}
+          targetFallbackSnippet={targetFallbackSnippet}
           targetRequestId={targetRequestId}
           onClose={onClose}
         />
@@ -117,6 +120,7 @@ export default function DocViewer({
           fileUrl={fileUrl}
           filename={filename}
           targetSnippet={targetSnippet}
+          targetFallbackSnippet={targetFallbackSnippet}
           targetRequestId={targetRequestId}
           onClose={onClose}
         />
