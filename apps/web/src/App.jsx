@@ -662,7 +662,7 @@ export default function App() {
           </div>
         ) : (
           /* ── CHAT / ASSISTANT VIEW ── */
-          <div className="flex flex-col min-h-0">
+          <div className="flex flex-col min-h-0 overflow-hidden">
             {/* Mobile tab bar — NotebookLM-style toggle between Chat and Doc */}
             {showDocPanel && (
               <div className="md:hidden flex shrink-0" style={{ borderBottom: `1px solid ${palette.border}`, background: palette.panel }}>

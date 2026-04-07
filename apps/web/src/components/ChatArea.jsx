@@ -43,7 +43,7 @@ export default function ChatArea({ messages, isBotResponding, mode, assistantCon
   }
 
   return (
-    <div className="relative flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
+    <div className="relative flex flex-col flex-1 overflow-hidden" style={{ minHeight: 0 }}>
       {showWelcome ? (
         <div className="flex h-full flex-col items-center justify-start overflow-auto px-4 pt-6 pb-4 sm:justify-center sm:pt-4 md:px-6 md:py-8">
           <div className="text-center max-w-lg w-full">
