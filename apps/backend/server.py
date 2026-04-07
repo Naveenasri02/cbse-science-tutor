@@ -432,11 +432,19 @@ async def _generate_doc_summary(session_id: str, filename: str) -> dict:
             # Might be on same line or next lines
             rest = line[12:].strip()
             if rest:
-                key_findings.append(rest)
-        elif _re.match(r'^F\d:', line):
-            f = line[3:].strip()
-            if f:
-                key_findings.append(f)
+                # Split in case multiple findings are on one line (F1: ... F2: ...)
+                parts = _re.split(r'\s*F\d+:\s*', rest)
+                for p in parts:
+                    p = p.strip()
+                    if p:
+                        key_findings.append(p)
+        elif _re.match(r'^F\d+:', line):
+            # Single finding line — but may contain multiple (F1: ... F2: ...)
+            parts = _re.split(r'\s*F\d+:\s*', line)
+            for p in parts:
+                p = p.strip()
+                if p:
+                    key_findings.append(p)
         elif _re.match(r'^T\d:', line):
             t = line[3:].strip()
             if t:
