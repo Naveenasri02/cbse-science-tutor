@@ -547,7 +547,7 @@ export default function App() {
             {!showLanding && hasPreviewableDoc && (
               <button
                 onClick={() => { const willOpen = !pdfPanelOpen; setPdfPanelOpen(willOpen); setMobileTab(willOpen ? 'doc' : 'chat') }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[12px] font-medium transition-all"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[12px] font-medium transition-all"
                 style={{
                   background: pdfPanelOpen ? 'rgba(29,155,240,0.15)' : 'rgba(29,155,240,0.06)',
                   color: pdfPanelOpen ? palette.primary : palette.textMuted,
