@@ -25,7 +25,7 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
   const doc = [...documents].reverse().find(d => d.summary || d.relevanceWarning)
   if (!doc) return null
 
-  // Irrelevant document — show compact rejection, hide summary entirely
+  // Irrelevant document — show rejection with guidance to upload a related doc
   if (doc.relevanceWarning) {
     return (
       <div className="mx-auto max-w-3xl w-full px-3 md:px-6 lg:px-8 animate-fade-in">
@@ -52,6 +52,9 @@ export default function DocSummaryCard({ documents, onQuestionClick, onDismiss, 
               </p>
               <p className="text-[12px] leading-relaxed" style={{ color: '#92400e' }}>
                 {doc.relevanceWarning}
+              </p>
+              <p className="text-[12px] leading-relaxed mt-2" style={{ color: '#92400e' }}>
+                Upload a related document to continue, or switch to the <strong>General Assistant</strong> which accepts any document type.
               </p>
             </div>
           </div>

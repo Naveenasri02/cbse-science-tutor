@@ -354,6 +354,20 @@ export default function App() {
 
   const sendText = (text) => {
     if (!text.trim() || !ws.current || ws.current.readyState !== WebSocket.OPEN) return
+
+    // Block if only irrelevant documents are uploaded — tell user to upload a related doc
+    const hasRelevantDoc = documents.some(d => !d.relevanceWarning)
+    const hasIrrelevantDoc = documents.some(d => d.relevanceWarning)
+    if (hasIrrelevantDoc && !hasRelevantDoc) {
+      const assistantCfg = ASSISTANTS.find(a => a.key === activeAssistant) || ASSISTANTS[0]
+      addMsg('user', text.trim())
+      updateChatTitle(text.trim())
+      setTimeout(() => {
+        addMsg('bot', `The uploaded document doesn't appear to be relevant to the **${assistantCfg.label}**. I can only answer questions based on documents within this assistant's domain.\n\nPlease upload a relevant document to get started, or switch to the **General Assistant** which accepts any document type.`)
+      }, 300)
+      return
+    }
+
     // Auto-select first workflow if user types before choosing one
     if (!activeChat.workflow && activeAssistantCfg.tryOptions?.length > 0) {
       const defaultWf = activeAssistantCfg.tryOptions[0].message

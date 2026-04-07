@@ -1381,7 +1381,7 @@ def check_document_relevance(
             warnings.append(
                 f"This document appears to be a \"{doc_type}\" which may not be relevant "
                 f"to the {ASSISTANT_ROLES.get(assistant_key, {}).get('role', assistant_key)} Assistant. "
-                f"I'll still process it, but my analysis will be limited to what's in the document."
+                f"Please upload a document related to {ASSISTANT_ROLES.get(assistant_key, {}).get('domain', 'this assistant\\'s domain')} to get started."
             )
 
     # 2. Check themes against workflow's required themes
@@ -1394,7 +1394,7 @@ def check_document_relevance(
             warnings.append(
                 f"This document's content doesn't appear to be related to {wf_name}. "
                 f"I can only analyze document content within the {wf_name} scope. "
-                f"If this document is relevant, please ask specific questions about it."
+                f"Please upload a relevant document to continue."
             )
 
     if warnings:
