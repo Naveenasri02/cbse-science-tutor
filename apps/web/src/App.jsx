@@ -727,7 +727,13 @@ export default function App() {
                       targetSnippet={pdfTarget.snippet}
                       targetFallbackSnippet={pdfTarget.fallbackSnippet}
                       targetRequestId={pdfTarget.requestId}
-                      onClose={() => { setPdfPanelOpen(false); setMobileTab('chat') }}
+                      onClose={() => {
+                        if (window.innerWidth < 768) {
+                          setMobileTab('chat')
+                        } else {
+                          setPdfPanelOpen(false)
+                        }
+                      }}
                     />
                   </div>
                 </>
