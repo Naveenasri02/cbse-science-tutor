@@ -1,0 +1,35 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# System deps for PyMuPDF (libmupdf), python-docx, OCR fallbacks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libxml2 libxslt1.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# RAG-only deps: no vLLM, no torch CUDA, no NeMo, no Kokoro
+RUN pip install --upgrade pip && pip install \
+    runpod==1.7.13 \
+    httpx>=0.27 \
+    python-dotenv>=1.0 \
+    chromadb>=0.5 \
+    sentence-transformers>=3.0 \
+    rank_bm25>=0.2.2 \
+    PyMuPDF>=1.24 \
+    python-docx>=1.1 \
+    python-pptx>=1.0 \
+    openpyxl>=3.1 \
+    olefile>=0.47 \
+    pdfplumber>=0.11 \
+    numpy>=1.26
+
+COPY rag/ ./rag/
+COPY config.py .
+COPY handler.py .
+
+CMD ["python", "-u", "handler.py"]
