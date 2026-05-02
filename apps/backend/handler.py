@@ -12,23 +12,38 @@ falls back to ephemeral /tmp/chroma when no volume.
 """
 import os
 import re
+import sys
 import json
 import base64
 import asyncio
 import traceback
 from pathlib import Path
 
+print("[boot] handler.py starting...", flush=True)
+print(f"[boot] python {sys.version.split()[0]}, cwd={os.getcwd()}", flush=True)
+
 # Pre-import config: must point CHROMA persist dir before store.py is imported
 _VOLUME = "/runpod-volume"
-if Path(_VOLUME).exists():
-    os.environ.setdefault("CHROMA_PERSIST_PATH", f"{_VOLUME}/chroma")
-else:
-    os.environ.setdefault("CHROMA_PERSIST_PATH", "/tmp/chroma")
-Path(os.environ["CHROMA_PERSIST_PATH"]).mkdir(parents=True, exist_ok=True)
+try:
+    if Path(_VOLUME).exists():
+        os.environ.setdefault("CHROMA_PERSIST_PATH", f"{_VOLUME}/chroma")
+    else:
+        os.environ.setdefault("CHROMA_PERSIST_PATH", "/tmp/chroma")
+    Path(os.environ["CHROMA_PERSIST_PATH"]).mkdir(parents=True, exist_ok=True)
+    print(f"[boot] CHROMA_PERSIST_PATH={os.environ['CHROMA_PERSIST_PATH']}", flush=True)
+except Exception as e:
+    print(f"[boot] WARN volume setup failed, using /tmp: {e}", flush=True)
+    os.environ["CHROMA_PERSIST_PATH"] = "/tmp/chroma"
+    Path("/tmp/chroma").mkdir(parents=True, exist_ok=True)
 
+print("[boot] importing config...", flush=True)
 import config
+print(f"[boot] config OK. VLLM_BASE_URL={config.VLLM_BASE_URL}", flush=True)
+
+print("[boot] importing httpx, runpod...", flush=True)
 import httpx
 import runpod
+print(f"[boot] runpod version: {getattr(runpod, '__version__', 'unknown')}", flush=True)
 
 # Lazy-init RAG components on first request (cold start)
 _rag = None
@@ -485,7 +500,16 @@ async def async_generator_handler(event):
         yield {"type": "error", "text": str(e), "traceback": traceback.format_exc()}
 
 
-runpod.serverless.start({
-    "handler": async_generator_handler,
-    "return_aggregate_stream": True,
-})
+if __name__ == "__main__":
+    print("[boot] registering handler with runpod.serverless.start...", flush=True)
+    try:
+        runpod.serverless.start({
+            "handler": async_generator_handler,
+            "return_aggregate_stream": True,
+        })
+        # If start() ever returns, that's wrong — log it so we can see
+        print("[boot] WARNING: runpod.serverless.start returned (unexpected)", flush=True)
+    except Exception as e:
+        print(f"[boot] FATAL: runpod.serverless.start raised: {e}", flush=True)
+        traceback.print_exc()
+        raise
