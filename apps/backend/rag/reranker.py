@@ -1,15 +1,26 @@
 """Cross-encoder reranker for RAG retrieval precision."""
 
+import os
+import torch
 from sentence_transformers import CrossEncoder
 import config
+
+
+def _pick_device() -> str:
+    """Same auto-detect as rag/embedder.py — keeps GPU and CPU images both working."""
+    forced = os.environ.get("EMBEDDING_DEVICE", "").strip().lower()
+    if forced in ("cpu", "cuda", "mps"):
+        return forced
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class Reranker:
     """BGE Reranker v2 — scores (query, chunk) relevance with cross-attention."""
 
     def __init__(self):
-        print(f"  Loading reranker {config.RERANKER_MODEL}...")
-        self.model = CrossEncoder(config.RERANKER_MODEL, max_length=512, device="cuda")
+        device = _pick_device()
+        print(f"  Loading reranker {config.RERANKER_MODEL} on device={device}...")
+        self.model = CrossEncoder(config.RERANKER_MODEL, max_length=512, device=device)
         # Warmup
         self.model.predict([("warmup query", "warmup passage")])
         print("  ✓ Reranker ready")
