@@ -17,6 +17,13 @@ apps/backend/static/
 .env.local
 .env.production.local
 
+# Credentials — never commit
+.runpod_key
+*.pem
+*.key
+secrets/
+**/credentials.json
+
 # IDE
 .vscode/
 .idea/

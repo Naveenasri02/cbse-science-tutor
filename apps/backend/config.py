@@ -3,10 +3,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── LLM (vLLM on same machine) ──
+# ── LLM (Gemma 4 26B AWQ on RunPod Serverless vLLM) ──
+# Set VLLM_BASE_URL to your RunPod endpoint, e.g.:
+#   https://api.runpod.ai/v2/<endpoint-id>/openai/v1
 VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://localhost:8002/v1")
-VLLM_MODEL = os.getenv("VLLM_MODEL", "invergent/Qwen3-30B-A3B-AWQ")
+VLLM_MODEL = os.getenv("VLLM_MODEL", "cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY", "cbse-sk-local")
+
+# ── Voice (Parakeet STT + Kokoro TTS) ──
+# Set VOICE_ENABLED=true to load STT/TTS models at server startup.
+# When false (default), the LLM is the only model loaded; voice WebSocket
+# events will not be processed. Voice code stays on disk untouched.
+VOICE_ENABLED = os.getenv("VOICE_ENABLED", "false").lower() in ("true", "1", "yes")
 
 SYSTEM_PROMPT = (
     "You are a helpful AI assistant. Answer questions clearly and accurately. "
