@@ -68,6 +68,20 @@ def _lazy_init_rag():
     return _rag
 
 
+# Pre-warm RAG at module load so first user chat doesn't pay the ~30s
+# embedder cold-start (BGE-large into CPU RAM via sentence-transformers).
+# In pod mode, this means handler.py's startup takes ~30s longer but every
+# user-facing request is fast. Failures are tolerated — chat falls back to
+# the lazy path on first call.
+if os.environ.get("PREWARM_RAG", "1") == "1":
+    try:
+        print("[boot] pre-warming RAG embedder (PREWARM_RAG=1)...", flush=True)
+        _lazy_init_rag()
+        print("[boot] RAG embedder ready", flush=True)
+    except Exception as _prewarm_err:
+        print(f"[boot] WARN: RAG pre-warm failed, falling back to lazy: {_prewarm_err}", flush=True)
+
+
 def _strip_think(text: str) -> str:
     return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
 
