@@ -49,5 +49,9 @@ export VLLM_BASE_URL="http://localhost:${LLM_PORT}/v1"
 export VLLM_MODEL="${SERVED_NAME}"
 export VLLM_API_KEY="${VLLM_API_KEY:-local}"
 
-echo "[entry] handing off to handler.py (VLLM_BASE_URL=${VLLM_BASE_URL})"
-exec python -u /app/handler.py
+echo "[entry] handing off to handler.py (VLLM_BASE_URL=${VLLM_BASE_URL}, RP_MODE=${RP_MODE:-serverless})"
+if [ "${RP_MODE:-serverless}" = "api" ]; then
+  exec python -u /app/handler.py --rp_serve_api --rp_api_host 0.0.0.0 --rp_api_port 8000
+else
+  exec python -u /app/handler.py
+fi
