@@ -15,7 +15,7 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
 WORKDIR /app
 
 # Layer 1: vLLM (heaviest dep — install separately so caching helps)
-RUN pip install --upgrade pip && pip install vllm==0.7.0
+RUN pip install --upgrade pip && pip install vllm==0.20.1
 
 # Layer 2: RAG + serverless deps
 RUN pip install \
