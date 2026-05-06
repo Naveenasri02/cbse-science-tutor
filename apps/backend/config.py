@@ -948,7 +948,11 @@ def get_system_prompt(assistant_key: str, workflow: str = "") -> str:
         # ── No workflow selected — use full assistant prompt ──
         base = ASSISTANT_PROMPTS.get(assistant_key, SYSTEM_PROMPT)
         role_info = ASSISTANT_ROLES.get(assistant_key)
-        if role_info:
+        # Skip the strict role-boundary template for "general" — its domain is
+        # literally "any topic related to uploaded documents", so the boundary's
+        # "outside-domain rejection" clause causes the LLM to incorrectly refuse
+        # valid doc questions when retrieval misses or scores low.
+        if role_info and assistant_key != "general":
             base += ROLE_BOUNDARY_TEMPLATE.format(**role_info)
         return base
 
