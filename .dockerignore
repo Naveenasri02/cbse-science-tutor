@@ -1,0 +1,15 @@
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.git
+apps/backend/stt
+apps/backend/tts
+apps/web/node_modules
+apps/web/dist
+docs
+.github
+.vercel
+.runpod_key
+*.bak
+*.bak2
+*.bak3

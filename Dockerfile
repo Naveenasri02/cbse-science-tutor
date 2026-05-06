@@ -2,11 +2,12 @@ FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
+ENV VOICE_ENABLED=false
 
-# System deps
+# System deps (minimal, no voice libs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3-pip \
-    libsndfile1 ffmpeg curl git \
+    ffmpeg curl git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
@@ -19,26 +20,20 @@ COPY apps/backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Install vLLM for LLM inference
-RUN pip install --no-cache-dir vllm
+# Install vLLM 0.20.1 (supports Gemma 4 multimodal architecture)
+RUN pip install --no-cache-dir vllm==0.20.1
 
-# Copy backend code
+# Copy backend code (excludes stt/ and tts/ via .dockerignore)
 COPY apps/backend/ /app/
 
-# Copy React build (built in CI or locally)
-COPY apps/web/dist/ /app/static/
+# Frontend is hosted on Vercel; no static dist embedded in this image.
+# (Backup's Dockerfile copied apps/web/dist into /app/static for same-origin
+# serving — we serve frontend from Vercel and connect via wss:// to this pod.)
 
-# Download Kokoro TTS model if not present
-RUN mkdir -p /app/voices && \
-    python -c "from kokoro_onnx import Kokoro; print('Kokoro available')" || true
-
-# Pre-download Parakeet TDT model
-RUN python -c "import nemo.collections.asr as nemo_asr; nemo_asr.models.ASRModel.from_pretrained('nvidia/parakeet-tdt-0.6b-v2')" || true
-
-# Expose port
+# Expose FastAPI port (LLM port 8002 stays internal/localhost-only)
 EXPOSE 8000
 
-# Start script: launch vLLM server + FastAPI backend
+# Start script: launch vLLM (port 8002) + FastAPI server (port 8000)
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 

@@ -30,15 +30,26 @@ _stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 
 print("🔧 Loading models...")
 
-print("  [1/4] STT (torch/NeMo must load before ONNX to avoid CUDA conflict)...")
-from stt.parakeet_stt import ParakeetSTT
-stt = ParakeetSTT()
-print("  ✓ STT ready")
+# Voice (STT/TTS) is gated by VOICE_ENABLED env var. When false (default for
+# this deployment), the stt/ and tts/ modules are NOT imported — so the
+# kokoro-onnx, nemo_toolkit, onnxruntime-gpu, easyocr deps are also not
+# required at runtime. Frontend should not send audio messages in this mode.
+VOICE_ENABLED = os.getenv("VOICE_ENABLED", "false").lower() in ("1", "true", "yes")
+stt = None
+tts = None
+if VOICE_ENABLED:
+    print("  [1/4] STT (torch/NeMo must load before ONNX to avoid CUDA conflict)...")
+    from stt.parakeet_stt import ParakeetSTT
+    stt = ParakeetSTT()
+    print("  ✓ STT ready")
 
-print("  [2/4] TTS engine...")
-from tts.kokoro_tts import KokoroTTS
-tts = KokoroTTS()
-print("  ✓ TTS ready")
+    print("  [2/4] TTS engine...")
+    from tts.kokoro_tts import KokoroTTS
+    tts = KokoroTTS()
+    print("  ✓ TTS ready")
+else:
+    print("  [1/4] STT skipped (VOICE_ENABLED=false)")
+    print("  [2/4] TTS skipped (VOICE_ENABLED=false)")
 
 print("  [3/4] LLM client...")
 from openai import AsyncOpenAI
@@ -511,7 +522,7 @@ async def delete_document(doc_id: str, session_id: str = Query(...)):
     deleted = rag.delete_document(session_id, doc_id)
     return JSONResponse(content={"deleted": deleted, "doc_id": doc_id})
 
-
+
 # ── Health check (must be above SPA catch-all) ──────────────
 @app.get("/health")
 async def health():

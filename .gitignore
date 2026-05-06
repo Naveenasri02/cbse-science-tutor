@@ -43,3 +43,5 @@ voices/
 # Logs
 *.log
 .vercel
+.llm_endpoint_id
+.rag_endpoint_id

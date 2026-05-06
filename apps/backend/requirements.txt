@@ -6,17 +6,8 @@ python-dotenv>=1.0
 httpx>=0.27
 python-multipart>=0.0.9
 
-# LLM client (OpenAI-compatible, talks to vLLM)
+# LLM client (OpenAI-compatible, talks to vLLM on localhost:8002)
 openai>=1.50
-
-# STT (NVIDIA Parakeet TDT — runs in-process on GPU)
-nemo_toolkit[asr]>=2.0
-soundfile>=0.12
-
-# TTS (Kokoro ONNX — runs in-process on GPU)
-kokoro-onnx>=0.5.0
-onnxruntime-gpu>=1.18
-nvidia-cudnn-cu12
 
 # RAG (Document Q&A) — Production Pipeline
 chromadb>=0.5
@@ -29,10 +20,16 @@ sentence-transformers>=3.0
 pdfplumber>=0.11
 rank_bm25>=0.2.2
 
-# OCR (for scanned PDFs and image uploads)
-easyocr>=1.7
-
-# Infra (installed on GPU server, not in requirements)
-# vllm>=0.18        — serves Qwen3-30B-A3B LLM on port 8002
-
+# Numerics
 numpy>=1.26
+
+# ── Voice deps (STT/TTS) intentionally OMITTED ──
+# When VOICE_ENABLED=true, install these additionally:
+#   nemo_toolkit[asr]>=2.0
+#   soundfile>=0.12
+#   kokoro-onnx>=0.5.0
+#   onnxruntime-gpu>=1.18
+#   nvidia-cudnn-cu12
+#   easyocr>=1.7
+#
+# vLLM itself is installed separately in the Dockerfile (vllm==0.20.1).

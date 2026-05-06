@@ -3,18 +3,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── LLM (Gemma 4 26B AWQ on RunPod Serverless vLLM) ──
-# Set VLLM_BASE_URL to your RunPod endpoint, e.g.:
-#   https://api.runpod.ai/v2/<endpoint-id>/openai/v1
+# ── LLM (vLLM on same machine) ──
 VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://localhost:8002/v1")
-VLLM_MODEL = os.getenv("VLLM_MODEL", "cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit")
+VLLM_MODEL = os.getenv("VLLM_MODEL", "prithivMLmods/gemma-4-E4B-it-FP8")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY", "cbse-sk-local")
-
-# ── Voice (Parakeet STT + Kokoro TTS) ──
-# Set VOICE_ENABLED=true to load STT/TTS models at server startup.
-# When false (default), the LLM is the only model loaded; voice WebSocket
-# events will not be processed. Voice code stays on disk untouched.
-VOICE_ENABLED = os.getenv("VOICE_ENABLED", "false").lower() in ("true", "1", "yes")
 
 SYSTEM_PROMPT = (
     "You are a helpful AI assistant. Answer questions clearly and accurately. "
@@ -1146,18 +1138,17 @@ QUERY_ANALYSIS_PROMPT = (
     "or a broad topic within it. Examples: 'analyze this contract', 'review this deed', "
     "'what protections does this provide', 'explain all the terms', 'what are the key provisions', "
     "'do due diligence on this'. This needs the FULL document or large sections, not just a few passages.\n"
-    "- out_of_scope — ONLY when the query is OBVIOUSLY unrelated to the documents. Examples:\n"
-    "  * Sports scores, weather, recipes, jokes, song lyrics, celebrity gossip\n"
-    "  * Real-time information (current time, news, today's events)\n"
-    "  * Personal life advice with zero document overlap\n"
-    "  Do NOT use 'out_of_scope' just because the document topics list doesn't explicitly mention "
-    "the query's keywords — the document may cover the topic in chunks not visible to you here.\n"
+    "- out_of_scope — the query meets ANY of these criteria:\n"
+    "  * Has nothing to do with the document topics or the active workflow\n"
+    "  * Would require general knowledge, training data, or external information to answer\n"
+    "  * Asks about topics not covered in the documents (even if related to the domain)\n"
+    "  * Asks for explanations of concepts that are NOT discussed in the documents\n"
+    "  * Is about sports, entertainment, weather, recipes, general trivia, or any non-document topic\n"
     "- ambiguous — the query references something that could have multiple "
     "interpretations and needs clarification\n"
     "- summary — the user wants an overview/summary of the document(s)\n\n"
-    "IMPORTANT: When in doubt, prefer 'answerable'. Hybrid retrieval will determine if there is a "
-    "relevant chunk; if not, the user gets a helpful 'I couldn't find that in your docs' response. "
-    "Only classify as 'out_of_scope' when the query is plainly off-domain (sports, weather, etc.).\n\n"
+    "IMPORTANT: When in doubt between 'answerable' and 'out_of_scope', prefer 'out_of_scope'. "
+    "Only classify as 'answerable' if you are confident the documents contain relevant information.\n\n"
     "Respond with ONLY the classification word. Nothing else."
 )
 

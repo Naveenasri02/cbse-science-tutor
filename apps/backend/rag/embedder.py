@@ -1,8 +1,6 @@
 """Production embedder: BGE-large + BM25 hybrid search support."""
 
-import os
 import numpy as np
-import torch
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 import re
@@ -14,29 +12,15 @@ def _tokenize_for_bm25(text: str) -> list[str]:
     return re.findall(r'\w+', text.lower())
 
 
-def _pick_device() -> str:
-    """Honor EMBEDDING_DEVICE env if set; else auto-detect.
-
-    Lets the same code run on the unified GPU image (cuda) and the
-    CPU-only RAG image (cpu) without crashing on cuda init when no
-    GPU is present.
-    """
-    forced = os.environ.get("EMBEDDING_DEVICE", "").strip().lower()
-    if forced in ("cpu", "cuda", "mps"):
-        return forced
-    return "cuda" if torch.cuda.is_available() else "cpu"
-
-
 class Embedder:
-    """BGE-large-en-v1.5 embedding model + BM25 sparse index. Auto-detects GPU/CPU."""
+    """BGE-large-en-v1.5 embedding model on GPU + BM25 sparse index."""
 
     def __init__(self):
-        device = _pick_device()
-        print(f"  Loading embedding model {config.EMBEDDING_MODEL} on device={device}...")
-        self.model = SentenceTransformer(config.EMBEDDING_MODEL, device=device)
+        print(f"  Loading embedding model {config.EMBEDDING_MODEL}...")
+        self.model = SentenceTransformer(config.EMBEDDING_MODEL, device="cuda")
         self.dim = self.model.get_sentence_embedding_dimension()
         self.model.encode(["warmup sentence"], normalize_embeddings=True)
-        print(f"  ✓ Embedder ready (device={device}, dim={self.dim})")
+        print(f"  ✓ Embedder ready (dim={self.dim})")
 
     def embed(self, text: str) -> list[float]:
         """Embed a single text string. Returns normalized vector."""

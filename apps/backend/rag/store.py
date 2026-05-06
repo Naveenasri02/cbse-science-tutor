@@ -11,9 +11,10 @@ class VectorStore:
     """ChromaDB wrapper with per-session document storage and rich metadata."""
 
     def __init__(self):
-        os.makedirs(config.CHROMA_PERSIST_DIR, exist_ok=True)
-        self.client = chromadb.PersistentClient(path=config.CHROMA_PERSIST_DIR)
-        print(f"  ✓ ChromaDB ready (persist={config.CHROMA_PERSIST_DIR})")
+        persist_dir = config.CHROMA_PERSIST_DIR
+        os.makedirs(persist_dir, exist_ok=True)
+        self.client = chromadb.PersistentClient(path=persist_dir)
+        print(f"  ✓ ChromaDB ready (persist={persist_dir})")
 
     def _collection_name(self, session_id: str) -> str:
         name = f"s_{session_id.replace('-', '_')}"

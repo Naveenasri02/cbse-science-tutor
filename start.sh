@@ -3,15 +3,10 @@ set -e
 
 # Environment for GPU inference
 export HF_HOME=/workspace/.cache/huggingface
+export HF_HUB_CACHE=/workspace/.cache/huggingface/hub
 export PATH=/usr/local/cuda/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/lib/python3.11/dist-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cusolver/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cusparse/lib:/usr/local/lib/python3.11/dist-packages/nvidia/nccl/lib:/usr/local/lib/python3.11/dist-packages/nvidia/nvjitlink/lib:${LD_LIBRARY_PATH:-}
 
-# Symlink cuDNN/cuBLAS so ONNX Runtime finds them (Kokoro TTS GPU)
-ln -sf /usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib/libcudnn*.so* /usr/local/lib/ 2>/dev/null
-ln -sf /usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib/libcublas*.so* /usr/local/lib/ 2>/dev/null
-ldconfig 2>/dev/null
-
-# Ensure HuggingFace cache is on workspace
+# Ensure HuggingFace cache is on workspace (persistent volume)
 mkdir -p /workspace/.cache/huggingface
 ln -sf /workspace/.cache/huggingface /root/.cache/huggingface 2>/dev/null || true
 
@@ -19,42 +14,41 @@ ln -sf /workspace/.cache/huggingface /root/.cache/huggingface 2>/dev/null || tru
 mkdir -p /workspace/vector_db
 mkdir -p /workspace/uploads
 
-# Install ffmpeg if not present
+# Install ffmpeg if not present (used for doc parsing edge cases)
 which ffmpeg > /dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq ffmpeg; }
 
-# ── Download Kokoro TTS model if not present ──
-if [ ! -f /workspace/kokoro-v1.0.onnx ]; then
-  echo "Downloading Kokoro TTS model..."
-  wget -q -O /workspace/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
-  wget -q -O /workspace/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
-  echo "Kokoro model downloaded"
-fi
+# Voice (STT/TTS) is disabled at the application level via VOICE_ENABLED=false in
+# the pod's environment. No model downloads or driver shims required here.
 
-# ── Start LLM server (vLLM with Qwen3-30B-A3B MoE AWQ) ──
-nohup vllm serve invergent/Qwen3-30B-A3B-AWQ \
+# ── Start LLM server (vLLM serving Gemma 4 E4B FP8) ──
+MODEL_NAME="${MODEL_NAME:-prithivMLmods/gemma-4-E4B-it-FP8}"
+GPU_UTIL="${GPU_MEMORY_UTILIZATION:-0.7}"
+MAX_LEN="${MAX_MODEL_LEN:-8192}"
+
+nohup vllm serve "$MODEL_NAME" \
   --host 0.0.0.0 \
   --port 8002 \
-  --gpu-memory-utilization 0.55 \
-  --max-model-len 16384 \
+  --gpu-memory-utilization "$GPU_UTIL" \
+  --max-model-len "$MAX_LEN" \
   --api-key cbse-sk-local \
   --dtype auto \
-  --quantization awq_marlin \
+  --quantization compressed-tensors \
+  --trust-remote-code \
   > /workspace/llm_server.log 2>&1 &
-echo "LLM (vLLM Qwen3-30B-A3B MoE AWQ) PID=$!"
+echo "LLM (vLLM $MODEL_NAME) PID=$!"
 
 echo "Waiting for LLM server..."
-for i in $(seq 1 60); do
+for i in $(seq 1 120); do
   curl -s http://localhost:8002/health > /dev/null 2>&1 && break
   sleep 5
 done
 echo "LLM ready"
 
-# ── Start FastAPI (STT + Kokoro TTS load in-process on GPU) ──
-cd /workspace/cbse-chatbot/backend
-nohup python3 -u -m uvicorn server:app \
+# ── Start FastAPI server (handles /api/upload, /api/documents, /ws/voice for chat) ──
+# server.py imports from /app (image WORKDIR). VOICE_ENABLED=false means STT/TTS
+# modules are never imported, so the stt/ and tts/ directories are not required.
+cd /app
+exec python3 -u -m uvicorn server:app \
   --host 0.0.0.0 \
   --port 8000 \
-  --log-level info \
-  > /workspace/fastapi_server.log 2>&1 &
-echo "FastAPI PID=$!"
-echo "All services started! (LLM on :8002, FastAPI+STT+TTS on :8000)"
+  --log-level info
