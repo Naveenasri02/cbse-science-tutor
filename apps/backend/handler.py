@@ -466,6 +466,35 @@ async def _op_delete_document(inp):
         yield {"type": "error", "text": f"delete failed: {e}"}
 
 
+async def _op_debug(inp):
+    import subprocess
+    log_path = inp.get("log_path", "/tmp/vllm.log")
+    tail_lines = int(inp.get("tail", 200))
+    info = {"log_path": log_path}
+    try:
+        info["log_exists"] = Path(log_path).exists()
+        if info["log_exists"]:
+            info["log_size"] = Path(log_path).stat().st_size
+            with open(log_path, "r", errors="replace") as f:
+                lines = f.readlines()
+            info["log_tail"] = "".join(lines[-tail_lines:])
+    except Exception as e:
+        info["log_error"] = str(e)
+    try:
+        ps = subprocess.run(["ps", "auxww"], capture_output=True, text=True, timeout=5)
+        info["ps_vllm_python"] = "\n".join(
+            l for l in ps.stdout.splitlines() if "vllm" in l.lower() or "python" in l.lower()
+        )
+    except Exception as e:
+        info["ps_error"] = str(e)
+    try:
+        nv = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.used,memory.total", "--format=csv"], capture_output=True, text=True, timeout=5)
+        info["nvidia_smi"] = nv.stdout
+    except Exception as e:
+        info["nvidia_smi_error"] = str(e)
+    yield {"type": "debug", "info": info}
+
+
 # ── Dispatch ────────────────────────────────────────────────
 
 async def _async_handler(event):
@@ -486,6 +515,10 @@ async def _async_handler(event):
         return
     if op == "delete_document":
         async for ev in _op_delete_document(inp):
+            yield ev
+        return
+    if op == "debug":
+        async for ev in _op_debug(inp):
             yield ev
         return
 
