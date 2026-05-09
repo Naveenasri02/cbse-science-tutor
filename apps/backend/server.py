@@ -37,26 +37,31 @@ _stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 
 print("🔧 Loading models...")
 
-# Voice (STT/TTS) loads opportunistically. Missing deps or model files just
-# disable voice — server still serves text chat. (No env-var gate: the pod
-# bootstrap script hardcodes VOICE_ENABLED=false, which we deliberately ignore;
-# to disable voice, remove the stt/ or tts/ directories from the repo.)
+# Voice (STT/TTS) is OFF by default. Pod bootstrap exports VOICE_ENABLED=false,
+# which we honor to keep boot fast and avoid CPU-NeMo/CPU-Kokoro overhead. To
+# enable voice, set VOICE_ENABLED=true in the pod env AND ensure stt/, tts/
+# dirs + voice deps + Kokoro model files are present.
+VOICE_ENABLED = os.getenv("VOICE_ENABLED", "false").lower() in ("1", "true", "yes")
 stt = None
 tts = None
-try:
-    print("  [1/4] STT (torch/NeMo must load before ONNX to avoid CUDA conflict)...")
-    from stt.parakeet_stt import ParakeetSTT
-    stt = ParakeetSTT()
-    print("  ✓ STT ready")
-except Exception as e:
-    print(f"  ⚠️ STT load failed; voice input disabled: {type(e).__name__}: {str(e)[:120]}")
-try:
-    print("  [2/4] TTS engine...")
-    from tts.kokoro_tts import KokoroTTS
-    tts = KokoroTTS()
-    print("  ✓ TTS ready")
-except Exception as e:
-    print(f"  ⚠️ TTS load failed; voice output disabled: {type(e).__name__}: {str(e)[:120]}")
+if VOICE_ENABLED:
+    try:
+        print("  [1/4] STT (torch/NeMo must load before ONNX to avoid CUDA conflict)...")
+        from stt.parakeet_stt import ParakeetSTT
+        stt = ParakeetSTT()
+        print("  ✓ STT ready")
+    except Exception as e:
+        print(f"  ⚠️ STT load failed; voice input disabled: {type(e).__name__}: {str(e)[:120]}")
+    try:
+        print("  [2/4] TTS engine...")
+        from tts.kokoro_tts import KokoroTTS
+        tts = KokoroTTS()
+        print("  ✓ TTS ready")
+    except Exception as e:
+        print(f"  ⚠️ TTS load failed; voice output disabled: {type(e).__name__}: {str(e)[:120]}")
+else:
+    print("  [1/4] STT skipped (VOICE_ENABLED=false)")
+    print("  [2/4] TTS skipped (VOICE_ENABLED=false)")
 
 print("  [3/4] LLM client...")
 from openai import AsyncOpenAI
