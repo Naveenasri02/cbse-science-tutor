@@ -645,7 +645,7 @@ def parse_image(file_bytes: bytes) -> str:
 
     if _HAS_OCR:
         if _ocr_reader is None:
-            _ocr_reader = easyocr.Reader(["en"], gpu=True)
+            _ocr_reader = easyocr.Reader(["en"], gpu=False)
         import numpy as np
         img_array = np.array(img)
         results = _ocr_reader.readtext(img_array, detail=0, paragraph=True)

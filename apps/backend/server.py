@@ -1,13 +1,18 @@
 """
-Voice Chat Server — All-in-One GPU Backend
-STT (Parakeet TDT) + LLM (vLLM) + TTS (Kokoro ONNX GPU) + RAG (ChromaDB) on single GPU.
-Streaming WebSocket pipeline with barge-in support and document Q&A.
+Voice Chat Server — Hybrid CPU/GPU Backend
+LLM (vLLM, separate process) owns the GPU. This FastAPI process is CPU-only:
+STT (Parakeet on CPU), TTS (Kokoro CPU), embedder (BGE on CPU), easyocr (CPU).
 """
+
+import os
+# Hide GPU from this process — vLLM (separate process) keeps full GPU access
+# but NeMo/easyocr/torch in THIS process default to CPU instead of fighting
+# vLLM for VRAM and OOMing. Must run BEFORE any torch/nemo import.
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import asyncio
 import json
 import io
-import os
 import re
 import uuid
 import wave

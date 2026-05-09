@@ -14,12 +14,17 @@ class ParakeetSTT:
 
         device = os.getenv("STT_DEVICE", "cpu").lower()
         print(f"  Loading Parakeet TDT 0.6B v2 on {device.upper()}...")
+        # NeMo's from_pretrained defaults to CUDA if visible — pass map_location
+        # explicitly so we never accidentally allocate VRAM that vLLM needs.
         self.model = nemo_asr.models.ASRModel.from_pretrained(
-            "nvidia/parakeet-tdt-0.6b-v2"
+            "nvidia/parakeet-tdt-0.6b-v2",
+            map_location="cuda" if device == "cuda" else "cpu",
         )
         self.model.eval()
         if device == "cuda":
             self.model = self.model.cuda()
+        else:
+            self.model = self.model.cpu()
 
         # Warm up with direct numpy arrays (15x faster than temp files)
         for length in [16000, 32000, 48000]:
