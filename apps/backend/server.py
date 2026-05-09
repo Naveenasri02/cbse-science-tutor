@@ -716,8 +716,12 @@ async def voice_endpoint(ws: WebSocket):
                 {"role": "system", "content": config.get_system_prompt(assistant_key, active_workflow) + lang_instruction},
                 *conversation_history[1:],
             ]
-            voice_messages[0]["content"] += rag_context
-            print(f"  📄 Voice RAG: injected context for '{transcript[:40]}' (using text-style prompt)")
+            # Inject RAG context into the latest USER turn (see text-path fix above
+            # for rationale — Gemma 4 chat template handling of system messages).
+            if voice_messages[-1].get("role") == "user":
+                last = voice_messages[-1]
+                voice_messages[-1] = {"role": "user", "content": rag_context + "\n\nQuestion: " + last["content"]}
+            print(f"  📄 Voice RAG: injected context for '{transcript[:40]}' (in user turn)")
         else:
             voice_messages = [
                 {"role": "system", "content": config.get_voice_system_prompt(assistant_key, active_workflow) + lang_instruction},
@@ -988,9 +992,14 @@ async def voice_endpoint(ws: WebSocket):
                         if rag_sources:
                             await safe_send_json({"type": "rag_sources", "sources": rag_sources})
 
-                        # If documents uploaded, inject RAG context; otherwise AI answers from knowledge
-                        if rag_context:
-                            text_messages[0] = {"role": "system", "content": text_messages[0]["content"] + rag_context}
+                        # If documents uploaded, inject RAG context into the latest USER turn.
+                        # Gemma 4's chat template doesn't reliably honor large system messages
+                        # (Qwen3-style raw-ChatML in the backup did). Putting context directly
+                        # next to the question guarantees the model sees it on every turn,
+                        # including 2nd/3rd document uploads in the same chat.
+                        if rag_context and text_messages and text_messages[-1].get("role") == "user":
+                            last = text_messages[-1]
+                            text_messages[-1] = {"role": "user", "content": rag_context + "\n\nQuestion: " + last["content"]}
 
                         # Use chat completions so vLLM applies the model's chat template
                         text_messages = _trim_messages_to_budget(text_messages)
