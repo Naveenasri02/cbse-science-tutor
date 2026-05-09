@@ -8,7 +8,9 @@ import os
 # Hide GPU from this process — vLLM (separate process) keeps full GPU access
 # but NeMo/easyocr/torch in THIS process default to CPU instead of fighting
 # vLLM for VRAM and OOMing. Must run BEFORE any torch/nemo import.
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+# Direct assignment (not setdefault): RunPod sets CUDA_VISIBLE_DEVICES=0 by
+# default which would defeat setdefault.
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import asyncio
 import json
