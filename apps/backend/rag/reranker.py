@@ -1,15 +1,19 @@
 """Cross-encoder reranker for RAG retrieval precision."""
 
+import os
 from sentence_transformers import CrossEncoder
 import config
 
 
 class Reranker:
-    """BGE Reranker v2 — scores (query, chunk) relevance with cross-attention."""
+    """BGE Reranker v2 — scores (query, chunk) relevance with cross-attention.
+    Device controlled by RERANKER_DEVICE env var (default 'cpu' to avoid
+    fighting vLLM for VRAM on shared-GPU pods)."""
 
     def __init__(self):
-        print(f"  Loading reranker {config.RERANKER_MODEL}...")
-        self.model = CrossEncoder(config.RERANKER_MODEL, max_length=512, device="cuda")
+        device = os.getenv("RERANKER_DEVICE", "cpu").lower()
+        print(f"  Loading reranker {config.RERANKER_MODEL} on {device.upper()}...")
+        self.model = CrossEncoder(config.RERANKER_MODEL, max_length=512, device=device)
         # Warmup
         self.model.predict([("warmup query", "warmup passage")])
         print("  ✓ Reranker ready")
