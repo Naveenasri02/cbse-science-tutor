@@ -113,21 +113,19 @@ async def _summarize_old_messages(old_messages: list) -> str:
         f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content'][:300]}"
         for m in old_messages
     )
-    prompt = (
-        "<|im_start|>system\nYou are a conversation summarizer. Be concise and factual.<|im_end|>\n"
-        f"<|im_start|>user\n{_SUMMARIZE_PROMPT.format(conversation=conv_text)}<|im_end|>\n"
-        "<|im_start|>assistant\n"
-    )
     try:
-        resp = await _llm_http.post("/v1/completions", json={
-            "prompt": prompt,
+        resp = await _llm_http.post("/v1/chat/completions", json={
+            "model": config.VLLM_MODEL,
+            "messages": [
+                {"role": "system", "content": "You are a conversation summarizer. Be concise and factual."},
+                {"role": "user", "content": _SUMMARIZE_PROMPT.format(conversation=conv_text)},
+            ],
             "max_tokens": 256,
             "temperature": 0.1,
-            "stop": ["<|im_end|>"],
         })
         if resp.status_code == 200:
             data = resp.json()
-            summary = data["choices"][0].get("text", "").strip()
+            summary = data["choices"][0]["message"].get("content", "").strip()
             summary = _strip_think_blocks(summary)
             print(f"📝 Summarized {len(old_messages)} old messages → {len(summary)} chars")
             return summary
@@ -181,16 +179,17 @@ async def _maybe_summarize_history(conversation_history: list) -> None:
     print(f"🗜️ History compacted: {start_idx + len(old_messages) + len(recent_messages)} → {len(conversation_history)} messages")
 
 
-def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 30000) -> str:
-    """Build a ChatML prompt string with optional assistant pre-fill.
-    Trims older messages (keeping system prompt + summary) to stay within max_ctx tokens.
-    Architecture: [system_prompt] + [?conversation_summary] + [recent_messages] + [prefill]"""
-    # Always keep system prompt (first message) and prefill overhead
-    overhead = _estimate_tokens(prefill) + 50
-    system_cost = _estimate_tokens(messages[0]["content"]) + 10 if messages else 0
+def _trim_messages_to_budget(messages: list, max_ctx: int = 30000) -> list:
+    """Trim older messages (keeping system prompt + optional summary) to stay within max_ctx tokens.
+    Architecture: [system_prompt] + [?conversation_summary] + [recent_messages]
+    Returned list is suitable for passing to vLLM /v1/chat/completions; vLLM will apply
+    the model's chat template automatically."""
+    if not messages:
+        return []
+    overhead = 50
+    system_cost = _estimate_tokens(messages[0]["content"]) + 10
     budget = max_ctx - overhead - system_cost
 
-    # Check if message[1] is a conversation summary — always keep it
     summary_cost = 0
     has_summary = (
         len(messages) > 1
@@ -201,7 +200,6 @@ def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 30000
         summary_cost = _estimate_tokens(messages[1]["content"]) + 10
         budget -= summary_cost
 
-    # Walk from newest to oldest (skip system + optional summary), accumulate until budget exhausted
     skip = 2 if has_summary else 1
     kept = []
     for m in reversed(messages[skip:]):
@@ -212,17 +210,11 @@ def _build_chatml_prompt(messages: list, prefill: str = "", max_ctx: int = 30000
         kept.append(m)
     kept.reverse()
 
-    # Assemble: system + [summary] + kept messages
     final = [messages[0]]
     if has_summary:
         final.append(messages[1])
     final.extend(kept)
-
-    parts = []
-    for m in final:
-        parts.append(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>")
-    parts.append(f"<|im_start|>assistant\n{prefill}")
-    return "\n".join(parts)
+    return final
 
 # ── FastAPI App ─────────────────────────────────────────────
 
@@ -240,12 +232,11 @@ app.add_middleware(
 async def warmup_llm():
     """Send a short warmup request to vLLM so first real query isn't slow."""
     try:
-        warmup_prompt = "<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n"
-        resp = await _llm_http.post("/v1/completions", json={
-            "prompt": warmup_prompt,
+        resp = await _llm_http.post("/v1/chat/completions", json={
+            "model": config.VLLM_MODEL,
+            "messages": [{"role": "user", "content": "Hi"}],
             "max_tokens": 8,
             "temperature": 0,
-            "stop": ["<|im_end|>"],
         })
         if resp.status_code == 200:
             print("  ✓ LLM warmup done")
@@ -720,7 +711,7 @@ async def voice_endpoint(ws: WebSocket):
                 *conversation_history[1:],
             ]
 
-        prompt = _build_chatml_prompt(voice_messages, prefill="<think>\n\n</think>\n\n")
+        voice_messages = _trim_messages_to_budget(voice_messages)
 
         # Async queue: LLM feeds sentences → TTS worker consumes them
         tts_q: asyncio.Queue = asyncio.Queue()
@@ -772,14 +763,13 @@ async def voice_endpoint(ws: WebSocket):
 
             # Stream LLM tokens — aggressive first-chunk for fast TTS start
             async with _llm_http.stream(
-                "POST", "/v1/completions",
+                "POST", "/v1/chat/completions",
                 json={
-                    "prompt": prompt,
+                    "model": config.VLLM_MODEL,
+                    "messages": voice_messages,
                     "max_tokens": 1536,
                     "temperature": 0.3,
-                    "stop": ["<|im_end|>"],
                     "stream": True,
-                    "cache_prompt": True,
                 },
             ) as resp:
                 if resp.status_code != 200:
@@ -789,7 +779,7 @@ async def voice_endpoint(ws: WebSocket):
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])
-                    delta = chunk["choices"][0].get("text", "")
+                    delta = chunk["choices"][0].get("delta", {}).get("content", "") or ""
                     finish = chunk["choices"][0].get("finish_reason")
                     if finish and finish == "length":
                         print(f"⚠️ Voice LLM hit token limit (finish_reason=length) after {len(full_reply)} chars")
@@ -989,20 +979,19 @@ async def voice_endpoint(ws: WebSocket):
                         if rag_context:
                             text_messages[0] = {"role": "system", "content": text_messages[0]["content"] + rag_context}
 
-                        # Use raw completions with think pre-fill for instant answers
-                        prompt = _build_chatml_prompt(text_messages, prefill="<think>\n\n</think>\n\n")
+                        # Use chat completions so vLLM applies the model's chat template
+                        text_messages = _trim_messages_to_budget(text_messages)
                         full_reply = ""
                         t0 = time.perf_counter()
                         try:
                             async with _llm_http.stream(
-                                "POST", "/v1/completions",
+                                "POST", "/v1/chat/completions",
                                 json={
-                                    "prompt": prompt,
+                                    "model": config.VLLM_MODEL,
+                                    "messages": text_messages,
                                     "max_tokens": 2048,
                                     "temperature": 0.3,
-                                    "stop": ["<|im_end|>"],
                                     "stream": True,
-                                    "cache_prompt": True,
                                 },
                             ) as resp:
                                 if resp.status_code != 200:
@@ -1012,7 +1001,7 @@ async def voice_endpoint(ws: WebSocket):
                                     if not line.startswith("data: ") or line == "data: [DONE]":
                                         continue
                                     chunk = json.loads(line[6:])
-                                    delta = chunk["choices"][0].get("text", "")
+                                    delta = chunk["choices"][0].get("delta", {}).get("content", "") or ""
                                     finish = chunk["choices"][0].get("finish_reason")
                                     if finish and finish == "length":
                                         print(f"⚠️ Text LLM hit token limit (finish_reason=length) after {len(full_reply)} chars")

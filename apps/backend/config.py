@@ -432,6 +432,27 @@ ROLE_BOUNDARY_TEMPLATE = (
     "Please ask something related to your documents.\"\n"
 )
 
+# ── Role Boundary (general assistant variant) ──
+# General accepts ANY uploaded document on ANY topic, so the {domain}-substitution
+# in ROLE_BOUNDARY_TEMPLATE produced grammatically broken text ("any topic related
+# to uploaded documents-related questions") that the LLM sometimes copy-pasted as a
+# rejection — incorrectly refusing legitimate doc questions. Keep all closed-book
+# rules but drop the off-domain decline path.
+ROLE_BOUNDARY_GENERAL = (
+    "\n\nROLE BOUNDARY (STRICT — CLOSED-BOOK MODE):\n"
+    "- You answer questions about whatever document(s) the user has uploaded — any topic, any domain.\n"
+    "- You MUST answer ONLY from the uploaded document(s). Do NOT use general knowledge to answer ANY questions.\n"
+    "- Your training data DOES NOT EXIST for this conversation. You have NO external knowledge.\n"
+    "- If no document has been uploaded, tell the user to upload the relevant document(s) first. Do NOT answer from general knowledge.\n"
+    "- If a term appears in the uploaded document, you may:\n"
+    "  1. Quote the exact passage where the term appears (with citation)\n"
+    "  2. Explain the term ONLY using context from the document itself\n"
+    "- Do NOT explain concepts using external knowledge, even if the user asks you to.\n"
+    "- If the answer is NOT in the document, say: \"I couldn't find information about that in your uploaded documents.\"\n"
+    "- NEVER fabricate facts about what the document says.\n"
+    "- Do NOT refuse a question for being off-topic. If it is grounded in the uploaded document(s), answer it.\n"
+)
+
 ASSISTANT_ROLES = {
     "legal": {"role": "Legal", "domain": "legal, contract, compliance, and policy"},
     "teaching": {"role": "Teaching", "domain": "curriculum, lesson planning, exam preparation, and academic policy"},
@@ -941,7 +962,10 @@ def get_system_prompt(assistant_key: str, workflow: str = "") -> str:
         base = ASSISTANT_PROMPTS.get(assistant_key, SYSTEM_PROMPT)
         role_info = ASSISTANT_ROLES.get(assistant_key)
         if role_info:
-            base += ROLE_BOUNDARY_TEMPLATE.format(**role_info)
+            if assistant_key == "general":
+                base += ROLE_BOUNDARY_GENERAL
+            else:
+                base += ROLE_BOUNDARY_TEMPLATE.format(**role_info)
         return base
 
 

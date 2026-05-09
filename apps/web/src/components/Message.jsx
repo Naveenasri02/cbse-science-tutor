@@ -6,7 +6,6 @@ import { palette } from '@cbse/shared'
 
 marked.setOptions({ breaks: true, gfm: true })
 
-// Strip <think>...</think> reasoning traces from LLM output
 function stripThinkBlocks(text) {
   return text.replace(/<think>[\s\S]*?<\/think>\s*/g, '')
 }
