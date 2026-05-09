@@ -1,17 +1,15 @@
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+FROM runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV VOICE_ENABLED=false
 
-# System deps (minimal, no voice libs)
+# Base image already ships Python 3.11 + PyTorch 2.8 + cu12.8.
+# vLLM 0.20.1 wheels expect cu12.8 runtime; cu12.4 base broke vLLM startup
+# (FastAPI bound 8000 but vLLM never bound 8002 on the GPU).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-venv python3-pip \
     ffmpeg curl git \
     && rm -rf /var/lib/apt/lists/*
-
-RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
-    ln -sf /usr/bin/python3.11 /usr/bin/python3
 
 WORKDIR /app
 
