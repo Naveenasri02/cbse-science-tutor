@@ -1,5 +1,6 @@
 """Production embedder: BGE-large + BM25 hybrid search support."""
 
+import os
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
@@ -13,11 +14,14 @@ def _tokenize_for_bm25(text: str) -> list[str]:
 
 
 class Embedder:
-    """BGE-large-en-v1.5 embedding model on GPU + BM25 sparse index."""
+    """BGE-large-en-v1.5 embedding model + BM25 sparse index.
+    Device controlled by EMBEDDING_DEVICE env var (default 'cpu' to avoid
+    fighting vLLM for VRAM on shared-GPU pods)."""
 
     def __init__(self):
-        print(f"  Loading embedding model {config.EMBEDDING_MODEL}...")
-        self.model = SentenceTransformer(config.EMBEDDING_MODEL, device="cuda")
+        device = os.getenv("EMBEDDING_DEVICE", "cpu").lower()
+        print(f"  Loading embedding model {config.EMBEDDING_MODEL} on {device.upper()}...")
+        self.model = SentenceTransformer(config.EMBEDDING_MODEL, device=device)
         self.dim = self.model.get_sentence_embedding_dimension()
         self.model.encode(["warmup sentence"], normalize_embeddings=True)
         print(f"  ✓ Embedder ready (dim={self.dim})")
