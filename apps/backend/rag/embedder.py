@@ -15,11 +15,11 @@ def _tokenize_for_bm25(text: str) -> list[str]:
 
 class Embedder:
     """BGE-large-en-v1.5 embedding model + BM25 sparse index.
-    Device controlled by EMBEDDING_DEVICE env var (default 'cpu' to avoid
-    fighting vLLM for VRAM on shared-GPU pods)."""
+    Device controlled by EMBEDDING_DEVICE env var (default 'cuda' for fast
+    document upload; bootstrap may override to 'cpu' for memory-tight pods)."""
 
     def __init__(self):
-        device = os.getenv("EMBEDDING_DEVICE", "cpu").lower()
+        device = os.getenv("EMBEDDING_DEVICE", "cuda").lower()
         print(f"  Loading embedding model {config.EMBEDDING_MODEL} on {device.upper()}...")
         self.model = SentenceTransformer(config.EMBEDDING_MODEL, device=device)
         self.dim = self.model.get_sentence_embedding_dimension()

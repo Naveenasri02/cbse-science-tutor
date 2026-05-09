@@ -7,11 +7,11 @@ import config
 
 class Reranker:
     """BGE Reranker v2 — scores (query, chunk) relevance with cross-attention.
-    Device controlled by RERANKER_DEVICE env var (default 'cpu' to avoid
-    fighting vLLM for VRAM on shared-GPU pods)."""
+    Device controlled by RERANKER_DEVICE env var (default 'cuda' for fast
+    rerank; bootstrap may override to 'cpu' for memory-tight pods)."""
 
     def __init__(self):
-        device = os.getenv("RERANKER_DEVICE", "cpu").lower()
+        device = os.getenv("RERANKER_DEVICE", "cuda").lower()
         print(f"  Loading reranker {config.RERANKER_MODEL} on {device.upper()}...")
         self.model = CrossEncoder(config.RERANKER_MODEL, max_length=512, device=device)
         # Warmup

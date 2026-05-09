@@ -5,12 +5,13 @@ STT (Parakeet on CPU), TTS (Kokoro CPU), embedder (BGE on CPU), easyocr (CPU).
 """
 
 import os
-# Hide GPU from this process — vLLM (separate process) keeps full GPU access
-# but NeMo/easyocr/torch in THIS process default to CPU instead of fighting
-# vLLM for VRAM and OOMing. Must run BEFORE any torch/nemo import.
-# Direct assignment (not setdefault): RunPod sets CUDA_VISIBLE_DEVICES=0 by
-# default which would defeat setdefault.
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
+# Pod bootstrap exports EMBEDDING_DEVICE=cpu which makes document upload slow
+# (BGE-large embedding ~10-50x slower on CPU). With voice off, vLLM has
+# headroom on the GPU for the embedder + reranker (~2 GB combined). Override
+# the bootstrap export here unless user explicitly opts into CPU via FORCE_CPU=1.
+if os.getenv("FORCE_CPU", "0") != "1":
+    os.environ["EMBEDDING_DEVICE"] = "cuda"
+    os.environ["RERANKER_DEVICE"] = "cuda"
 
 import asyncio
 import json
