@@ -9,7 +9,7 @@ export const ASSISTANTS = [
     label: 'Legal Assistant',
     icon: Scale,
     mode: 'doc',
-    voice: false,
+    voice: true,
     welcomeMessage: 'Private, enterprise-grade Legal Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
       { label: 'Due diligence', icon: FileSearch, message: 'I want help with due diligence' },
@@ -22,7 +22,7 @@ export const ASSISTANTS = [
     label: 'Teaching Assistant',
     icon: GraduationCap,
     mode: 'doc',
-    voice: false,
+    voice: true,
     welcomeMessage: 'Private, enterprise-grade Teaching Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
       { label: 'Curriculum doubt solving', icon: BookOpen, message: 'I want help with curriculum doubt solving' },
@@ -35,7 +35,7 @@ export const ASSISTANTS = [
     label: 'Employee Assistant',
     icon: Briefcase,
     mode: 'doc',
-    voice: false,
+    voice: true,
     welcomeMessage: 'Private, enterprise-grade Employee Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
       { label: 'HR policy support', icon: Users, message: 'I want help with HR policy support' },
@@ -48,7 +48,7 @@ export const ASSISTANTS = [
     label: 'Customer Assistant',
     icon: Headset,
     mode: 'doc',
-    voice: false,
+    voice: true,
     welcomeMessage: 'Private, enterprise-grade Customer Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
       { label: 'Product discovery', icon: Package, message: 'I want help with product discovery' },
@@ -61,7 +61,7 @@ export const ASSISTANTS = [
     label: 'Banking & Insurance',
     icon: Landmark,
     mode: 'doc',
-    voice: false,
+    voice: true,
     welcomeMessage: 'Private, enterprise-grade Banking & Insurance Assistant running on our local server. Try the sample use cases below. If this fits your workflow, we can also build and deploy a secure on-premise version using your own data and infrastructure.',
     tryOptions: [
       { label: 'Policy lookup', icon: FileSearch, message: 'I want help with policy and product lookup' },
@@ -74,7 +74,7 @@ export const ASSISTANTS = [
     label: 'General Assistant',
     icon: Bot,
     mode: 'doc',
-    voice: false,
+    voice: true,
     welcomeMessage: 'Private, enterprise-grade General Document Assistant running on our local server. Upload any document and ask questions. I will analyze the content and provide accurate answers based on your uploaded material.',
     tryOptions: [],
   },

@@ -30,23 +30,27 @@ _stt_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 
 print("🔧 Loading models...")
 
-# Voice (STT/TTS) is gated by VOICE_ENABLED env var. When false (default for
-# this deployment), the stt/ and tts/ modules are NOT imported — so the
-# kokoro-onnx, nemo_toolkit, onnxruntime-gpu, easyocr deps are also not
-# required at runtime. Frontend should not send audio messages in this mode.
-VOICE_ENABLED = os.getenv("VOICE_ENABLED", "false").lower() in ("1", "true", "yes")
+# Voice (STT/TTS) loads opportunistically. Missing deps or model files just
+# disable voice — server still serves text chat. Set VOICE_ENABLED=false to
+# explicitly skip voice loading even when deps are present (faster boot).
+VOICE_ENABLED = os.getenv("VOICE_ENABLED", "true").lower() not in ("0", "false", "no")
 stt = None
 tts = None
 if VOICE_ENABLED:
-    print("  [1/4] STT (torch/NeMo must load before ONNX to avoid CUDA conflict)...")
-    from stt.parakeet_stt import ParakeetSTT
-    stt = ParakeetSTT()
-    print("  ✓ STT ready")
-
-    print("  [2/4] TTS engine...")
-    from tts.kokoro_tts import KokoroTTS
-    tts = KokoroTTS()
-    print("  ✓ TTS ready")
+    try:
+        print("  [1/4] STT (torch/NeMo must load before ONNX to avoid CUDA conflict)...")
+        from stt.parakeet_stt import ParakeetSTT
+        stt = ParakeetSTT()
+        print("  ✓ STT ready")
+    except Exception as e:
+        print(f"  ⚠️ STT load failed; voice input disabled: {type(e).__name__}: {str(e)[:120]}")
+    try:
+        print("  [2/4] TTS engine...")
+        from tts.kokoro_tts import KokoroTTS
+        tts = KokoroTTS()
+        print("  ✓ TTS ready")
+    except Exception as e:
+        print(f"  ⚠️ TTS load failed; voice output disabled: {type(e).__name__}: {str(e)[:120]}")
 else:
     print("  [1/4] STT skipped (VOICE_ENABLED=false)")
     print("  [2/4] TTS skipped (VOICE_ENABLED=false)")

@@ -23,13 +23,13 @@ rank_bm25>=0.2.2
 # Numerics
 numpy>=1.26
 
-# ── Voice deps (STT/TTS) intentionally OMITTED ──
-# When VOICE_ENABLED=true, install these additionally:
-#   nemo_toolkit[asr]>=2.0
-#   soundfile>=0.12
-#   kokoro-onnx>=0.5.0
-#   onnxruntime-gpu>=1.18
-#   nvidia-cudnn-cu12
-#   easyocr>=1.7
-#
+# ── Voice deps (STT/TTS) ──
+# server.py loads these gracefully — missing modules just disable voice without crash.
+nemo_toolkit[asr]>=2.0
+soundfile>=0.12
+kokoro-onnx>=0.5.0
+onnxruntime-gpu>=1.18
+nvidia-cudnn-cu12
+easyocr>=1.7
+
 # vLLM itself is installed separately in the Dockerfile (vllm==0.20.1).
