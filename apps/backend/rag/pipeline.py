@@ -356,27 +356,16 @@ class RAGPipeline:
             sources = self._extract_source_metadata(all_chunks[:included])
             return {"context": context, "sources": sources}
 
-        # Query analysis: classify intent
+        # Query analysis: classify intent (used for routing only — NEVER as a hard
+        # refusal trigger). Gemma 4 (4B) misclassifies abstract academic questions
+        # as 'out_of_scope' even when the doc clearly contains the answer (the
+        # classifier prompt biases toward out_of_scope "when in doubt"). Letting
+        # actual hybrid retrieval + reranker decide is more reliable: if retrieval
+        # finds chunks above the relevance threshold, we answer; if not, the
+        # downstream "no sufficiently relevant information" path (line below)
+        # produces an evidence-grounded refusal.
         query_type = self._analyze_query(session_id, search_query, workflow)
-        print(f"  🧠 RAG: query classified as '{query_type}'")
-
-        if query_type == "out_of_scope":
-            return {
-                "context": (
-                    "\n\n[RAG NOTE: The user's question appears unrelated to the uploaded documents. "
-                    "Politely inform them that you can only answer questions about their uploaded documents.]\n"
-                ),
-                "sources": [],
-            }
-
-        if query_type == "ambiguous":
-            return {
-                "context": (
-                    "\n\n[RAG NOTE: The user's question is ambiguous. "
-                    "Ask them to clarify what specifically they're referring to in the documents.]\n"
-                ),
-                "sources": [],
-            }
+        print(f"  🧠 RAG: query classified as '{query_type}' (routing-only; never blocks retrieval)")
 
         is_summary = query_type == "summary" or self._is_summary_query(search_query)
         is_analysis = query_type == "analysis" or is_analysis_wf
